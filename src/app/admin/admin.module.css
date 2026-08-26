@@ -1,4 +1,4 @@
-﻿/* Premium SaaS Dashboard CSS */
+/* Premium SaaS Dashboard CSS */
 .layout {
   display: flex;
   height: 100vh;
@@ -316,6 +316,10 @@
   color: #475569;
 }
 
+
+.mobileHeader {
+  display: none;
+}
 
 /* Mobile Responsiveness */
 .mobileMenuBtn {
