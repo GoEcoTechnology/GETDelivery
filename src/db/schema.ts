@@ -1,4 +1,4 @@
-import {
+﻿import {
   pgTable,
   serial,
   varchar,
@@ -287,4 +287,46 @@ export const tenantNotifications = pgTable("tenant_notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("tenant_notif_tenant_idx").on(table.tenantId),
+]);
+
+// --- FCM PUSH NOTIFICATION SYSTEM ---
+
+export const notifications = pgTable('notifications', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  deliveryOrderId: integer('delivery_order_id').references(() => deliveryOrders.id),
+  senderId: integer('sender_id'),
+  receiverId: integer('receiver_id').notNull(),
+  receiverRole: varchar('receiver_role', { length: 50 }).notNull(), // PLATFORM_OWNER, ADMIN, DELIVERY_PARTNER
+  notificationType: varchar('notification_type', { length: 50 }).notNull(), // new_delivery_request, order_accepted, etc.
+  title: varchar('title', { length: 255 }).notNull(),
+  body: text('body').notNull(),
+  image: varchar('image', { length: 255 }),
+  actionUrl: varchar('action_url', { length: 255 }),
+  status: varchar('status', { length: 50 }).default('UNREAD').notNull(), // UNREAD, READ, ARCHIVED
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  readAt: timestamp('read_at'),
+  clickedAt: timestamp('clicked_at'),
+}, (table) => [
+  index('notif_receiver_idx').on(table.receiverId),
+  index('notif_tenant_idx_2').on(table.tenantId),
+  index('notif_created_idx').on(table.createdAt),
+  index('notif_status_idx_2').on(table.status),
+]);
+
+export const deviceTokens = pgTable('device_tokens', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  userRole: varchar('user_role', { length: 50 }).notNull(), // To distinguish between users and partners
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  fcmToken: text('fcm_token').notNull().unique(),
+  deviceName: varchar('device_name', { length: 255 }),
+  browser: varchar('browser', { length: 100 }),
+  operatingSystem: varchar('operating_system', { length: 100 }),
+  lastSeen: timestamp('last_seen').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('dt_user_idx').on(table.userId, table.userRole),
+  index('dt_token_idx').on(table.fcmToken),
 ]);

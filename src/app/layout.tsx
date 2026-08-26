@@ -5,6 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 import Providers from "./providers";
+import { NotificationProvider } from "@/components/NotificationProvider";
 
 export const metadata: Metadata = {
   title: "GETDelivery | Enterprise Delivery & Inventory Management",
@@ -20,7 +21,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.variable}>
         <Providers>
-          {children}
+          <NotificationProvider>
+            {children}
+          </NotificationProvider>
         </Providers>
       </body>
     </html>

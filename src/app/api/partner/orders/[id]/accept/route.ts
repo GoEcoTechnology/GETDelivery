@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryInvitations, auditLogs, partnerNotifications, tenantNotifications } from '@/db/schema';
+import { deliveryOrders, deliveryInvitations, auditLogs, partnerNotifications, tenantNotifications, notifications, deviceTokens, deliveryPartners } from '@/db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { messaging } from '@/lib/firebase-admin';
 
 export async function POST(
   request: Request,
@@ -57,12 +58,35 @@ export async function POST(
           )
         );
 
-      // Notify the Tenant that a partner has accepted
+      const [partner] = await tx.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
+      const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
+
+      const messageTitle = 'Your order has been accepted!';
+      const messageBody = `Delivery Partner ${partnerName} accepted your delivery request.\nOrder #SO-000${orderId}\nTap to track your delivery.`;
+
+      // Unified Notifications
+      // Since it's going to the tenant, we might broadcast it to all platform owners/admins of that tenant.
+      // But for the database record, we use receiverRole = 'PLATFORM_OWNER' or 'TENANT_ADMIN' and receiverId can be 0 or specific users.
+      // To keep it simple, we insert a notification for receiverRole = 'PLATFORM_OWNER' with tenantId.
+      await tx.insert(notifications).values({
+        tenantId: updatedOrder.tenantId,
+        deliveryOrderId: orderId,
+        senderId: partnerId,
+        receiverId: 0, // 0 for broadcast to tenant
+        receiverRole: 'PLATFORM_OWNER',
+        notificationType: 'order_accepted',
+        title: messageTitle,
+        body: messageBody,
+        actionUrl: `/admin/deliveries/${orderId}`,
+        status: 'UNREAD'
+      });
+
+      // Legacy fallback
       await tx.insert(tenantNotifications).values({
         tenantId: updatedOrder.tenantId,
         deliveryOrderId: orderId,
-        title: 'Partner Accepted Delivery',
-        body: `A delivery partner has accepted order #${orderId}. Please review and approve.`
+        title: messageTitle,
+        body: messageBody
       });
 
       // Audit log
@@ -75,6 +99,40 @@ export async function POST(
         entityId: orderId,
         details: 'Partner accepted the delivery request, awaiting tenant approval.'
       });
+
+      // Send real Push Notification to Tenant/Platform Owners
+      if (messaging) {
+        try {
+          const tenantTokens = await tx
+            .select({ fcmToken: deviceTokens.fcmToken })
+            .from(deviceTokens)
+            .where(
+              and(
+                eq(deviceTokens.tenantId, updatedOrder.tenantId),
+                eq(deviceTokens.userRole, 'PLATFORM_OWNER')
+              )
+            );
+
+          const fcmTokens = tenantTokens.map(t => t.fcmToken);
+
+          if (fcmTokens.length > 0) {
+            await messaging.sendEachForMulticast({
+              tokens: fcmTokens,
+              notification: {
+                title: messageTitle,
+                body: messageBody,
+              },
+              data: {
+                url: `/admin/deliveries/${orderId}`,
+                action: 'view_order',
+                order_id: orderId.toString(),
+              },
+            });
+          }
+        } catch (fcmError) {
+          console.error('Failed to send FCM to tenant on accept:', fcmError);
+        }
+      }
 
       return NextResponse.json({ success: true, message: 'Delivery request accepted! Awaiting tenant approval.' });
 

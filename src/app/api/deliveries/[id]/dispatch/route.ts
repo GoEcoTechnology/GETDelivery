@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryPartners, deliveryInvitations, smsQueue, notificationQueue, partnerNotifications } from '@/db/schema';
-import { eq, and, or } from 'drizzle-orm';
+import { deliveryOrders, deliveryPartners, deliveryInvitations, smsQueue, notifications, deviceTokens } from '@/db/schema';
+import { eq, and, or, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
-import { queueSms, queueFcm } from '@/lib/queues';
+import { queueSms } from '@/lib/queues';
 import crypto from 'crypto';
 import { hashPassword } from '@/lib/password';
+import { messaging } from '@/lib/firebase-admin';
 
 export async function POST(
   request: Request,
@@ -44,7 +45,7 @@ export async function POST(
       .select({ 
         id: deliveryPartners.id, 
         mobileNumber: deliveryPartners.mobileNumber,
-        notificationToken: deliveryPartners.notificationToken 
+        companyName: deliveryPartners.companyName
       })
       .from(deliveryPartners)
       .where(or(eq(deliveryPartners.status, 'ACTIVE'), eq(deliveryPartners.status, 'AVAILABLE')));
@@ -55,6 +56,8 @@ export async function POST(
 
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1); // Token expires in 1 hour
+    
+    const partnerIds = eligiblePartners.map(p => p.id);
 
     // Create invitations and queue SMS synchronously in the DB transaction
     await tx.transaction(async (innerTx: any) => {
@@ -82,52 +85,46 @@ export async function POST(
         .values(invitationsToInsert)
         .returning();
 
-      const fcmTokensToInsert: any[] = [];
+      const newNotifsToInsert: any[] = [];
       const smsQueueToInsert: any[] = [];
-      const partnerNotifsToInsert: any[] = [];
+      
+      const messageTitle = 'New Delivery Request';
+      const messageBody = `New order ready for pickup.\nOrder #SO-000${order.id}\nCustomer: ${order.customerName}\nPickup: ${order.pickupAddress}\nDropoff: ${order.dropoffAddress}\nTap to view details.`;
 
       eligiblePartners.forEach((partner: any, i: number) => {
         const fullToken = `${insertedInvitations[i].id}_${tokens[i]}`;
         const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/invite/${fullToken}`;
         const message = `NEW DELIVERY OPPORTUNITY: You have a delivery request from GET Delivery. Accept here: ${inviteLink}`;
         
-        const messageTitle = 'New Delivery Opportunity';
-        const messageBody = 'You have a delivery request from GET Delivery. Tap to accept.';
-
-        // Always add in-app notification for the partner portal
-        partnerNotifsToInsert.push({
+        // Unified Push Notifications
+        newNotifsToInsert.push({
           tenantId: tenantIdToUse,
-          deliveryPartnerId: partner.id,
           deliveryOrderId: order.id,
+          senderId: claims.userId || null,
+          receiverId: partner.id,
+          receiverRole: 'DELIVERY_PARTNER',
+          notificationType: 'new_delivery_request',
           title: messageTitle,
-          body: messageBody
+          body: messageBody,
+          actionUrl: `/partner/orders/${order.id}`,
+          status: 'UNREAD'
         });
 
-        if (partner.notificationToken) {
-          fcmTokensToInsert.push({
-            tenantId: tenantIdToUse,
-            deliveryOrderId: order.id,
-            recipientType: 'DELIVERY_PARTNER',
-            recipientId: partner.id,
-            channel: 'FCM',
-            status: 'PENDING',
-          });
-        } else {
-          smsQueueToInsert.push({
-            tenantId: tenantIdToUse,
-            deliveryOrderId: order.id,
-            recipientMobile: partner.mobileNumber,
-            message,
-            status: 'PENDING',
-          });
-        }
+        // SMS fallback logic 
+        smsQueueToInsert.push({
+          tenantId: tenantIdToUse,
+          deliveryOrderId: order.id,
+          recipientMobile: partner.mobileNumber,
+          message,
+          status: 'PENDING',
+        });
       });
 
       const promises = [];
 
-      // Insert in-app notifications
-      if (partnerNotifsToInsert.length > 0) {
-        promises.push(innerTx.insert(partnerNotifications).values(partnerNotifsToInsert));
+      // Insert unified notifications
+      if (newNotifsToInsert.length > 0) {
+        promises.push(innerTx.insert(notifications).values(newNotifsToInsert));
       }
 
       if (smsQueueToInsert.length > 0) {
@@ -137,31 +134,58 @@ export async function POST(
         );
       }
 
-      if (fcmTokensToInsert.length > 0) {
-        const insertedFcm = await innerTx.insert(notificationQueue).values(fcmTokensToInsert).returning();
-        promises.push(
-          ...insertedFcm.map((fcmJob: any) => {
-            const partner = eligiblePartners.find((p: any) => p.id === fcmJob.recipientId);
-            const partnerIndex = eligiblePartners.findIndex((p: any) => p.id === fcmJob.recipientId);
-            const fullToken = `${insertedInvitations[partnerIndex].id}_${tokens[partnerIndex]}`;
-            const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/invite/${fullToken}`;
-            const partnerUrl = `/partner/orders/${order.id}`;
-            const messageTitle = 'New Delivery Opportunity';
-            const messageBody = 'You have a delivery request from GET Delivery. Tap to accept.';
-
-            return queueFcm(fcmJob.id, partner.notificationToken, {
-              title: messageTitle,
-              body: messageBody,
-              data: { inviteLink, url: partnerUrl }
-            });
-          })
-        );
-      }
-
       await Promise.all(promises);
     });
+
+    // Send Real Push Notifications directly via Firebase Admin SDK (outside of DB transaction so it doesn't block DB locks)
+    if (messaging) {
+      try {
+        // Fetch valid tokens for these partners
+        const tokens = await tx
+          .select({ fcmToken: deviceTokens.fcmToken })
+          .from(deviceTokens)
+          .where(
+            and(
+              inArray(deviceTokens.userId, partnerIds),
+              eq(deviceTokens.userRole, 'DELIVERY_PARTNER')
+            )
+          );
+
+        const fcmTokens = tokens.map(t => t.fcmToken);
+
+        if (fcmTokens.length > 0) {
+          const messageTitle = 'New Delivery Request';
+          const messageBody = `New order ready for pickup.\nOrder #SO-000${order.id}\nCustomer: ${order.customerName}\nTap to view details.`;
+          
+          await messaging.sendEachForMulticast({
+            tokens: fcmTokens,
+            notification: {
+              title: messageTitle,
+              body: messageBody,
+            },
+            data: {
+              url: `/partner/orders/${order.id}`,
+              action: 'view_order',
+              order_id: order.id.toString(),
+            },
+            android: {
+              priority: 'high',
+              notification: {
+                sound: 'default',
+              }
+            },
+            webpush: {
+              headers: {
+                Urgency: 'high'
+              }
+            }
+          });
+        }
+      } catch (fcmError) {
+        console.error('Failed to send FCM multicast:', fcmError);
+      }
+    }
 
     return NextResponse.json({ success: true, message: `Dispatched to ${eligiblePartners.length} partners` });
   });
 }
-

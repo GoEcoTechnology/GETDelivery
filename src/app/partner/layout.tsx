@@ -4,6 +4,8 @@ import { Package, Bell } from 'lucide-react';
 import styles from './partner.module.css';
 import PartnerNotifListener from './PartnerNotifListener';
 
+import { NotificationCenter } from '@/components/NotificationCenter';
+
 export const metadata: Metadata = {
   title: 'Partner Portal | GET Delivery',
   description: 'Portal for GET Delivery Partners',
@@ -16,13 +18,13 @@ export default function PartnerLayout({
 }) {
   return (
     <div className={styles.container}>
-      <PartnerNotifListener />
       {/* Mobile-first sticky header */}
       <header className={styles.header}>
-        <div className={styles.headerContent}>
+        <div className={styles.headerContent} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <span className={styles.logo}>GET<span className={styles.logoLight}>Partner</span></span>
           </div>
+          <NotificationCenter />
         </div>
       </header>
 
