@@ -123,7 +123,7 @@ export default function LoginPage() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
-            placeholder="admin@example.com or +639123456789"
+            placeholder="Enter your email or mobile number"
           />
         </div>
 
