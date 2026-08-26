@@ -1,4 +1,4 @@
-﻿import { initializeApp, getApps, getApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, Messaging } from "firebase/messaging";
 
 const firebaseConfig = {
@@ -10,12 +10,14 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const isConfigValid = firebaseConfig.projectId && firebaseConfig.apiKey;
+
+// Initialize Firebase only if config is valid
+const app = isConfigValid ? (getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()) : null;
 
 // Initialize Messaging
 let messaging: Messaging | null = null;
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && app) {
   try {
     messaging = getMessaging(app);
   } catch (error) {
