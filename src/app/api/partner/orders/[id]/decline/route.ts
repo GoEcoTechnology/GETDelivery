@@ -92,7 +92,7 @@ export async function POST(
               )
             );
 
-          const fcmTokens = tenantTokens.map(t => t.fcmToken);
+          const fcmTokens = tenantTokens.map((t: { fcmToken: string }) => t.fcmToken);
 
           if (fcmTokens.length > 0) {
             await messaging.sendEachForMulticast({

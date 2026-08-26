@@ -26,11 +26,11 @@ export async function GET(request: Request) {
           or(
             and(
               eq(notifications.receiverId, userId as number),
-              eq(notifications.receiverRole, userRole)
+              eq(notifications.receiverRole, userRole as any)
             ),
             and(
               eq(notifications.receiverId, 0),
-              eq(notifications.receiverRole, userRole),
+              eq(notifications.receiverRole, userRole as any),
               eq(notifications.tenantId, claims.tenantId as number)
             )
           )
@@ -85,11 +85,11 @@ export async function PATCH(request: Request) {
             or(
               and(
                 eq(notifications.receiverId, userId as number),
-                eq(notifications.receiverRole, userRole)
+                eq(notifications.receiverRole, userRole as any)
               ),
               and(
                 eq(notifications.receiverId, 0),
-                eq(notifications.receiverRole, userRole),
+                eq(notifications.receiverRole, userRole as any),
                 eq(notifications.tenantId, claims.tenantId as number)
               )
             )

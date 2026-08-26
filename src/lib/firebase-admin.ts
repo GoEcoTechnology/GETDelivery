@@ -1,7 +1,8 @@
-import * as admin from 'firebase-admin';
+﻿import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 
 // Initialize Firebase Admin SDK
-if (!admin.apps.length) {
+if (!getApps().length) {
   try {
     let credential;
     
@@ -9,14 +10,14 @@ if (!admin.apps.length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       try {
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-        credential = admin.credential.cert(serviceAccount);
+        credential = cert(serviceAccount);
       } catch (e) {
         console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY JSON string.');
       }
     } 
     // Fallback to checking individual env variables (common on Vercel)
     else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-      credential = admin.credential.cert({
+      credential = cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         // Replace escaped newlines with actual newlines
@@ -25,7 +26,7 @@ if (!admin.apps.length) {
     }
 
     if (credential) {
-      admin.initializeApp({
+      initializeApp({
         credential,
       });
       console.log('Firebase Admin initialized successfully.');
@@ -37,5 +38,4 @@ if (!admin.apps.length) {
   }
 }
 
-export const messaging = admin.apps.length ? admin.messaging() : null;
-export default admin;
+export const messaging = getApps().length ? getMessaging() : null;

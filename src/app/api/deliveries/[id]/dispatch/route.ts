@@ -57,7 +57,7 @@ export async function POST(
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1); // Token expires in 1 hour
     
-    const partnerIds = eligiblePartners.map(p => p.id);
+    const partnerIds = eligiblePartners.map((p: { id: number }) => p.id);
 
     // Create invitations and queue SMS synchronously in the DB transaction
     await tx.transaction(async (innerTx: any) => {
@@ -151,7 +151,7 @@ export async function POST(
             )
           );
 
-        const fcmTokens = tokens.map(t => t.fcmToken);
+        const fcmTokens = tokens.map((t: { fcmToken: string }) => t.fcmToken);
 
         if (fcmTokens.length > 0) {
           const messageTitle = 'New Delivery Request';

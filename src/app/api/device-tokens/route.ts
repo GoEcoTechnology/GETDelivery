@@ -27,8 +27,8 @@ export async function POST(request: Request) {
         .from(deviceTokens)
         .where(
           and(
-            eq(deviceTokens.userId, userId),
-            eq(deviceTokens.userRole, userRole),
+            eq(deviceTokens.userId, userId as number),
+            eq(deviceTokens.userRole, userRole as any),
             eq(deviceTokens.fcmToken, fcmToken)
           )
         )
@@ -49,8 +49,8 @@ export async function POST(request: Request) {
       } else {
         // Insert new token
         await tx.insert(deviceTokens).values({
-          userId,
-          userRole,
+          userId: userId as number,
+          userRole: userRole as any,
           tenantId: claims.tenantId || null,
           fcmToken,
           deviceName,
@@ -87,8 +87,8 @@ export async function DELETE(request: Request) {
         .delete(deviceTokens)
         .where(
           and(
-            eq(deviceTokens.userId, userId),
-            eq(deviceTokens.userRole, userRole),
+            eq(deviceTokens.userId, userId as number),
+            eq(deviceTokens.userRole, userRole as any),
             eq(deviceTokens.fcmToken, fcmToken)
           )
         );
