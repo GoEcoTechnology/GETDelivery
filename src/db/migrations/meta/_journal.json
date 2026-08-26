@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1787616863061,
+      "tag": "0000_low_roland_deschain",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787635785040,
+      "tag": "0001_tired_mentor",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787636316356,
+      "tag": "0002_equal_black_knight",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787700753147,
+      "tag": "0003_organic_sentry",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787713386034,
+      "tag": "0004_mixed_killer_shrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787716189603,
+      "tag": "0005_dazzling_plazm",
+      "breakpoints": true
+    }
+  ]
+}

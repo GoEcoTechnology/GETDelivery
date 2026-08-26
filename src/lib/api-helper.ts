@@ -1,0 +1,56 @@
+import { NextResponse } from 'next/server';
+import { withRLS } from '@/db';
+import type { AppJwtPayload } from '@/lib/auth';
+import { hasPermission, Permission } from '@/lib/permissions';
+
+export async function withAuth(
+  request: Request,
+  optionsOrCallback: ((tx: any, claims: AppJwtPayload) => Promise<NextResponse>) | { requiredPermissions?: Permission[] },
+  callback?: (tx: any, claims: AppJwtPayload) => Promise<NextResponse>
+) {
+  const isOptions = typeof optionsOrCallback !== 'function';
+  const actualCallback = isOptions ? callback! : (optionsOrCallback as (tx: any, claims: AppJwtPayload) => Promise<NextResponse>);
+  const requiredPermissions = isOptions ? (optionsOrCallback as any).requiredPermissions || [] : [];
+
+  const tenantIdStr = request.headers.get('x-tenant-id');
+  const userIdStr = request.headers.get('x-user-id');
+  const role = request.headers.get('x-user-role');
+  const accessType = request.headers.get('x-access-type');
+
+  let claims: any = {};
+  if (role) {
+    const partnerIdStr = request.headers.get('x-partner-id');
+    claims = {
+      role,
+      userId: userIdStr ? parseInt(userIdStr, 10) : null,
+      tenantId: tenantIdStr ? parseInt(tenantIdStr, 10) : null,
+      partnerId: partnerIdStr ? parseInt(partnerIdStr, 10) : null
+    };
+
+    // Granular permission check
+    for (const perm of requiredPermissions) {
+      if (!hasPermission(role, perm)) {
+        return NextResponse.json({ error: `Forbidden: Missing permission ${perm}` }, { status: 403 });
+      }
+    }
+  } else if (accessType === 'PARTNER_INVITE') {
+    claims = { type: 'PARTNER_INVITE', partnerId: parseInt(request.headers.get('x-partner-id') || '0', 10) };
+  } else if (accessType === 'DRIVER_ACCESS') {
+    claims = { type: 'DRIVER_ACCESS', assignmentId: parseInt(request.headers.get('x-assignment-id') || '0', 10) };
+  } else {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    return await withRLS(claims as AppJwtPayload, async (tx) => {
+      return await actualCallback(tx, claims);
+    });
+  } catch (error: any) {
+    console.error('API Error:', error);
+    // Safe production error responses
+    if (error.message && (error.message.includes('not found') || error.message.includes('Insufficient') || error.message.includes('Invalid'))) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Internal server error', details: error.message, stack: error.stack }, { status: 500 });
+  }
+}
