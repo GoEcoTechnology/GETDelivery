@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -102,7 +102,7 @@ export default function LoginPage() {
         </div>
       )}
 
-      <form onSubmit={handleLogin} className={$"{styles.card}" glass}>
+      <form onSubmit={handleLogin} className={`${styles.card} glass`}>
         <div>
           <h1 className={styles.title}>Welcome Back</h1>
           <p className={styles.label} style={{ textAlign: "center" }}>
@@ -144,7 +144,7 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          className={$"btn btn-primary {styles.submitBtn}"}
+          className={`btn btn-primary ${styles.submitBtn}`}
           disabled={loading}
         >
           {loading ? "Signing in..." : "Sign In"}
