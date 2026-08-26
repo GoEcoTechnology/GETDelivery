@@ -5,7 +5,7 @@ import { verifyToken, UserJwtPayload } from './lib/auth';
 // Paths that do not require authentication
 const publicPaths = ['/api/auth/login', '/login', '/api/invite', '/invite'];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip public paths and static files
