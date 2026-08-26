@@ -26,7 +26,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Login failed");
+        throw new Error(data.details || data.error || "Login failed");
       }
 
       // Save user to localStorage so client-side layouts know who is logged in

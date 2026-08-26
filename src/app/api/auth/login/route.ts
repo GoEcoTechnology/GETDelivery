@@ -104,8 +104,12 @@ export async function POST(request: Request) {
       return response;
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: error.message,
+      stack: error.stack 
+    }, { status: 500 });
   }
 }
