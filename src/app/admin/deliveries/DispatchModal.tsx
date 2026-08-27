@@ -76,7 +76,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
     onSuccess: () => {
       onClose();
       onDispatchComplete();
-      alert('Delivery dispatched successfully! SMS Invitations broadcasted.');
+      alert('Delivery dispatched successfully! Push Notifications broadcasted.');
     },
     onError: (error: any) => {
       alert(`Error: ${error.message}`);
@@ -147,7 +147,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
                 <span style={{ fontWeight: 700, fontSize: '16px' }}>Rent Delivery Partner</span>
               </div>
               <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
-                Broadcast an SMS to all available delivery partners. First to accept gets assigned.
+                  Broadcast a push notification to all available delivery partners. First to accept gets assigned.
               </p>
             </div>
           </div>
@@ -191,7 +191,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
           {selectedOption === 'partner' && (
             <div style={{ padding: '20px', backgroundColor: '#f0fdf4', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
               <p style={{ margin: 0, fontSize: '14px', color: '#166534', fontWeight: 500 }}>
-                This will instantly send an SMS to all delivery partners with "AVAILABLE" status. You will be notified once a partner accepts.
+                This will instantly send a Push Notification to all delivery partners with "AVAILABLE" status. You will be notified once a partner accepts.
               </p>
             </div>
           )}

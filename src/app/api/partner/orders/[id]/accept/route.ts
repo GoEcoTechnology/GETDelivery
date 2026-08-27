@@ -17,8 +17,31 @@ export async function POST(
         return NextResponse.json({ error: 'Invalid delivery order ID' }, { status: 400 });
       }
 
-      // Attempt to atomically update the deliveryOrder
-      const [updatedOrder] = await tx
+      // Verify invitation first using admin DB connection
+      const [invitation] = await db.select().from(deliveryInvitations).where(
+        and(
+          eq(deliveryInvitations.deliveryOrderId, orderId),
+          eq(deliveryInvitations.deliveryPartnerId, partnerId),
+          eq(deliveryInvitations.status, 'PENDING')
+        )
+      );
+
+      if (!invitation) {
+        // Find order to give better error message
+        const [existingOrder] = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, orderId));
+        if (!existingOrder) {
+          return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
+        }
+        if (existingOrder.temporaryWinnerId === partnerId) {
+          return NextResponse.json({ success: true, message: 'You have already accepted this request.' });
+        }
+        return NextResponse.json({ 
+          error: `Could not accept this delivery. It may have expired or been assigned to another partner.` 
+        }, { status: 400 });
+      }
+
+      // Perform updates using admin connection to bypass RLS restrictions on deliveryOrders for partners
+      const [updatedOrder] = await db
         .update(deliveryOrders)
         .set({
           status: 'WAITING_APPROVAL',
@@ -27,39 +50,18 @@ export async function POST(
         .where(
           and(
             eq(deliveryOrders.id, orderId),
-            eq(deliveryOrders.status, 'DISPATCHED'), // Only update if it's currently DISPATCHED
+            eq(deliveryOrders.status, 'DISPATCHED'),
             isNull(deliveryOrders.temporaryWinnerId)
           )
         )
         .returning();
 
-      // If we didn't get an updated order back, it means someone else won or the order doesn't exist/isn't valid.
       if (!updatedOrder) {
-        // Let's see if the order exists and what its current state is
-        const [existingOrder] = await tx.select().from(deliveryOrders).where(eq(deliveryOrders.id, orderId));
-        
-        if (!existingOrder) {
-          return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
-        }
-        
-        if (existingOrder.temporaryWinnerId) {
-          if (existingOrder.temporaryWinnerId === partnerId) {
-            // Fix UI out-of-sync issue where they already accepted it
-            return NextResponse.json({ success: true, message: 'You have already accepted this request.' });
-          } else {
-            return NextResponse.json({ error: 'This delivery request has already been assigned to another partner.' }, { status: 409 });
-          }
-        }
-        
-        // If we reach here, temporaryWinnerId is null, but the update still failed.
-        // This means the status is NOT 'DISPATCHED'.
-        return NextResponse.json({ 
-          error: `Could not accept this delivery. Order status is '${existingOrder.status}' (expected 'DISPATCHED'). It may have expired or been cancelled.` 
-        }, { status: 400 });
+        return NextResponse.json({ error: 'Failed to accept. Order may no longer be available.' }, { status: 409 });
       }
 
       // Mark the invitation for this partner as TEMPORARY_WINNER
-      await tx
+      await db
         .update(deliveryInvitations)
         .set({
           status: 'TEMPORARY_WINNER',
@@ -72,7 +74,7 @@ export async function POST(
           )
         );
 
-      const [partner] = await tx.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
+      const [partner] = await db.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
       const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
 
       const messageTitle = 'Your order has been accepted!';
@@ -82,7 +84,7 @@ export async function POST(
       // Since it's going to the tenant, we might broadcast it to all platform owners/admins of that tenant.
       // But for the database record, we use receiverRole = 'PLATFORM_OWNER' or 'TENANT_ADMIN' and receiverId can be 0 or specific users.
       // To keep it simple, we insert a notification for receiverRole = 'PLATFORM_OWNER' with tenantId.
-      await tx.insert(notifications).values({
+      await db.insert(notifications).values({
         tenantId: updatedOrder.tenantId,
         deliveryOrderId: orderId,
         senderId: partnerId,
@@ -96,7 +98,7 @@ export async function POST(
       });
 
       // Legacy fallback
-      await tx.insert(tenantNotifications).values({
+      await db.insert(tenantNotifications).values({
         tenantId: updatedOrder.tenantId,
         deliveryOrderId: orderId,
         title: messageTitle,
@@ -104,7 +106,7 @@ export async function POST(
       });
 
       // Audit log
-      await tx.insert(auditLogs).values({
+      await db.insert(auditLogs).values({
         tenantId: updatedOrder.tenantId,
         actorType: 'PARTNER',
         actorId: partnerId,
@@ -117,7 +119,7 @@ export async function POST(
       // Send real Push Notification to Tenant/Platform Owners
       if (messaging) {
         try {
-          const tenantTokens = await tx
+          const tenantTokens = await db
             .select({ fcmToken: deviceTokens.fcmToken })
             .from(deviceTokens)
             .where(

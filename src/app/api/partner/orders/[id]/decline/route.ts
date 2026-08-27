@@ -19,8 +19,8 @@ export async function POST(
         return NextResponse.json({ error: 'Invalid delivery order ID' }, { status: 400 });
       }
 
-      // Mark the invitation as DECLINED
-      const [updatedInvitation] = await tx
+      // Mark the invitation as DECLINED using admin connection to bypass RLS
+      const [updatedInvitation] = await db
         .update(deliveryInvitations)
         .set({
           status: 'DECLINED',
@@ -40,25 +40,33 @@ export async function POST(
         return NextResponse.json({ error: 'Cannot decline this request. It may have expired or you already responded.' }, { status: 400 });
       }
 
-      // Audit log
-      await tx.insert(auditLogs).values({
-        tenantId: updatedInvitation.tenantId,
-        actorType: 'PARTNER',
-        actorId: partnerId,
-        action: 'DELIVERY_REQUEST_DECLINED',
-        entityType: 'DELIVERY_ORDER',
-        entityId: orderId,
-        details: `Partner declined the request. Reason: ${declineReason}`
-      });
+      // Check if there are any pending invitations left for this order
+      const pendingInvitations = await db
+        .select()
+        .from(deliveryInvitations)
+        .where(
+          and(
+            eq(deliveryInvitations.deliveryOrderId, orderId),
+            eq(deliveryInvitations.status, 'PENDING')
+          )
+        );
 
-      const [partner] = await tx.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
+      if (pendingInvitations.length === 0) {
+        // If no pending invitations remain, revert the order status to READY_FOR_DISPATCH
+        await db
+          .update(deliveryOrders)
+          .set({ status: 'READY_FOR_DISPATCH' })
+          .where(eq(deliveryOrders.id, orderId));
+      }
+
+      const [partner] = await db.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
       const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
 
-      const messageTitle = 'Delivery Partner unavailable';
-      const messageBody = `Delivery Partner ${partnerName} declined request #${orderId}. Reason: ${declineReason || 'None provided'}`;
+      const messageTitle = 'Delivery Request Declined';
+      const messageBody = `${partnerName} declined your delivery request.\nReason: ${declineReason || 'Not specified'}`;
 
-      // Unified Notifications for Platform Owner
-      await tx.insert(notifications).values({
+      // Insert Unified Notification
+      await db.insert(notifications).values({
         tenantId: updatedInvitation.tenantId,
         deliveryOrderId: orderId,
         senderId: partnerId,
@@ -71,18 +79,29 @@ export async function POST(
         status: 'UNREAD'
       });
 
-      // Notify the tenant (Legacy fallback - matching actual schema)
-      await tx.insert(tenantNotifications).values({
+      // Insert Legacy Notification
+      await db.insert(tenantNotifications).values({
         tenantId: updatedInvitation.tenantId,
         deliveryOrderId: orderId,
         title: messageTitle,
         body: messageBody
       });
 
-      // Send real Push Notification to Tenant/Platform Owners
+      // Audit log
+      await db.insert(auditLogs).values({
+        tenantId: updatedInvitation.tenantId,
+        actorType: 'PARTNER',
+        actorId: partnerId,
+        action: 'DELIVERY_REQUEST_DECLINED',
+        entityType: 'DELIVERY_ORDER',
+        entityId: orderId,
+        details: `Partner declined the request. Reason: ${declineReason || 'Not specified'}`
+      });
+
+      // Send Push Notification
       if (messaging) {
         try {
-          const tenantTokens = await tx
+          const tenantTokens = await db
             .select({ fcmToken: deviceTokens.fcmToken })
             .from(deviceTokens)
             .where(
