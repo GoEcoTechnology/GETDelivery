@@ -29,8 +29,13 @@ export function useFcmToken() {
         // Auto-register since they enabled it
         if (messaging) {
           try {
+            // Explicitly register service worker with config in URL params
+            const swUrl = `/firebase-messaging-sw.js?apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}`;
+            const registration = await navigator.serviceWorker.register(swUrl);
+
             const currentToken = await getToken(messaging, {
               vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+              serviceWorkerRegistration: registration,
             });
             if (currentToken) {
               setToken(currentToken);
@@ -71,9 +76,14 @@ export function useFcmToken() {
       setPermission(currentPermission);
 
       if (currentPermission === 'granted') {
+        // Explicitly register service worker with config in URL params
+        const swUrl = `/firebase-messaging-sw.js?apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}`;
+        const registration = await navigator.serviceWorker.register(swUrl);
+
         // We use the VAPID key configured in Firebase Project Settings -> Cloud Messaging -> Web Push certificates
         const currentToken = await getToken(messaging, {
           vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+          serviceWorkerRegistration: registration,
         });
 
         if (currentToken) {
