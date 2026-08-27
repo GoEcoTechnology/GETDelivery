@@ -170,11 +170,10 @@ export async function POST(
           
           await messaging.sendEachForMulticast({
             tokens: fcmTokens,
-            notification: {
+            // Data-only payload forces the service worker to handle it explicitly in background
+            data: {
               title: messageTitle,
               body: messageBody,
-            },
-            data: {
               url: `/partner/orders/${order.id}`,
               action: 'view_order',
               order_id: order.id.toString(),
