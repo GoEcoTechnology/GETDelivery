@@ -49,6 +49,50 @@ async function main() {
     }
   });
 
+  // Send real Push Notification to Tenant/Platform Owners for testing
+  const { messaging } = await import('./src/lib/firebase-admin');
+  const { deviceTokens } = await import('./src/db/schema');
+  const { inArray, and } = await import('drizzle-orm');
+  
+  if (messaging) {
+    try {
+      const partnerIds = eligiblePartners.map(p => p.id);
+      const tokens = await db
+        .select({ fcmToken: deviceTokens.fcmToken })
+        .from(deviceTokens)
+        .where(
+          and(
+            inArray(deviceTokens.userId, partnerIds),
+            eq(deviceTokens.userRole, 'DELIVERY_PARTNER')
+          )
+        );
+
+      const fcmTokens = tokens.map(t => t.fcmToken);
+
+      if (fcmTokens.length > 0) {
+        console.log(`Sending FCM to ${fcmTokens.length} tokens...`);
+        const messageTitle = 'New Delivery Request';
+        const messageBody = 'You have a delivery request from GET Delivery. Tap to accept.';
+        
+        await messaging.sendEachForMulticast({
+          tokens: fcmTokens,
+          data: {
+            title: messageTitle,
+            body: messageBody,
+            url: `/partner/orders/${order.id}`,
+            action: 'view_order',
+            order_id: order.id.toString(),
+          },
+        });
+        console.log("FCM Sent successfully.");
+      } else {
+        console.log("No FCM tokens found for partners.");
+      }
+    } catch (fcmError) {
+      console.error('Failed to send FCM:', fcmError);
+    }
+  }
+
   console.log("Done");
   process.exit(0);
 }

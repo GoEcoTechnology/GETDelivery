@@ -31,8 +31,7 @@ if (firebaseConfig.apiKey) {
     const notificationTitle = payload.notification?.title || payload.data?.title || 'New Notification';
     const notificationOptions = {
       body: payload.notification?.body || payload.data?.body,
-      icon: payload.notification?.icon || '/icons/icon-192x192.png',
-      badge: '/icons/icon-192x192.png',
+      // Omit icon and badge to prevent 404 aborts on Android
       vibrate: [200, 100, 200, 100, 200],
       data: {
         url: payload.data?.url || payload.data?.click_action || '/',

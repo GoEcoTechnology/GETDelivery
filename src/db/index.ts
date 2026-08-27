@@ -39,9 +39,15 @@ export async function withRLS<T>(
       await tx.execute(sql`SELECT set_config('request.jwt.claim.tenant_id', '', true)`);
     }
 
-    // 3. Inject role
+    // 3. Inject role and IDs
     if ('role' in claims) {
       await tx.execute(sql`SELECT set_config('request.jwt.claim.role', ${claims.role}, true)`);
+      if (claims.partnerId) {
+        await tx.execute(sql`SELECT set_config('request.jwt.claim.partner_id', ${claims.partnerId.toString()}, true)`);
+      }
+      if (claims.userId) {
+        await tx.execute(sql`SELECT set_config('request.jwt.claim.user_id', ${claims.userId.toString()}, true)`);
+      }
     } else if (claims.type === 'PARTNER_INVITE') {
       await tx.execute(sql`SELECT set_config('request.jwt.claim.role', 'DELIVERY_PARTNER', true)`);
       await tx.execute(sql`SELECT set_config('request.jwt.claim.partner_id', ${claims.partnerId.toString()}, true)`);
