@@ -99,117 +99,119 @@ export default function DeliveriesPage() {
       </div>
 
       <div className={styles.card} style={{ padding: 0, overflow: 'hidden' }}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Order Details</th>
-              <th>Locations</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {deliveries.length === 0 ? (
+        <div className={styles.tableContainer}>
+          <table className={styles.table}>
+            <thead>
               <tr>
-                <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                  <Truck size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-                  <p>No active deliveries found. Create your first delivery.</p>
-                </td>
+                <th>Order Details</th>
+                <th>Locations</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
-            ) : (
-              deliveries.map((delivery: any) => (
-                <tr key={delivery.id}>
-                  <td>
-                    <div style={{ fontWeight: 600, color: '#1e293b' }}>{delivery.customerName}</div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{delivery.customerContact}</div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Order #{delivery.id}</div>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6', marginTop: '6px' }} />
-                        <div style={{ color: '#475569', fontSize: '13px', maxWidth: '250px' }}>{delivery.pickupAddress}</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', marginTop: '6px' }} />
-                        <div style={{ color: '#475569', fontSize: '13px', maxWidth: '250px' }}>{delivery.dropoffAddress}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <StatusBadge status={delivery.status} />
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      {delivery.status === 'DRAFT' && (
-                        <>
-                          <button 
-                            onClick={() => window.location.href = `/admin/deliveries/${delivery.id}/edit`}
-                            style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <Edit size={14} /> Edit Items
-                          </button>
-                          <button 
-                            onClick={() => readyMutation.mutate(delivery.id)}
-                            style={{ padding: '6px 12px', backgroundColor: '#eab308', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <CheckSquare size={14} /> Mark Ready
-                          </button>
-                        </>
-                      )}
-                      
-                      {delivery.status === 'READY_FOR_DISPATCH' && (
-                        <button 
-                          onClick={() => handleDispatch(delivery.id)}
-                          style={{ padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                        >
-                          <Truck size={14} /> Dispatch
-                        </button>
-                      )}
-
-                      {delivery.status === 'WAITING_APPROVAL' && (
-                        <>
-                          <button 
-                            onClick={async () => {
-                              if(!confirm('Approve this partner?')) return;
-                              const res = await fetch(`/api/deliveries/${delivery.id}/approve-partner`, { method: 'POST' });
-                              if (res.ok) queryClient.invalidateQueries({ queryKey: ['deliveries'] });
-                              else alert('Failed to approve');
-                            }}
-                            style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <CheckCircle2 size={14} /> Approve
-                          </button>
-                          <button 
-                            onClick={async () => {
-                              if(!confirm('Reject this partner?')) return;
-                              const res = await fetch(`/api/deliveries/${delivery.id}/reject-partner`, { method: 'POST' });
-                              if (res.ok) queryClient.invalidateQueries({ queryKey: ['deliveries'] });
-                              else alert('Failed to reject');
-                            }}
-                            style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <XCircle size={14} /> Reject
-                          </button>
-                        </>
-                      )}
-                      
-                      {!['DELIVERED', 'CANCELLED'].includes(delivery.status) && (
-                        <button 
-                          onClick={() => handleCancel(delivery.id)}
-                          style={{ padding: '6px 8px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          title="Cancel Delivery"
-                        >
-                          <XCircle size={16} />
-                        </button>
-                      )}
-                    </div>
+            </thead>
+            <tbody>
+              {deliveries.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                    <Truck size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
+                    <p>No active deliveries found. Create your first delivery.</p>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                deliveries.map((delivery: any) => (
+                  <tr key={delivery.id}>
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#1e293b' }}>{delivery.customerName}</div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{delivery.customerContact}</div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Order #{delivery.id}</div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6', marginTop: '6px', flexShrink: 0 }} />
+                          <div style={{ color: '#475569', fontSize: '13px', maxWidth: '250px' }}>{delivery.pickupAddress}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', marginTop: '6px', flexShrink: 0 }} />
+                          <div style={{ color: '#475569', fontSize: '13px', maxWidth: '250px' }}>{delivery.dropoffAddress}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <StatusBadge status={delivery.status} />
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {delivery.status === 'DRAFT' && (
+                          <>
+                            <button 
+                              onClick={() => window.location.href = `/admin/deliveries/${delivery.id}/edit`}
+                              style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                            >
+                              <Edit size={14} /> Edit Items
+                            </button>
+                            <button 
+                              onClick={() => readyMutation.mutate(delivery.id)}
+                              style={{ padding: '6px 12px', backgroundColor: '#eab308', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                            >
+                              <CheckSquare size={14} /> Mark Ready
+                            </button>
+                          </>
+                        )}
+                        
+                        {delivery.status === 'READY_FOR_DISPATCH' && (
+                          <button 
+                            onClick={() => handleDispatch(delivery.id)}
+                            style={{ padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                          >
+                            <Truck size={14} /> Dispatch
+                          </button>
+                        )}
+
+                        {delivery.status === 'WAITING_APPROVAL' && (
+                          <>
+                            <button 
+                              onClick={async () => {
+                                if(!confirm('Approve this partner?')) return;
+                                const res = await fetch(`/api/deliveries/${delivery.id}/approve-partner`, { method: 'POST' });
+                                if (res.ok) queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+                                else alert('Failed to approve');
+                              }}
+                              style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                            >
+                              <CheckCircle2 size={14} /> Approve
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                if(!confirm('Reject this partner?')) return;
+                                const res = await fetch(`/api/deliveries/${delivery.id}/reject-partner`, { method: 'POST' });
+                                if (res.ok) queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+                                else alert('Failed to reject');
+                              }}
+                              style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                            >
+                              <XCircle size={14} /> Reject
+                            </button>
+                          </>
+                        )}
+                        
+                        {!['DELIVERED', 'CANCELLED'].includes(delivery.status) && (
+                          <button 
+                            onClick={() => handleCancel(delivery.id)}
+                            style={{ padding: '6px 8px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            title="Cancel Delivery"
+                          >
+                            <XCircle size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {/* Pagination */}
         <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(226, 232, 240, 0.5)', backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>

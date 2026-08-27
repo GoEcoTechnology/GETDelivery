@@ -454,8 +454,23 @@
     max-height: 95vh;
   }
 
-  .gridCols2 {
+  .gridCols2, .formGrid {
     grid-template-columns: 1fr !important;
   }
 }
 
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.itemRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}

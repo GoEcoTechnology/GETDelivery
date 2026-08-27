@@ -116,7 +116,7 @@ export default function EditDeliveryPage() {
         <p>Update inventory items for this accumulating draft order.</p>
       </div>
 
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+      <form onSubmit={handleSubmit} className={styles.formGrid}>
         
         {/* Left Column: Delivery Details (Read-only) */}
         <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -149,7 +149,7 @@ export default function EditDeliveryPage() {
 
         {/* Right Column: Inventory Items */}
         <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <h3>Inventory Items</h3>
             <button type="button" onClick={handleAddItem} style={{ padding: '6px 12px', background: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>
               + Add Item
@@ -163,8 +163,8 @@ export default function EditDeliveryPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {items.map((item, index) => (
-                <div key={index} style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', background: '#f8fafc', padding: '12px', borderRadius: '8px' }}>
-                  <div style={{ flex: 2 }}>
+                <div key={index} className={styles.itemRow}>
+                  <div style={{ flex: '1 1 150px' }}>
                     <label style={labelStyle}>Product</label>
                     <select style={inputStyle} required value={item.productId} onChange={e => handleItemChange(index, 'productId', e.target.value)}>
                       <option value="" disabled>Select Product</option>
@@ -173,11 +173,11 @@ export default function EditDeliveryPage() {
                       ))}
                     </select>
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: '0 1 100px' }}>
                     <label style={labelStyle}>Qty</label>
                     <input type="number" min="1" style={inputStyle} required value={item.quantity} onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value) || 0)} />
                   </div>
-                  <button type="button" onClick={() => handleRemoveItem(index)} style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                  <button type="button" onClick={() => handleRemoveItem(index)} style={{ padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '42px', marginTop: 'auto' }}>
                     ✕
                   </button>
                 </div>
@@ -185,11 +185,11 @@ export default function EditDeliveryPage() {
             </div>
           )}
 
-          <div style={{ marginTop: 'auto', paddingTop: '24px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '12px' }}>
-            <button type="button" onClick={() => router.back()} style={{ padding: '12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+          <div style={{ marginTop: 'auto', paddingTop: '24px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button type="button" onClick={() => router.back()} style={{ padding: '12px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, flex: '1 1 auto' }}>
               Cancel
             </button>
-            <button type="submit" disabled={loading} style={{ padding: '12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 600, flex: 1 }}>
+            <button type="submit" disabled={loading} style={{ padding: '12px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 600, flex: '2 1 auto' }}>
               {loading ? 'Saving...' : 'Save Items'}
             </button>
           </div>
