@@ -120,21 +120,20 @@ export async function POST(
         });
       });
 
-      const promises = [];
-
       // Insert unified notifications
       if (newNotifsToInsert.length > 0) {
-        promises.push(innerTx.insert(notifications).values(newNotifsToInsert));
+        await innerTx.insert(notifications).values(newNotifsToInsert);
       }
 
       if (smsQueueToInsert.length > 0) {
         const insertedSms = await innerTx.insert(smsQueue).values(smsQueueToInsert).returning();
-        promises.push(
-          ...insertedSms.map((smsJob: any) => queueSms(smsJob.id, smsJob.recipientMobile, smsJob.message))
-        );
+        
+        // Fire and forget the queue jobs (or wait for them outside transaction)
+        // We'll map them here, but we don't await them inside the transaction to prevent holding DB locks
+        insertedSms.forEach((smsJob: any) => {
+          queueSms(smsJob.id, smsJob.recipientMobile, smsJob.message).catch(err => console.error(err));
+        });
       }
-
-      await Promise.all(promises);
     });
 
     // Send Real Push Notifications directly via Firebase Admin SDK (outside of DB transaction so it doesn't block DB locks)
