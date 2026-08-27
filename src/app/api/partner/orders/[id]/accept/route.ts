@@ -36,12 +36,27 @@ export async function POST(
 
       // If we didn't get an updated order back, it means someone else won or the order doesn't exist/isn't valid.
       if (!updatedOrder) {
-        // Let's see if the order exists and has a winner
+        // Let's see if the order exists and what its current state is
         const [existingOrder] = await tx.select().from(deliveryOrders).where(eq(deliveryOrders.id, orderId));
-        if (existingOrder && existingOrder.temporaryWinnerId && existingOrder.temporaryWinnerId !== partnerId) {
-           return NextResponse.json({ error: 'This delivery request has already been assigned to another partner.' }, { status: 409 });
+        
+        if (!existingOrder) {
+          return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
         }
-        return NextResponse.json({ error: 'Could not accept this delivery. It may have expired or already been processed.' }, { status: 400 });
+        
+        if (existingOrder.temporaryWinnerId) {
+          if (existingOrder.temporaryWinnerId === partnerId) {
+            // Fix UI out-of-sync issue where they already accepted it
+            return NextResponse.json({ success: true, message: 'You have already accepted this request.' });
+          } else {
+            return NextResponse.json({ error: 'This delivery request has already been assigned to another partner.' }, { status: 409 });
+          }
+        }
+        
+        // If we reach here, temporaryWinnerId is null, but the update still failed.
+        // This means the status is NOT 'DISPATCHED'.
+        return NextResponse.json({ 
+          error: `Could not accept this delivery. Order status is '${existingOrder.status}' (expected 'DISPATCHED'). It may have expired or been cancelled.` 
+        }, { status: 400 });
       }
 
       // Mark the invitation for this partner as TEMPORARY_WINNER
