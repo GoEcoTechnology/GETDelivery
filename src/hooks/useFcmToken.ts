@@ -49,10 +49,32 @@ export function useFcmToken() {
 
   const registerTokenInBackend = async (fcmToken: string) => {
     try {
+      let browser = 'Unknown';
+      let operatingSystem = 'Unknown';
+      
+      if (typeof window !== 'undefined' && window.navigator) {
+        const ua = window.navigator.userAgent;
+        if (ua.includes('Chrome')) browser = 'Chrome';
+        else if (ua.includes('Firefox')) browser = 'Firefox';
+        else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
+        else if (ua.includes('Edge')) browser = 'Edge';
+        
+        if (ua.includes('Win')) operatingSystem = 'Windows';
+        else if (ua.includes('Mac')) operatingSystem = 'MacOS';
+        else if (ua.includes('Linux')) operatingSystem = 'Linux';
+        else if (ua.includes('Android')) operatingSystem = 'Android';
+        else if (ua.includes('like Mac')) operatingSystem = 'iOS';
+      }
+
       const response = await fetch('/api/device-tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fcmToken }),
+        body: JSON.stringify({ 
+          fcmToken,
+          browser,
+          operatingSystem,
+          deviceName: `${operatingSystem} Device`
+        }),
       });
       if (!response.ok) {
         console.error('Failed to register FCM token in backend');

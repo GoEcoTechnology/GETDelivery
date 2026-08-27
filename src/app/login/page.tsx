@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
-import { useFcmToken } from "@/hooks/useFcmToken";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,10 +11,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   
-  const [showNotifModal, setShowNotifModal] = useState(false);
   const [userData, setUserData] = useState<any>(null);
-
-  const { requestPermissionAndGetToken, registerTokenInBackend } = useFcmToken();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,20 +35,6 @@ export default function LoginPage() {
       localStorage.setItem('user', JSON.stringify(data.user));
       setUserData(data.user);
 
-      // Check notification permission
-      if (typeof window !== "undefined" && 'Notification' in window) {
-        if (Notification.permission === 'default') {
-          setShowNotifModal(true);
-          setLoading(false);
-          return; // Wait for modal action
-        } else if (Notification.permission === 'granted') {
-          // Attempt to get token silently
-          requestPermissionAndGetToken().then(token => {
-            if (token) registerTokenInBackend(token);
-          });
-        }
-      }
-
       proceedToDashboard(data.user);
     } catch (err: any) {
       console.error(err);
@@ -73,34 +55,8 @@ export default function LoginPage() {
     }
   };
 
-  const handleEnableNotifications = async () => {
-    const token = await requestPermissionAndGetToken();
-    if (token) {
-      await registerTokenInBackend(token);
-    }
-    setShowNotifModal(false);
-    proceedToDashboard(userData);
-  };
-
-  const handleNotNow = () => {
-    setShowNotifModal(false);
-    proceedToDashboard(userData);
-  };
-
   return (
     <main className={styles.container}>
-      {showNotifModal && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
-            <h2>Enable Notifications</h2>
-            <p>Receive instant delivery requests and order updates even when the app is closed.</p>
-            <div className={styles.modalActions}>
-              <button className="btn btn-primary" onClick={handleEnableNotifications}>Enable Notifications</button>
-              <button className="btn btn-secondary" onClick={handleNotNow}>Not Now</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <form onSubmit={handleLogin} className={`${styles.card} glass`}>
         <div>

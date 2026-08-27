@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { messaging, onMessage } from '@/lib/firebase';
 import { useFcmToken } from '@/hooks/useFcmToken';
+import NotificationPermissionModal from './NotificationPermissionModal';
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -52,6 +53,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   return (
     <>
+      <NotificationPermissionModal />
       {children}
     </>
   );
