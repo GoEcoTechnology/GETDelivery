@@ -9,14 +9,22 @@ export default function NotificationPermissionModal() {
   const pathname = usePathname();
   const [showModal, setShowModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const [isBlocked, setIsBlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showSettingsInstructions, setShowSettingsInstructions] = useState(false);
+  const [osName, setOsName] = useState('Unknown');
   
-  const { requestPermissionAndGetToken, registerTokenInBackend } = useFcmToken();
+  const { requestPermissionAndGetToken, registerTokenInBackend, isStandalone, permission } = useFcmToken();
 
   useEffect(() => {
     // Only run on client side and if Notification is supported
     if (typeof window === 'undefined' || !('Notification' in window)) return;
+
+    // Detect OS for instructions
+    const ua = window.navigator.userAgent;
+    if (ua.includes('Win')) setOsName('Windows');
+    else if (ua.includes('Android')) setOsName('Android');
+    else if (ua.includes('like Mac')) setOsName('iOS');
+    else if (ua.includes('Mac')) setOsName('MacOS');
 
     // Do not show on auth pages or root landing page
     if (pathname === '/login' || pathname === '/register' || pathname === '/') return;
@@ -36,32 +44,30 @@ export default function NotificationPermissionModal() {
         }
       }
 
-      if (Notification.permission === 'default') {
+      // Automatically show modal for PWAs if notifications are NOT granted
+      // For non-PWAs, only show it if it's default (don't annoy denied users on web)
+      if (isStandalone && permission !== 'granted') {
         setShowModal(true);
-      } else if (Notification.permission === 'denied') {
-        // Optionally show blocked modal if we want to prompt them to unblock
-        // For now, we only show modal for 'default' to not annoy 'denied' users on every login,
-        // but if we want to show it, we need to respect the cooldown.
-        // We'll skip auto-showing for 'denied' here to follow standard practices,
-        // and let them enable it via Settings page.
+      } else if (!isStandalone && permission === 'default') {
+        setShowModal(true);
+      } else {
+        setShowModal(false);
       }
     };
 
     // Small delay to ensure dashboard renders first
     const timer = setTimeout(checkPermission, 1500);
     return () => clearTimeout(timer);
-  }, [pathname]);
+  }, [pathname, isStandalone, permission]);
 
   const handleEnable = async () => {
-    setIsLoading(true);
-    
-    // In case they previously blocked it, we can't trigger the prompt
-    if (Notification.permission === 'denied') {
-      setIsBlocked(true);
-      setIsLoading(false);
+    if (permission === 'denied') {
+      // Fallback to instructions because browsers don't let us deep-link natively for PWAs
+      setShowSettingsInstructions(true);
       return;
     }
 
+    setIsLoading(true);
     const token = await requestPermissionAndGetToken();
     if (token) {
       await registerTokenInBackend(token);
@@ -69,8 +75,8 @@ export default function NotificationPermissionModal() {
       setShowToast(true);
       setTimeout(() => setShowToast(false), 5000);
     } else {
-      if ((Notification.permission as NotificationPermission) === 'denied') {
-        setIsBlocked(true);
+      if (Notification.permission === 'denied') {
+        setShowSettingsInstructions(true);
       }
     }
     setIsLoading(false);
@@ -81,9 +87,9 @@ export default function NotificationPermissionModal() {
     setShowModal(false);
   };
 
-  const handleOpenSettings = () => {
+  const handleClose = () => {
     setShowModal(false);
-    // User needs to manually open browser settings, we just hide the modal
+    setShowSettingsInstructions(false);
   };
 
   if (!showModal && !showToast) return null;
@@ -93,32 +99,26 @@ export default function NotificationPermissionModal() {
       {showModal && (
         <div className={styles.modalOverlay}>
           <div className={styles.modalContent}>
-            <div className={styles.iconContainer}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-            </div>
             
-            {!isBlocked ? (
+            {!showSettingsInstructions ? (
               <>
-                <h2 className={styles.title}>Turn On Notifications</h2>
+                <div className={styles.iconContainer}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </div>
+                <h2 className={styles.title}>Enable Notifications for This App</h2>
                 <p className={styles.description}>
-                  Enable notifications for this app/website so you can instantly receive delivery requests, order updates, accept/decline alerts, and important system notifications — even when the app or browser is in the background.
+                  Enable notifications for this installed app so you can instantly receive delivery requests, order updates, and accept/decline alerts even when the app is closed or running in the background.
                 </p>
-                <ul className={styles.featuresList}>
-                  <li>Instant delivery request notifications</li>
-                  <li>Accept and decline order updates</li>
-                  <li>Delivery status updates</li>
-                  <li>Background notifications even when minimized</li>
-                  <li>Sound and vibration alerts</li>
-                </ul>
+                
                 <div className={styles.actions}>
                   <button 
                     className={styles.primaryBtn} 
                     onClick={handleEnable}
                     disabled={isLoading}
                   >
-                    {isLoading ? 'Enabling...' : 'Turn On Notifications'}
+                    {isLoading ? 'Loading...' : 'Open Notification Settings'}
                   </button>
                   <button className={styles.secondaryBtn} onClick={handleMaybeLater}>
                     Maybe Later
@@ -127,14 +127,47 @@ export default function NotificationPermissionModal() {
               </>
             ) : (
               <>
-                <h2 className={styles.title}>Notifications Blocked</h2>
-                <p className={styles.description}>
-                  Notifications are currently blocked for this app/website.
-                  To receive delivery requests, enable notifications in your browser or phone settings.
-                </p>
+                <div className={styles.iconContainerBlocked}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <h2 className={styles.title}>How to Enable Notifications</h2>
+                
+                <div className={styles.instructionBox}>
+                  {osName === 'iOS' && (
+                    <ol>
+                      <li>Open your iPhone's <strong>Settings</strong> app.</li>
+                      <li>Scroll down and tap on <strong>GETDelivery</strong>.</li>
+                      <li>Tap on <strong>Notifications</strong>.</li>
+                      <li>Toggle <strong>Allow Notifications</strong> to ON.</li>
+                      <li>Return to this app.</li>
+                    </ol>
+                  )}
+                  {osName === 'Android' && (
+                    <ol>
+                      <li>Open your Android <strong>Settings</strong> app.</li>
+                      <li>Tap on <strong>Apps</strong> or <strong>App Management</strong>.</li>
+                      <li>Find and select <strong>GETDelivery</strong>.</li>
+                      <li>Tap on <strong>Notifications</strong>.</li>
+                      <li>Toggle <strong>Show Notifications</strong> to ON.</li>
+                      <li>Return to this app.</li>
+                    </ol>
+                  )}
+                  {(osName !== 'iOS' && osName !== 'Android') && (
+                    <ol>
+                      <li>Click the site information icon (lock icon) in your browser's address bar.</li>
+                      <li>Find the <strong>Notifications</strong> permission.</li>
+                      <li>Change it from "Block" to <strong>Allow</strong>.</li>
+                      <li>Return to this app.</li>
+                    </ol>
+                  )}
+                </div>
+
                 <div className={styles.actions}>
-                  <button className={styles.primaryBtn} onClick={handleOpenSettings}>
-                    Understood
+                  <button className={styles.secondaryBtn} onClick={handleClose}>
+                    Got it
                   </button>
                 </div>
               </>

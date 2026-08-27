@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { messaging, getToken } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
@@ -6,12 +6,59 @@ export function useFcmToken() {
   const [token, setToken] = useState<string | null>(null);
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [error, setError] = useState<string | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
 
+  // Check if running as a PWA
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setPermission(Notification.permission);
+    if (typeof window !== 'undefined') {
+      const isStandalonePWA = window.matchMedia('(display-mode: standalone)').matches || 
+                              ('standalone' in window.navigator && (window.navigator as any).standalone === true);
+      setIsStandalone(isStandalonePWA);
     }
   }, []);
+
+  const checkAndSetPermission = useCallback(async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const currentPerm = Notification.permission;
+      
+      // If we detect permission was just granted externally (e.g. they came back from OS settings)
+      // but we haven't registered the token yet, we automatically do it.
+      if (currentPerm === 'granted' && permission !== 'granted') {
+        setPermission('granted');
+        
+        // Auto-register since they enabled it
+        if (messaging) {
+          try {
+            const currentToken = await getToken(messaging, {
+              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+            });
+            if (currentToken) {
+              setToken(currentToken);
+              await registerTokenInBackend(currentToken);
+            }
+          } catch (err) {
+            console.error('Error auto-fetching token on resume:', err);
+          }
+        }
+      } else {
+        setPermission(currentPerm);
+      }
+    }
+  }, [permission]);
+
+  // Initial check and visibility listener
+  useEffect(() => {
+    checkAndSetPermission();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkAndSetPermission();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [checkAndSetPermission]);
 
   const requestPermissionAndGetToken = async () => {
     if (!messaging) {
@@ -84,5 +131,5 @@ export function useFcmToken() {
     }
   };
 
-  return { token, permission, requestPermissionAndGetToken, registerTokenInBackend, error };
+  return { token, permission, requestPermissionAndGetToken, registerTokenInBackend, error, isStandalone };
 }

@@ -150,3 +150,39 @@
     transform: translateX(0);
   }
 }
+
+.iconContainerBlocked {
+  width: 64px;
+  height: 64px;
+  background: #fee2e2;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  color: #ef4444;
+}
+
+.instructionBox {
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 2rem;
+  text-align: left;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+.instructionBox ol {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.instructionBox li {
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+}
+
+.instructionBox li:last-child {
+  margin-bottom: 0;
+}

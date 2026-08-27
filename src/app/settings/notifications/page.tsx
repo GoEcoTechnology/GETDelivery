@@ -6,10 +6,10 @@ import styles from './page.module.css';
 import Link from 'next/link';
 
 export default function NotificationSettingsPage() {
-  const { permission, requestPermissionAndGetToken, registerTokenInBackend } = useFcmToken();
+  const { permission, requestPermissionAndGetToken, registerTokenInBackend, isStandalone, token } = useFcmToken();
   const [deviceInfo, setDeviceInfo] = useState({ browser: 'Unknown', os: 'Unknown' });
   const [isLoading, setIsLoading] = useState(false);
-  const [lastSynced, setLastSynced] = useState<string>('');
+  const [lastChecked, setLastChecked] = useState<string>('');
 
   // Mock toggles state for demonstration
   const [toggles, setToggles] = useState({
@@ -41,9 +41,19 @@ export default function NotificationSettingsPage() {
       
       setDeviceInfo({ browser, os });
       
-      // Mock last synced time
-      setLastSynced(new Date().toLocaleString());
+      setLastChecked(new Date().toLocaleString());
     }
+  }, []);
+
+  // Update lastChecked when visibility changes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setLastChecked(new Date().toLocaleString());
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   const handleToggle = (key: keyof typeof toggles) => {
@@ -53,15 +63,25 @@ export default function NotificationSettingsPage() {
 
   const handleEnableNotifications = async () => {
     if (permission === 'denied') {
-      alert("Notifications are blocked by your browser. Please click the site info icon in your URL bar and change the Notifications permission to 'Allow'.");
+      if (isStandalone) {
+        if (deviceInfo.os === 'iOS') {
+          alert('To enable notifications, open the Settings app, tap on GETDelivery, and turn on Allow Notifications.');
+        } else if (deviceInfo.os === 'Android') {
+          alert('To enable notifications, open Settings > Apps > GETDelivery > Notifications, and turn on Show Notifications.');
+        } else {
+          alert('Notifications are blocked. Please enable them in your browser settings.');
+        }
+      } else {
+        alert("Notifications are blocked by your browser. Please click the site info icon in your URL bar and change the Notifications permission to 'Allow'.");
+      }
       return;
     }
 
     setIsLoading(true);
-    const token = await requestPermissionAndGetToken();
-    if (token) {
-      await registerTokenInBackend(token);
-      setLastSynced(new Date().toLocaleString());
+    const newToken = await requestPermissionAndGetToken();
+    if (newToken) {
+      await registerTokenInBackend(newToken);
+      setLastChecked(new Date().toLocaleString());
     }
     setIsLoading(false);
   };
@@ -80,17 +100,17 @@ export default function NotificationSettingsPage() {
         <div className={styles.statusSection}>
           <div className={styles.statusInfo}>
             <h3>
-              Status 
+              Notification Status 
               <span className={`${styles.statusBadge} ${permission === 'granted' ? styles.enabled : styles.disabled}`}>
-                {permission === 'granted' ? 'Enabled' : permission === 'denied' ? 'Blocked' : 'Disabled'}
+                {permission === 'granted' ? 'Enabled' : permission === 'denied' ? 'Disabled (Blocked)' : 'Disabled'}
               </span>
             </h3>
             <div className={styles.statusDetails}>
+              <span><strong>Installed App:</strong> {isStandalone ? 'Yes' : 'No'}</span>
+              <span><strong>Device Token:</strong> {token ? 'Registered' : 'Not Registered'}</span>
               <span><strong>Device:</strong> {deviceInfo.os} Device</span>
               <span><strong>Browser:</strong> {deviceInfo.browser}</span>
-              {permission === 'granted' && (
-                <span><strong>Last Synchronized:</strong> {lastSynced}</span>
-              )}
+              <span><strong>Last Checked:</strong> {lastChecked}</span>
             </div>
           </div>
           <div>
@@ -100,7 +120,7 @@ export default function NotificationSettingsPage() {
                 onClick={handleEnableNotifications}
                 disabled={isLoading}
               >
-                {isLoading ? 'Enabling...' : 'Enable Notifications'}
+                {isLoading ? 'Loading...' : 'Open Notification Settings'}
               </button>
             )}
           </div>
