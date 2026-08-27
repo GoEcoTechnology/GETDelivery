@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryInvitations, auditLogs, tenantNotifications, notifications, deviceTokens, deliveryPartners } from '@/db/schema';
+import { deliveryInvitations, deliveryOrders, auditLogs, tenantNotifications, notifications, deviceTokens, deliveryPartners } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { messaging } from '@/lib/firebase-admin';
