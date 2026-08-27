@@ -25,6 +25,10 @@ export async function POST(
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
       : claims.tenantId) as number;
 
+    if (isNaN(tenantIdToUse)) {
+      return NextResponse.json({ error: 'Tenant context is missing or invalid' }, { status: 400 });
+    }
+
     // Validate the order
     const [order] = await tx
       .select()

@@ -23,6 +23,10 @@ export async function POST(
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
       : claims.tenantId) as number;
 
+    if (isNaN(tenantIdToUse)) {
+      return NextResponse.json({ error: 'Tenant context is missing or invalid' }, { status: 400 });
+    }
+
     // Fetch and validate the order
     const [order] = await tx
       .select()
@@ -91,8 +95,16 @@ export async function POST(
       const messageTitle = 'New Delivery Request';
       const messageBody = `New order ready for pickup.\nOrder #SO-000${order.id}\nCustomer: ${order.customerName}\nPickup: ${order.pickupAddress}\nDropoff: ${order.dropoffAddress}\nTap to view details.`;
 
-      eligiblePartners.forEach((partner: any, i: number) => {
-        const fullToken = `${insertedInvitations[i].id}_${tokens[i]}`;
+      // Map tokens by partner ID to ensure correct matching regardless of Postgres returning order
+      const partnerTokens = new Map<number, string>();
+      eligiblePartners.forEach((p: any, i: number) => partnerTokens.set(p.id, tokens[i]));
+
+      insertedInvitations.forEach((invitation: any) => {
+        const partner = eligiblePartners.find((p: any) => p.id === invitation.deliveryPartnerId);
+        const token = partnerTokens.get(invitation.deliveryPartnerId);
+        if (!partner || !token) return;
+
+        const fullToken = `${invitation.id}_${token}`;
         const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/invite/${fullToken}`;
         const message = `NEW DELIVERY OPPORTUNITY: You have a delivery request from GET Delivery. Accept here: ${inviteLink}`;
         

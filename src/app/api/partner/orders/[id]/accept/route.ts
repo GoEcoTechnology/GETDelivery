@@ -10,7 +10,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(request, { requiredPermissions: ['partner.access'] }, async (tx, claims) => {
-    try {
       const orderId = parseInt((await params).id, 10);
       const partnerId = claims.partnerId as number;
 
@@ -150,10 +149,5 @@ export async function POST(
       }
 
       return NextResponse.json({ success: true, message: 'Delivery request accepted! Awaiting tenant approval.' });
-
-    } catch (error) {
-      console.error('Error accepting delivery:', error);
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
   });
 }
