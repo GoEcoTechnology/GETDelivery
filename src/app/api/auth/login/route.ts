@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { users, deliveryPartners } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 import { signToken, UserJwtPayload, PartnerLoginJwtPayload } from '@/lib/auth';
 import { verifyPassword } from '@/lib/password';
 import { rateLimit } from '@/lib/rate-limit';
@@ -62,18 +62,37 @@ export async function POST(request: Request) {
 
       return response;
     } else {
+      // Normalize the mobile number to search both formats (09... and +639...)
+      let alternateUsername = username;
+      if (username.startsWith('09')) {
+        alternateUsername = '+63' + username.substring(1);
+      } else if (username.startsWith('+639')) {
+        alternateUsername = '0' + username.substring(3);
+      }
+
       // Authenticate as Delivery Partner (Mobile Number)
       const [partner] = await db
         .select()
         .from(deliveryPartners)
-        .where(eq(deliveryPartners.mobileNumber, username));
+        .where(
+          or(
+            eq(deliveryPartners.mobileNumber, username),
+            eq(deliveryPartners.mobileNumber, alternateUsername)
+          )
+        );
 
       if (!partner) {
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
       }
 
       if (!partner.passwordHash) {
-        return NextResponse.json({ error: 'Account not set up for portal login. Contact administrator.' }, { status: 401 });
+        // First-time login: Auto-set the provided password for this partner
+        const { hashPassword } = await import('@/lib/password');
+        const newHash = await hashPassword(password);
+        await db.update(deliveryPartners)
+          .set({ passwordHash: newHash })
+          .where(eq(deliveryPartners.id, partner.id));
+        partner.passwordHash = newHash;
       }
 
       const isValid = await verifyPassword(password, partner.passwordHash);
