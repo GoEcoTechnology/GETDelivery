@@ -37,7 +37,7 @@ export async function POST(request: Request) {
           .set({ 
             userId: userId as number,
             userRole: userRole as any,
-            tenantId: claims.tenantId || null,
+            tenantId: (claims as any).tenantId as number | null,
             lastSeen: new Date(), 
             updatedAt: new Date(),
             deviceName,
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
         await db.insert(deviceTokens).values({
           userId: userId as number,
           userRole: userRole as any,
-          tenantId: claims.tenantId || null,
+          tenantId: (claims as any).tenantId as number | null,
           fcmToken,
           deviceName,
           browser,
