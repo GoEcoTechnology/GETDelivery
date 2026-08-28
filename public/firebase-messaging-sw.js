@@ -1,5 +1,5 @@
-importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-compat.js');
+// Pure W3C Web Push Service Worker for GETDelivery
+// Completely decoupled from Firebase Web SDK for 100% background reliability.
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -9,32 +9,21 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-const firebaseConfig = {
-  apiKey: new URL(location).searchParams.get('apiKey'),
-  authDomain: new URL(location).searchParams.get('authDomain'),
-  projectId: new URL(location).searchParams.get('projectId'),
-  storageBucket: new URL(location).searchParams.get('storageBucket'),
-  messagingSenderId: new URL(location).searchParams.get('messagingSenderId'),
-  appId: new URL(location).searchParams.get('appId'),
-};
-
-if (firebaseConfig.apiKey) {
-  firebase.initializeApp(firebaseConfig);
-  const messaging = firebase.messaging();
-
-  // We keep Firebase initialized so the foreground SDK can still receive pushes via postMessage.
-  // However, we do NOT rely on messaging.onBackgroundMessage because it is known to fail in background scenarios
-  // when IndexedDB is locked. Instead, we use a raw W3C push event listener below.
-}
-
-self.addEventListener('push', function(event) {
+self.addEventListener('push', function (event) {
   if (!event.data) return;
-  
+
   try {
     const payload = event.data.json();
-    console.log('[firebase-messaging-sw.js] Raw Push received: ', payload);
-    
-    // We force manual display for full control over the notification appearance and click behavior.
+    console.log('[firebase-messaging-sw.js] Pure Push received: ', payload);
+
+    // Notify any open foreground tabs via BroadcastChannel
+    try {
+      const channel = new BroadcastChannel('fcm_channel');
+      channel.postMessage(payload);
+    } catch (e) {
+      console.warn('BroadcastChannel failed', e);
+    }
+
     const notificationTitle = payload.notification?.title || payload.data?.title || 'New Notification';
     const notificationOptions = {
       body: payload.notification?.body || payload.data?.body,
@@ -45,8 +34,7 @@ self.addEventListener('push', function(event) {
         url: payload.data?.action_url || payload.data?.url || payload.fcmOptions?.link || '/',
       },
       requireInteraction: true,
-      // Tag prevents stacking of duplicates if FCM SDK also tries to display it
-      tag: payload.messageId || notificationTitle + Date.now() 
+      tag: payload.messageId || notificationTitle + Date.now()
     };
 
     event.waitUntil(
