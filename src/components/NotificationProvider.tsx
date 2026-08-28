@@ -51,13 +51,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
               tag: notificationId // Helps prevent duplicate native stacking
             };
 
-            // Use Service Worker to show notification (Native OS support)
-            if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.ready.then((registration) => {
-                registration.showNotification(notificationTitle, notificationOptions);
-              });
-            }
-
+            // The Service Worker already handles the native OS notification popup!
+            // We do NOT call registration.showNotification here, otherwise Chrome flags it as abusive/spam 
+            // for calling it twice simultaneously.
+            
             return next;
           });
         }

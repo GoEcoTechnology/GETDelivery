@@ -22,8 +22,17 @@ if (firebaseConfig.apiKey) {
   firebase.initializeApp(firebaseConfig);
   const messaging = firebase.messaging();
 
-  messaging.onBackgroundMessage((payload) => {
-    console.log('[firebase-messaging-sw.js] Received background message ', payload);
+  // We keep Firebase initialized so the foreground SDK can still receive pushes via postMessage.
+  // However, we do NOT rely on messaging.onBackgroundMessage because it is known to fail in background scenarios
+  // when IndexedDB is locked. Instead, we use a raw W3C push event listener below.
+}
+
+self.addEventListener('push', function(event) {
+  if (!event.data) return;
+  
+  try {
+    const payload = event.data.json();
+    console.log('[firebase-messaging-sw.js] Raw Push received: ', payload);
     
     // We force manual display for full control over the notification appearance and click behavior.
     const notificationTitle = payload.notification?.title || payload.data?.title || 'New Notification';
@@ -35,13 +44,18 @@ if (firebaseConfig.apiKey) {
       data: {
         url: payload.data?.action_url || payload.data?.url || payload.fcmOptions?.link || '/',
       },
+      requireInteraction: true,
       // Tag prevents stacking of duplicates if FCM SDK also tries to display it
       tag: payload.messageId || notificationTitle + Date.now() 
     };
 
-    self.registration.showNotification(notificationTitle, notificationOptions);
-  });
-}
+    event.waitUntil(
+      self.registration.showNotification(notificationTitle, notificationOptions)
+    );
+  } catch (err) {
+    console.error('Error parsing push payload', err);
+  }
+});
 
 self.addEventListener('notificationclick', (event) => {
   console.log('[firebase-messaging-sw.js] Notification click received.', event.notification.data);
