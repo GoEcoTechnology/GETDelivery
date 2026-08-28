@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryOrders, deliveryInvitations, auditLogs, partnerNotifications, tenantNotifications, notifications, deviceTokens, deliveryPartners } from '@/db/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { messaging } from '@/lib/firebase-admin';
 
@@ -116,33 +116,67 @@ export async function POST(
         details: 'Partner accepted the delivery request, awaiting tenant approval.'
       });
 
-      // Send real Push Notification to Tenant/Platform Owners
+      // Send real Push Notification to Tenant Users
       if (messaging) {
         try {
           const tenantTokens = await db
-            .select({ fcmToken: deviceTokens.fcmToken })
+            .select({ fcmToken: deviceTokens.fcmToken, id: deviceTokens.id })
             .from(deviceTokens)
             .where(
               and(
                 eq(deviceTokens.tenantId, updatedOrder.tenantId),
-                eq(deviceTokens.userRole, 'PLATFORM_OWNER')
+                inArray(deviceTokens.userRole, ['PLATFORM_OWNER', 'BUSINESS_OWNER', 'EMPLOYEE'])
               )
             );
 
-          const fcmTokens = tenantTokens.map((t: { fcmToken: string }) => t.fcmToken);
+          const fcmTokens = tenantTokens.map((t: { fcmToken: string, id: number }) => t.fcmToken);
 
           if (fcmTokens.length > 0) {
-            await messaging.sendEachForMulticast({
+            const response = await messaging.sendEachForMulticast({
               tokens: fcmTokens,
-              // Data-only payload forces the service worker to handle it explicitly in background
-              data: {
+              notification: {
                 title: messageTitle,
                 body: messageBody,
+              },
+              data: {
                 url: `/admin/deliveries/${orderId}`,
                 action: 'view_order',
                 order_id: orderId.toString(),
               },
+              android: {
+                priority: 'high',
+                notification: {
+                  sound: 'default',
+                }
+              },
+              webpush: {
+                headers: {
+                  Urgency: 'high'
+                },
+                fcmOptions: {
+                  link: `/admin/deliveries/${orderId}`
+                },
+                notification: {
+                  icon: '/icons/icon-192x192.png',
+                  badge: '/icons/icon-192x192.png',
+                  vibrate: [200, 100, 200, 100, 200]
+                }
+              }
             });
+
+            // Handle invalid tokens
+            const invalidTokens: string[] = [];
+            response.responses.forEach((resp, idx) => {
+              if (!resp.success && resp.error) {
+                if (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered') {
+                  invalidTokens.push(fcmTokens[idx]);
+                }
+              }
+            });
+
+            if (invalidTokens.length > 0) {
+              await db.delete(deviceTokens).where(inArray(deviceTokens.fcmToken, invalidTokens));
+            }
           }
         } catch (fcmError) {
           console.error('Failed to send FCM to tenant on accept:', fcmError);

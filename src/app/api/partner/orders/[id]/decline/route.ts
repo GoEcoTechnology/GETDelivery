@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryInvitations, deliveryOrders, auditLogs, tenantNotifications, notifications, deviceTokens, deliveryPartners } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { messaging } from '@/lib/firebase-admin';
 
@@ -98,36 +98,134 @@ export async function POST(
         details: `Partner declined the request. Reason: ${declineReason || 'Not specified'}`
       });
 
-      // Send Push Notification
+      // Send real Push Notification to Tenant Users
       if (messaging) {
         try {
           const tenantTokens = await db
-            .select({ fcmToken: deviceTokens.fcmToken })
+            .select({ fcmToken: deviceTokens.fcmToken, id: deviceTokens.id })
             .from(deviceTokens)
             .where(
               and(
                 eq(deviceTokens.tenantId, updatedInvitation.tenantId),
-                eq(deviceTokens.userRole, 'PLATFORM_OWNER')
+                inArray(deviceTokens.userRole, ['PLATFORM_OWNER', 'BUSINESS_OWNER', 'EMPLOYEE'])
               )
             );
 
-          const fcmTokens = tenantTokens.map((t: { fcmToken: string }) => t.fcmToken);
+          const fcmTokens = tenantTokens.map((t: { fcmToken: string, id: number }) => t.fcmToken);
 
           if (fcmTokens.length > 0) {
-            await messaging.sendEachForMulticast({
+            const response = await messaging.sendEachForMulticast({
               tokens: fcmTokens,
-              // Data-only payload forces the service worker to handle it explicitly in background
-              data: {
+              notification: {
                 title: messageTitle,
                 body: messageBody,
+              },
+              data: {
                 url: `/admin/deliveries/${orderId}`,
                 action: 'view_order',
                 order_id: orderId.toString(),
               },
+              android: {
+                priority: 'high',
+                notification: {
+                  sound: 'default',
+                }
+              },
+              webpush: {
+                headers: {
+                  Urgency: 'high'
+                },
+                fcmOptions: {
+                  link: `/admin/deliveries/${orderId}`
+                },
+                notification: {
+                  icon: '/icons/icon-192x192.png',
+                  badge: '/icons/icon-192x192.png',
+                  vibrate: [200, 100, 200, 100, 200]
+                }
+              }
             });
+
+            // Handle invalid tokens
+            const invalidTokens: string[] = [];
+            response.responses.forEach((resp, idx) => {
+              if (!resp.success && resp.error) {
+                if (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered') {
+                  invalidTokens.push(fcmTokens[idx]);
+                }
+              }
+            });
+
+            if (invalidTokens.length > 0) {
+              await db.delete(deviceTokens).where(inArray(deviceTokens.fcmToken, invalidTokens));
+            }
           }
+
+          // Now notify remaining eligible partners if any
+          if (pendingInvitations.length > 0) {
+            const remainingPartnerIds = pendingInvitations.map(inv => inv.deliveryPartnerId);
+            
+            const partnerTokensRecord = await db
+              .select({ fcmToken: deviceTokens.fcmToken })
+              .from(deviceTokens)
+              .where(
+                and(
+                  inArray(deviceTokens.userId, remainingPartnerIds),
+                  eq(deviceTokens.userRole, 'DELIVERY_PARTNER')
+                )
+              );
+
+            const remainingTokens = partnerTokensRecord.map(t => t.fcmToken);
+            if (remainingTokens.length > 0) {
+              const partnerResponse = await messaging.sendEachForMulticast({
+                tokens: remainingTokens,
+                notification: {
+                  title: 'Delivery Request Update',
+                  body: `A delivery request is still waiting for a partner.\nOrder #SO-000${orderId}\nTap to accept before it's gone!`,
+                },
+                data: {
+                  url: `/partner/orders/${orderId}`,
+                  action: 'view_order',
+                  order_id: orderId.toString(),
+                },
+                android: {
+                  priority: 'high',
+                  notification: {
+                    sound: 'default',
+                  }
+                },
+                webpush: {
+                  headers: {
+                    Urgency: 'high'
+                  },
+                  fcmOptions: {
+                    link: `/partner/orders/${orderId}`
+                  },
+                  notification: {
+                    icon: '/icons/icon-192x192.png',
+                    badge: '/icons/icon-192x192.png',
+                    vibrate: [200, 100, 200, 100, 200]
+                  }
+                }
+              });
+
+              // Cleanup invalid partner tokens
+              const invalidPartnerTokens: string[] = [];
+              partnerResponse.responses.forEach((resp, idx) => {
+                if (!resp.success && resp.error) {
+                  if (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered') {
+                    invalidPartnerTokens.push(remainingTokens[idx]);
+                  }
+                }
+              });
+              if (invalidPartnerTokens.length > 0) {
+                await db.delete(deviceTokens).where(inArray(deviceTokens.fcmToken, invalidPartnerTokens));
+              }
+            }
+          }
+
         } catch (fcmError) {
-          console.error('Failed to send FCM to tenant on decline:', fcmError);
+          console.error('Failed to send FCM on decline:', fcmError);
         }
       }
 

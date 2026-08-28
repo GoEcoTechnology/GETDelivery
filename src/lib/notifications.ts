@@ -55,7 +55,11 @@ export async function sendPushNotification({
     const payload = {
       title,
       body,
-      data: data || {},
+      data: {
+        ...data,
+        action: data?.action || 'view',
+        action_url: data?.action_url || data?.url || '/'
+      },
     };
 
     // 3. Queue the pushes

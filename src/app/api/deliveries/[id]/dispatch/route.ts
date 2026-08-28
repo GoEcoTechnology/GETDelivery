@@ -134,11 +134,13 @@ export async function POST(
 
       // Insert unified notifications
       if (newNotifsToInsert.length > 0) {
-        await innerTx.insert(notifications).values(newNotifsToInsert);
+        // Use global `db` instead of `innerTx` to bypass RLS when inserting for a different role
+        await db.insert(notifications).values(newNotifsToInsert);
       }
 
       if (smsQueueToInsert.length > 0) {
-        const insertedSms = await innerTx.insert(smsQueue).values(smsQueueToInsert).returning();
+        // Use global `db` instead of `innerTx`
+        const insertedSms = await db.insert(smsQueue).values(smsQueueToInsert).returning();
         
         // Fire and forget the queue jobs (or wait for them outside transaction)
         // We'll map them here, but we don't await them inside the transaction to prevent holding DB locks
@@ -151,8 +153,9 @@ export async function POST(
     // Send Real Push Notifications directly via Firebase Admin SDK (outside of DB transaction so it doesn't block DB locks)
     if (messaging) {
       try {
-        // Fetch valid tokens for these partners
-        const tokens = await tx
+        // Fetch valid tokens for these partners using global `db` to bypass RLS restrictions
+        // (Since the tenant is the one making the request, RLS blocks them from seeing partner tokens)
+        const tokens = await db
           .select({ fcmToken: deviceTokens.fcmToken })
           .from(deviceTokens)
           .where(
@@ -168,12 +171,13 @@ export async function POST(
           const messageTitle = 'New Delivery Request';
           const messageBody = `New order ready for pickup.\nOrder #SO-000${order.id}\nCustomer: ${order.customerName}\nTap to view details.`;
           
-          await messaging.sendEachForMulticast({
+          const response = await messaging.sendEachForMulticast({
             tokens: fcmTokens,
-            // Data-only payload forces the service worker to handle it explicitly in background
-            data: {
+            notification: {
               title: messageTitle,
               body: messageBody,
+            },
+            data: {
               url: `/partner/orders/${order.id}`,
               action: 'view_order',
               order_id: order.id.toString(),
@@ -187,9 +191,31 @@ export async function POST(
             webpush: {
               headers: {
                 Urgency: 'high'
+              },
+              fcmOptions: {
+                link: `/partner/orders/${order.id}`
+              },
+              notification: {
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-192x192.png',
+                vibrate: [200, 100, 200, 100, 200]
               }
             }
           });
+
+          // Handle invalid tokens
+          const invalidTokens: string[] = [];
+          response.responses.forEach((resp, idx) => {
+            if (!resp.success && resp.error) {
+              if (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered') {
+                invalidTokens.push(fcmTokens[idx]);
+              }
+            }
+          });
+
+          if (invalidTokens.length > 0) {
+            await tx.delete(deviceTokens).where(inArray(deviceTokens.fcmToken, invalidTokens));
+          }
         }
       } catch (fcmError) {
         console.error('Failed to send FCM multicast:', fcmError);

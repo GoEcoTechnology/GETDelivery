@@ -21,8 +21,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'User ID missing from claims' }, { status: 401 });
       }
 
-      // Upsert the device token (check globally to prevent unique constraint errors if switching accounts)
-      const existingToken = await tx
+      // Upsert the device token using global `db` instead of `tx` to bypass RLS.
+      // This prevents unique constraint errors when a new user logs into a browser 
+      // that already registered an FCM token for a previous user.
+      const existingToken = await db
         .select()
         .from(deviceTokens)
         .where(eq(deviceTokens.fcmToken, fcmToken))
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
 
       if (existingToken.length > 0) {
         // Update to current user and refresh last seen
-        await tx
+        await db
           .update(deviceTokens)
           .set({ 
             userId: userId as number,
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
           .where(eq(deviceTokens.id, existingToken[0].id));
       } else {
         // Insert new token
-        await tx.insert(deviceTokens).values({
+        await db.insert(deviceTokens).values({
           userId: userId as number,
           userRole: userRole as any,
           tenantId: claims.tenantId || null,
@@ -80,7 +82,7 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: 'User ID missing from claims' }, { status: 401 });
       }
 
-      await tx
+      await db
         .delete(deviceTokens)
         .where(
           and(

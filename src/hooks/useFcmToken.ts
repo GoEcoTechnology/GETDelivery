@@ -30,13 +30,31 @@ export function useFcmToken() {
         if (messaging) {
           try {
             // Explicitly register service worker with config in URL params
-            const swUrl = `/firebase-messaging-sw.js?apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}`;
+            const swUrl = `/firebase-messaging-sw.js?apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}&authDomain=${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}&storageBucket=${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`;
             const registration = await navigator.serviceWorker.register(swUrl);
+            await navigator.serviceWorker.ready;
 
-            const currentToken = await getToken(messaging, {
-              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-              serviceWorkerRegistration: registration,
-            });
+            let currentToken;
+            try {
+              currentToken = await getToken(messaging, {
+                vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+                serviceWorkerRegistration: registration,
+              });
+            } catch (tokenErr: any) {
+              if (tokenErr.message && tokenErr.message.includes('Registration failed - push service error')) {
+                console.warn('Corrupted push subscription detected. Unregistering service worker and retrying...');
+                await registration.unregister();
+                const newRegistration = await navigator.serviceWorker.register(swUrl);
+                await navigator.serviceWorker.ready;
+                currentToken = await getToken(messaging, {
+                  vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+                  serviceWorkerRegistration: newRegistration,
+                });
+              } else {
+                throw tokenErr;
+              }
+            }
+
             if (currentToken) {
               setToken(currentToken);
               await registerTokenInBackend(currentToken);
@@ -77,14 +95,31 @@ export function useFcmToken() {
 
       if (currentPermission === 'granted') {
         // Explicitly register service worker with config in URL params
-        const swUrl = `/firebase-messaging-sw.js?apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}`;
+        const swUrl = `/firebase-messaging-sw.js?apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}&authDomain=${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}&storageBucket=${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`;
         const registration = await navigator.serviceWorker.register(swUrl);
+        await navigator.serviceWorker.ready;
 
         // We use the VAPID key configured in Firebase Project Settings -> Cloud Messaging -> Web Push certificates
-        const currentToken = await getToken(messaging, {
-          vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-          serviceWorkerRegistration: registration,
-        });
+        let currentToken;
+        try {
+          currentToken = await getToken(messaging, {
+            vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+            serviceWorkerRegistration: registration,
+          });
+        } catch (tokenErr: any) {
+          if (tokenErr.message && tokenErr.message.includes('Registration failed - push service error')) {
+            console.warn('Corrupted push subscription detected. Unregistering service worker and retrying...');
+            await registration.unregister();
+            const newRegistration = await navigator.serviceWorker.register(swUrl);
+            await navigator.serviceWorker.ready;
+            currentToken = await getToken(messaging, {
+              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+              serviceWorkerRegistration: newRegistration,
+            });
+          } else {
+            throw tokenErr;
+          }
+        }
 
         if (currentToken) {
           setToken(currentToken);

@@ -7,13 +7,16 @@ import NotificationPermissionModal from './NotificationPermissionModal';
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
+  const [recentPushes, setRecentPushes] = useState<Set<string>>(new Set());
   const { requestPermissionAndGetToken, registerTokenInBackend } = useFcmToken();
 
   useEffect(() => {
-    // Attempt to register token silently if permission already granted
-    if (Notification.permission === 'granted') {
-      requestPermissionAndGetToken().then(token => {
-        if (token) registerTokenInBackend(token);
+    const user = localStorage.getItem('user');
+    
+    // Attempt to register token silently if permission already granted and user is logged in
+    if (Notification.permission === 'granted' && user) {
+      requestPermissionAndGetToken().then(fcmToken => {
+        if (fcmToken) registerTokenInBackend(fcmToken);
       });
     }
 
@@ -24,21 +27,39 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         // Ensure browser supports notifications and permission is granted
         if ('Notification' in window && Notification.permission === 'granted') {
           const notificationTitle = payload.notification?.title || payload.data?.title || 'New Notification';
-          const notificationOptions = {
-            body: payload.notification?.body || payload.data?.body,
-            icon: payload.notification?.icon || '/icons/icon-192x192.png',
-            data: {
-              url: payload.data?.url || '/',
-            },
-          };
+          const notificationId = payload.messageId || notificationTitle + Date.now();
+          
+          setRecentPushes(prev => {
+            if (prev.has(notificationId)) return prev;
+            
+            const next = new Set(prev);
+            next.add(notificationId);
+            
+            // Clean up old IDs to prevent memory leak
+            if (next.size > 50) {
+              const iterator = next.values();
+              next.delete(iterator.next().value!);
+            }
+            
+            const notificationOptions = {
+              body: payload.notification?.body || payload.data?.body,
+              icon: payload.notification?.icon || '/icons/icon-192x192.png',
+              badge: payload.notification?.icon || '/icons/icon-192x192.png',
+              data: {
+                url: payload.data?.action_url || payload.data?.url || '/',
+              },
+              tag: notificationId // Helps prevent duplicate native stacking
+            };
 
-          const notification = new Notification(notificationTitle, notificationOptions);
+            // Use Service Worker to show notification (Native OS support)
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.ready.then((registration) => {
+                registration.showNotification(notificationTitle, notificationOptions);
+              });
+            }
 
-          notification.onclick = (event) => {
-            event.preventDefault(); // prevent the browser from focusing the Notification's tab
-            window.open(notification.data.url, '_self');
-            notification.close();
-          };
+            return next;
+          });
         }
 
         // Increment local unread count

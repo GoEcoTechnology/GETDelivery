@@ -18,19 +18,24 @@ import { getMessaging } from 'firebase-admin/messaging';
 // Initialize Firebase Admin if it hasn't been already
 if (!getApps().length) {
   try {
-    // Requires FIREBASE_SERVICE_ACCOUNT_KEY in .env
-    // This should be the stringified JSON of the service account
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    let credential;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+      const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8');
+      const serviceAccount = JSON.parse(decoded);
+      credential = cert(serviceAccount);
+    } else if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-      initializeApp({
-        credential: cert(serviceAccount)
-      });
-      console.log('Firebase Admin initialized successfully.');
-    } else {
-      console.warn('FIREBASE_SERVICE_ACCOUNT_KEY is not set. FCM pushes will fail if attempted.');
+      credential = cert(serviceAccount);
     }
-  } catch (err) {
-    console.error('Failed to initialize Firebase Admin:', err);
+
+    if (credential) {
+      initializeApp({ credential });
+      console.log('Firebase Admin initialized successfully in worker.');
+    } else {
+      console.warn('Firebase credentials not found in worker. FCM pushes will fail if attempted.');
+    }
+  } catch (err: any) {
+    console.error('Failed to initialize Firebase Admin in worker:', err.message);
   }
 }
 
@@ -79,7 +84,7 @@ const worker = new Worker('notifications', async (job) => {
 
     try {
       if (!getApps().length) {
-        throw new Error('Firebase Admin is not initialized. Check FIREBASE_SERVICE_ACCOUNT_KEY.');
+        throw new Error('Firebase Admin is not initialized. Check FIREBASE_SERVICE_ACCOUNT_BASE64.');
       }
 
       console.log(`[FCM] Sending push to ${token}...`);
@@ -91,6 +96,25 @@ const worker = new Worker('notifications', async (job) => {
           body: payload.body,
         },
         data: payload.data || {},
+        android: {
+          priority: 'high' as const,
+          notification: {
+            sound: 'default',
+          }
+        },
+        webpush: {
+          headers: {
+            Urgency: 'high'
+          },
+          fcmOptions: {
+            link: payload.data?.action_url || payload.data?.url || '/'
+          },
+          notification: {
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            vibrate: [200, 100, 200, 100, 200]
+          }
+        }
       };
 
       const providerId = await getMessaging().send(message);
@@ -103,9 +127,17 @@ const worker = new Worker('notifications', async (job) => {
 
     } catch (error: any) {
       console.error(`[FCM] ❌ Failed push to ${token}: ${error.message}`);
+      
       await db.update(notificationQueue)
         .set({ status: 'FAILED', failedAt: new Date() })
         .where(eq(notificationQueue.id, notificationQueueId));
+        
+      // Invalid token cleanup
+      if (error.code === 'messaging/invalid-registration-token' || error.code === 'messaging/registration-token-not-registered') {
+        console.log(`[FCM] Cleaning up invalid token: ${token}`);
+        const { deviceTokens } = await import('../db/schema');
+        await db.delete(deviceTokens).where(eq(deviceTokens.fcmToken, token));
+      }
         
       throw error;
     }

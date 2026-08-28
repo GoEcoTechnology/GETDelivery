@@ -171,7 +171,7 @@ export const deliveryOrders = pgTable("delivery_orders", {
 
 export const deliveryItems = pgTable("delivery_items", {
   id: serial("id").primaryKey(),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id).notNull(),
+  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }).notNull(),
   productId: integer("product_id").references(() => products.id).notNull(),
   quantity: integer("quantity").notNull(),
   unit: varchar("unit", { length: 50 }),
@@ -182,7 +182,7 @@ export const deliveryItems = pgTable("delivery_items", {
 export const deliveryInvitations = pgTable("delivery_invitations", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id).notNull(),
+  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }).notNull(),
   deliveryPartnerId: integer("delivery_partner_id").references(() => deliveryPartners.id).notNull(),
   tokenHash: varchar("token_hash", { length: 255 }).notNull(),
   status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, OPENED, ASSIGNED, DECLINED, EXPIRED, CANCELLED, TEMPORARY_WINNER
@@ -201,7 +201,7 @@ export const deliveryInvitations = pgTable("delivery_invitations", {
 export const deliveryAssignments = pgTable("delivery_assignments", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id).notNull(),
+  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }).notNull(),
   deliveryPartnerId: integer("delivery_partner_id").references(() => deliveryPartners.id),
   driverName: varchar("driver_name", { length: 255 }).notNull(),
   vehicleDetails: varchar("vehicle_details", { length: 255 }).notNull(),
@@ -215,7 +215,7 @@ export const deliveryAssignments = pgTable("delivery_assignments", {
 export const notificationQueue = pgTable("notification_queue", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id),
+  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }),
   recipientType: varchar("recipient_type", { length: 50 }).notNull(),
   recipientId: integer("recipient_id").notNull(),
   channel: varchar("channel", { length: 50 }).notNull(), // FCM
@@ -234,7 +234,7 @@ export const notificationQueue = pgTable("notification_queue", {
 export const smsQueue = pgTable("sms_queue", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id),
+  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }),
   recipientMobile: varchar("recipient_mobile", { length: 50 }).notNull(),
   message: text("message").notNull(),
   status: varchar("status", { length: 50 }).default("PENDING").notNull(),
@@ -267,7 +267,7 @@ export const partnerNotifications = pgTable("partner_notifications", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
   deliveryPartnerId: integer("delivery_partner_id").references(() => deliveryPartners.id).notNull(),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id),
+  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }),
   title: varchar("title", { length: 255 }).notNull(),
   body: text("body").notNull(),
   isRead: boolean("is_read").default(false).notNull(),
@@ -280,7 +280,7 @@ export const partnerNotifications = pgTable("partner_notifications", {
 export const tenantNotifications = pgTable("tenant_notifications", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id),
+  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }),
   title: varchar("title", { length: 255 }).notNull(),
   body: text("body").notNull(),
   isRead: boolean("is_read").default(false).notNull(),
@@ -294,7 +294,7 @@ export const tenantNotifications = pgTable("tenant_notifications", {
 export const notifications = pgTable('notifications', {
   id: serial('id').primaryKey(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  deliveryOrderId: integer('delivery_order_id').references(() => deliveryOrders.id),
+  deliveryOrderId: integer('delivery_order_id').references(() => deliveryOrders.id, { onDelete: 'cascade' }),
   senderId: integer('sender_id'),
   receiverId: integer('receiver_id').notNull(),
   receiverRole: varchar('receiver_role', { length: 50 }).notNull(), // PLATFORM_OWNER, ADMIN, DELIVERY_PARTNER

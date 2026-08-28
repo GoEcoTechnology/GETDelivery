@@ -1,4 +1,4 @@
-﻿import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 
 // Initialize Firebase Admin SDK
@@ -6,13 +6,23 @@ if (!getApps().length) {
   try {
     let credential;
     
-    // Check if the service account JSON string is provided
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    // Check if the service account JSON string is provided in Base64
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+      try {
+        const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8');
+        const serviceAccount = JSON.parse(decoded);
+        credential = cert(serviceAccount);
+      } catch (e: any) {
+        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_BASE64:', e.message);
+      }
+    }
+    // Fallback to old format if still present
+    else if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       try {
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
         credential = cert(serviceAccount);
-      } catch (e) {
-        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY JSON string.');
+      } catch (e: any) {
+        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY JSON string:', e.message);
       }
     } 
     // Fallback to checking individual env variables (common on Vercel)
