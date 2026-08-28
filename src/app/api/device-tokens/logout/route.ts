@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       await db.delete(deviceTokens).where(
         and(
           eq(deviceTokens.fcmToken, fcmToken),
-          eq(deviceTokens.userId, claims.userId || claims.partnerId || 0)
+          eq(deviceTokens.userId, (claims.userId || claims.partnerId || 0) as number)
         )
       );
 
