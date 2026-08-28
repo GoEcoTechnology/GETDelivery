@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryInvitations, auditLogs, partnerNotifications, tenantNotifications, notifications, deviceTokens, deliveryPartners } from '@/db/schema';
+import { deliveryOrders, deliveryInvitations, auditLogs, notifications, deliveryPartners } from '@/db/schema';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
-import { messaging } from '@/lib/firebase-admin';
+import { sendEmail } from '@/lib/emailService';
+import { users } from '@/db/schema';
 
 export async function POST(
   request: Request,
@@ -97,13 +98,6 @@ export async function POST(
         status: 'UNREAD'
       });
 
-      // Legacy fallback
-      await db.insert(tenantNotifications).values({
-        tenantId: updatedOrder.tenantId,
-        deliveryOrderId: orderId,
-        title: messageTitle,
-        body: messageBody
-      });
 
       // Audit log
       await db.insert(auditLogs).values({
@@ -116,71 +110,42 @@ export async function POST(
         details: 'Partner accepted the delivery request, awaiting tenant approval.'
       });
 
-      // Send real Push Notification to Tenant Users
-      if (messaging) {
-        try {
-          const tenantTokens = await db
-            .select({ fcmToken: deviceTokens.fcmToken, id: deviceTokens.id })
-            .from(deviceTokens)
-            .where(
-              and(
-                eq(deviceTokens.tenantId, updatedOrder.tenantId),
-                inArray(deviceTokens.userRole, ['PLATFORM_OWNER', 'BUSINESS_OWNER', 'EMPLOYEE'])
-              )
-            );
+      // Send Real Email Notification to Tenant Users
+      try {
+        const tenantUsers = await db
+          .select({ email: users.email })
+          .from(users)
+          .where(
+            and(
+              eq(users.tenantId, updatedOrder.tenantId),
+              inArray(users.role, ['PLATFORM_OWNER', 'BUSINESS_OWNER', 'EMPLOYEE'])
+            )
+          );
 
-          const fcmTokens = tenantTokens.map((t: { fcmToken: string, id: number }) => t.fcmToken);
+        const emailAddresses = tenantUsers.map(u => u.email).filter(Boolean);
 
-          if (fcmTokens.length > 0) {
-            const response = await messaging.sendEachForMulticast({
-              tokens: fcmTokens,
-              notification: {
-                title: messageTitle,
-                body: messageBody,
-              },
-              data: {
-                url: `/admin/deliveries/${orderId}`,
-                action: 'view_order',
-                order_id: orderId.toString(),
-              },
-              android: {
-                priority: 'high',
-                notification: {
-                  sound: 'default',
-                }
-              },
-              webpush: {
-                headers: {
-                  Urgency: 'high'
-                },
-                fcmOptions: {
-                  link: `/admin/deliveries/${orderId}`
-                },
-                notification: {
-                  icon: '/icons/icon-192x192.png',
-                  badge: '/icons/icon-192x192.png',
-                  vibrate: [200, 100, 200, 100, 200]
-                }
-              }
-            });
+        if (emailAddresses.length > 0) {
+          const actionUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/admin/deliveries/${orderId}`;
+          const finalHtml = `
+            <p>Your delivery request has been accepted by a delivery partner.</p>
+            <p><strong>Delivery Request:</strong> DR-000${orderId}</p>
+            <p><strong>Order:</strong> ORD-100${orderId}</p>
+            <p><strong>Delivery Partner:</strong> ${partnerName}</p>
+            <p><strong>Current Status:</strong> Awaiting your final approval</p>
+            <p><a href="${actionUrl}" style="display:inline-block;padding:10px 20px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:5px;">View Order</a></p>
+          `;
 
-            // Handle invalid tokens
-            const invalidTokens: string[] = [];
-            response.responses.forEach((resp, idx) => {
-              if (!resp.success && resp.error) {
-                if (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered') {
-                  invalidTokens.push(fcmTokens[idx]);
-                }
-              }
-            });
-
-            if (invalidTokens.length > 0) {
-              await db.delete(deviceTokens).where(inArray(deviceTokens.fcmToken, invalidTokens));
-            }
-          }
-        } catch (fcmError) {
-          console.error('Failed to send FCM to tenant on accept:', fcmError);
+          // Send to all tenant admins/employees
+          await Promise.all(emailAddresses.map(email => 
+            sendEmail({
+              to: email,
+              subject: 'Delivery Request Accepted',
+              html: finalHtml
+            })
+          ));
         }
+      } catch (emailError) {
+        console.error('Failed to send email to tenant on accept:', emailError);
       }
 
       return NextResponse.json({ success: true, message: 'Delivery request accepted! Awaiting tenant approval.' });

@@ -25,7 +25,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         mobileNumber,
         email,
         status,
-        updatedAt: new Date(),
       })
       .where(eq(deliveryPartners.id, id))
       .returning();

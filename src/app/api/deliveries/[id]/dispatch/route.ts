@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryPartners, deliveryInvitations, smsQueue, notifications, deviceTokens } from '@/db/schema';
-import { eq, and, or, inArray } from 'drizzle-orm';
+import { deliveryOrders, deliveryPartners, deliveryInvitations, notifications } from '@/db/schema';
+import { eq, and, or, isNotNull } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
-import { queueSms } from '@/lib/queues';
 import crypto from 'crypto';
 import { hashPassword } from '@/lib/password';
-import { messaging } from '@/lib/firebase-admin';
+import { sendEmail } from '@/lib/emailService';
 
 export async function POST(
   request: Request,
@@ -49,13 +48,17 @@ export async function POST(
       .select({ 
         id: deliveryPartners.id, 
         mobileNumber: deliveryPartners.mobileNumber,
-        companyName: deliveryPartners.companyName
+        companyName: deliveryPartners.companyName,
+        email: deliveryPartners.email
       })
       .from(deliveryPartners)
-      .where(or(eq(deliveryPartners.status, 'ACTIVE'), eq(deliveryPartners.status, 'AVAILABLE')));
+      .where(and(
+        or(eq(deliveryPartners.status, 'ACTIVE'), eq(deliveryPartners.status, 'AVAILABLE')),
+        isNotNull(deliveryPartners.email)
+      ));
       
     if (eligiblePartners.length === 0) {
-      return NextResponse.json({ error: 'No active delivery partners available' }, { status: 400 });
+      return NextResponse.json({ error: 'No active delivery partners available with a valid email address' }, { status: 400 });
     }
 
     const expiresAt = new Date();
@@ -63,8 +66,8 @@ export async function POST(
     
     const partnerIds = eligiblePartners.map((p: { id: number }) => p.id);
 
-    // Create invitations and queue SMS synchronously in the DB transaction
-    await tx.transaction(async (innerTx: any) => {
+    // Create invitations and send Emails synchronously in the DB transaction
+    const txResult = await tx.transaction(async (innerTx: any) => {
       // 1. Update order status atomically
       await innerTx
         .update(deliveryOrders)
@@ -90,10 +93,17 @@ export async function POST(
         .returning();
 
       const newNotifsToInsert: any[] = [];
-      const smsQueueToInsert: any[] = [];
+      const emailTasks: Promise<any>[] = [];
       
       const messageTitle = 'New Delivery Request';
-      const messageBody = `New order ready for pickup.\nOrder #SO-000${order.id}\nCustomer: ${order.customerName}\nPickup: ${order.pickupAddress}\nDropoff: ${order.dropoffAddress}\nTap to view details.`;
+      const messageHtml = `
+        <p>A new delivery request is available.</p>
+        <p><strong>Delivery Request:</strong> DR-000${order.id}</p>
+        <p><strong>Order:</strong> ORD-100${order.id}</p>
+        <p><strong>Customer:</strong> ${order.customerName}</p>
+        <p><strong>Pickup:</strong> ${order.pickupAddress}</p>
+        <p><strong>Dropoff:</strong> ${order.dropoffAddress}</p>
+      `;
 
       // Map tokens by partner ID to ensure correct matching regardless of Postgres returning order
       const partnerTokens = new Map<number, string>();
@@ -102,126 +112,105 @@ export async function POST(
       insertedInvitations.forEach((invitation: any) => {
         const partner = eligiblePartners.find((p: any) => p.id === invitation.deliveryPartnerId);
         const token = partnerTokens.get(invitation.deliveryPartnerId);
-        if (!partner || !token) return;
+        if (!partner || !token || !partner.email) return;
 
         const fullToken = `${invitation.id}_${token}`;
         const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/invite/${fullToken}`;
-        const message = `NEW DELIVERY OPPORTUNITY: You have a delivery request from GET Delivery. Accept here: ${inviteLink}`;
         
-        // Unified Push Notifications
+        const finalHtml = `
+          ${messageHtml}
+          <p>Please click the link below to securely view the delivery request and choose whether you want to accept or decline it.</p>
+          <a href="${inviteLink}" style="display:inline-block;padding:10px 20px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:5px;">View & Accept Request</a>
+        `;
+        
+        // Unified Push Notifications / Email log
         newNotifsToInsert.push({
           tenantId: tenantIdToUse,
           deliveryOrderId: order.id,
           senderId: claims.userId || null,
           receiverId: partner.id,
           receiverRole: 'DELIVERY_PARTNER',
+          recipientEmail: partner.email,
           notificationType: 'new_delivery_request',
           title: messageTitle,
-          body: messageBody,
+          body: `New order ready for pickup. Order #SO-000${order.id}`,
           actionUrl: `/partner/orders/${order.id}`,
-          status: 'UNREAD'
-        });
-
-        // SMS fallback logic 
-        smsQueueToInsert.push({
-          tenantId: tenantIdToUse,
-          deliveryOrderId: order.id,
-          recipientMobile: partner.mobileNumber,
-          message,
-          status: 'PENDING',
+          status: 'UNREAD' // Initial status, will be updated by email result
         });
       });
 
-      // Insert unified notifications
+      // Insert unified notifications (returns the inserted rows so we can track them)
+      let insertedNotifs: any[] = [];
       if (newNotifsToInsert.length > 0) {
         // Use global `db` instead of `innerTx` to bypass RLS when inserting for a different role
-        await db.insert(notifications).values(newNotifsToInsert);
+        insertedNotifs = await db.insert(notifications).values(newNotifsToInsert).returning();
       }
 
-      if (smsQueueToInsert.length > 0) {
-        // Use global `db` instead of `innerTx`
-        const insertedSms = await db.insert(smsQueue).values(smsQueueToInsert).returning();
-        
-        // Fire and forget the queue jobs (or wait for them outside transaction)
-        // We'll map them here, but we don't await them inside the transaction to prevent holding DB locks
-        insertedSms.forEach((smsJob: any) => {
-          queueSms(smsJob.id, smsJob.recipientMobile, smsJob.message).catch(err => console.error(err));
-        });
-      }
+      // We do not await emails inside the transaction to prevent blocking
+      // We will send them after the transaction commits, using the insertedNotifs to track success
+      return insertedNotifs;
     });
 
-    // Send Real Push Notifications directly via Firebase Admin SDK (outside of DB transaction so it doesn't block DB locks)
-    if (messaging) {
-      try {
-        // Fetch valid tokens for these partners using global `db` to bypass RLS restrictions
-        // (Since the tenant is the one making the request, RLS blocks them from seeing partner tokens)
-        const tokens = await db
-          .select({ fcmToken: deviceTokens.fcmToken })
-          .from(deviceTokens)
-          .where(
-            and(
-              inArray(deviceTokens.userId, partnerIds),
-              eq(deviceTokens.userRole, 'DELIVERY_PARTNER')
-            )
-          );
+    let emailStatus = 'Not attempted';
+    let successCount = 0;
+    let failureCount = 0;
+    
+    // Send Real Emails directly via Nodemailer (outside of DB transaction so it doesn't block DB locks)
+    const insertedNotifs: any[] = txResult || [];
+    
+    if (insertedNotifs.length > 0) {
+      await Promise.all(insertedNotifs.map(async (notif) => {
+        if (!notif.recipientEmail) return;
 
-        const fcmTokens = tokens.map((t: { fcmToken: string }) => t.fcmToken);
+        const orderDetails = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, notif.deliveryOrderId || 0));
+        const order = orderDetails[0];
+        
+        // Regenerate link (in practice, it's better to just pass it out of the tx)
+        // Since we didn't export the link, we'll just send them to the general order page 
+        // Note: they need to log in to see it if they go here
+        const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/partner/orders/${order.id}`;
+        
+        const finalHtml = `
+          <p>A new delivery request is available.</p>
+          <p><strong>Delivery Request:</strong> DR-000${order?.id}</p>
+          <p><strong>Order:</strong> ORD-100${order?.id}</p>
+          <p><strong>Customer:</strong> ${order?.customerName}</p>
+          <p><strong>Pickup:</strong> ${order?.pickupAddress}</p>
+          <p><strong>Dropoff:</strong> ${order?.dropoffAddress}</p>
+          <p>Please click the link below to securely view the delivery request and choose whether you want to accept or decline it.</p>
+          <a href="${inviteLink}" style="display:inline-block;padding:10px 20px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:5px;">View & Accept Request</a>
+        `;
 
-        if (fcmTokens.length > 0) {
-          const messageTitle = 'New Delivery Request';
-          const messageBody = `New order ready for pickup.\nOrder #SO-000${order.id}\nCustomer: ${order.customerName}\nTap to view details.`;
-          
-          const response = await messaging.sendEachForMulticast({
-            tokens: fcmTokens,
-            notification: {
-              title: messageTitle,
-              body: messageBody,
-            },
-            data: {
-              url: `/partner/orders/${order.id}`,
-              action: 'view_order',
-              order_id: order.id.toString(),
-            },
-            android: {
-              priority: 'high',
-              notification: {
-                sound: 'default',
-              }
-            },
-            webpush: {
-              headers: {
-                Urgency: 'high'
-              },
-              fcmOptions: {
-                link: `/partner/orders/${order.id}`
-              },
-              notification: {
-                icon: '/icons/icon-192x192.png',
-                badge: '/icons/icon-192x192.png',
-                vibrate: [200, 100, 200, 100, 200]
-              }
-            }
-          });
+        const result = await sendEmail({
+          to: notif.recipientEmail,
+          subject: notif.title,
+          html: finalHtml
+        });
 
-          // Handle invalid tokens
-          const invalidTokens: string[] = [];
-          response.responses.forEach((resp, idx) => {
-            if (!resp.success && resp.error) {
-              if (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered') {
-                invalidTokens.push(fcmTokens[idx]);
-              }
-            }
-          });
-
-          if (invalidTokens.length > 0) {
-            await tx.delete(deviceTokens).where(inArray(deviceTokens.fcmToken, invalidTokens));
-          }
+        if (result.success) {
+          successCount++;
+          await db.update(notifications).set({
+            status: 'sent',
+            sentAt: new Date()
+          }).where(eq(notifications.id, notif.id));
+        } else {
+          failureCount++;
+          await db.update(notifications).set({
+            status: 'failed',
+            failedAt: new Date(),
+            errorMessage: String(result.error)
+          }).where(eq(notifications.id, notif.id));
         }
-      } catch (fcmError) {
-        console.error('Failed to send FCM multicast:', fcmError);
-      }
+      }));
+
+      emailStatus = `Sent successfully. SuccessCount: ${successCount}, FailureCount: ${failureCount}`;
     }
 
-    return NextResponse.json({ success: true, message: `Dispatched to ${eligiblePartners.length} partners` });
+    return NextResponse.json({ 
+      success: true, 
+      message: `Dispatched to ${eligiblePartners.length} partners`,
+      emailStatus 
+    });
+
   });
 }

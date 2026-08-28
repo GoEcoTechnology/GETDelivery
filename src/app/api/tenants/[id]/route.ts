@@ -17,8 +17,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .set({
         name,
         subscriptionPlan,
-        status,
-        updatedAt: new Date()
+        status
       })
       .where(eq(tenants.id, id))
       .returning();

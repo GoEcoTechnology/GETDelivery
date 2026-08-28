@@ -1,4 +1,4 @@
-﻿import {
+import {
   pgTable,
   serial,
   varchar,
@@ -212,41 +212,7 @@ export const deliveryAssignments = pgTable("delivery_assignments", {
   index("assignments_order_idx").on(table.deliveryOrderId),
 ]);
 
-export const notificationQueue = pgTable("notification_queue", {
-  id: serial("id").primaryKey(),
-  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }),
-  recipientType: varchar("recipient_type", { length: 50 }).notNull(),
-  recipientId: integer("recipient_id").notNull(),
-  channel: varchar("channel", { length: 50 }).notNull(), // FCM
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(),
-  attemptCount: integer("attempt_count").default(0).notNull(),
-  providerMessageId: varchar("provider_message_id", { length: 255 }),
-  scheduledAt: timestamp("scheduled_at").defaultNow().notNull(),
-  sentAt: timestamp("sent_at"),
-  failedAt: timestamp("failed_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("notif_status_idx").on(table.status),
-  index("notif_tenant_idx").on(table.tenantId),
-]);
-
-export const smsQueue = pgTable("sms_queue", {
-  id: serial("id").primaryKey(),
-  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }),
-  recipientMobile: varchar("recipient_mobile", { length: 50 }).notNull(),
-  message: text("message").notNull(),
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(),
-  attemptCount: integer("attempt_count").default(0).notNull(),
-  providerMessageId: varchar("provider_message_id", { length: 255 }),
-  sentAt: timestamp("sent_at"),
-  failedAt: timestamp("failed_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("sms_status_idx").on(table.status),
-  index("sms_tenant_idx").on(table.tenantId),
-]);
+// smsQueue and notificationQueue removed.
 
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
@@ -263,33 +229,9 @@ export const auditLogs = pgTable("audit_logs", {
   index("audit_tenant_created_idx").on(table.tenantId, table.createdAt),
 ]);
 
-export const partnerNotifications = pgTable("partner_notifications", {
-  id: serial("id").primaryKey(),
-  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  deliveryPartnerId: integer("delivery_partner_id").references(() => deliveryPartners.id).notNull(),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }),
-  title: varchar("title", { length: 255 }).notNull(),
-  body: text("body").notNull(),
-  isRead: boolean("is_read").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("partner_notif_partner_idx").on(table.deliveryPartnerId),
-  index("partner_notif_unread_idx").on(table.deliveryPartnerId, table.isRead),
-]);
 
-export const tenantNotifications = pgTable("tenant_notifications", {
-  id: serial("id").primaryKey(),
-  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  deliveryOrderId: integer("delivery_order_id").references(() => deliveryOrders.id, { onDelete: 'cascade' }),
-  title: varchar("title", { length: 255 }).notNull(),
-  body: text("body").notNull(),
-  isRead: boolean("is_read").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("tenant_notif_tenant_idx").on(table.tenantId),
-]);
 
-// --- FCM PUSH NOTIFICATION SYSTEM ---
+// --- UNIFIED NOTIFICATION SYSTEM (Email & In-App) ---
 
 export const notifications = pgTable('notifications', {
   id: serial('id').primaryKey(),
@@ -298,15 +240,19 @@ export const notifications = pgTable('notifications', {
   senderId: integer('sender_id'),
   receiverId: integer('receiver_id').notNull(),
   receiverRole: varchar('receiver_role', { length: 50 }).notNull(), // PLATFORM_OWNER, ADMIN, DELIVERY_PARTNER
+  recipientEmail: varchar('recipient_email', { length: 255 }), // Added for email tracking
   notificationType: varchar('notification_type', { length: 50 }).notNull(), // new_delivery_request, order_accepted, etc.
   title: varchar('title', { length: 255 }).notNull(),
   body: text('body').notNull(),
   image: varchar('image', { length: 255 }),
   actionUrl: varchar('action_url', { length: 255 }),
-  status: varchar('status', { length: 50 }).default('UNREAD').notNull(), // UNREAD, READ, ARCHIVED
+  status: varchar('status', { length: 50 }).default('UNREAD').notNull(), // UNREAD, READ, ARCHIVED, sent, failed
+  errorMessage: text('error_message'), // Added for email tracking
   createdAt: timestamp('created_at').defaultNow().notNull(),
   readAt: timestamp('read_at'),
   clickedAt: timestamp('clicked_at'),
+  sentAt: timestamp('sent_at'), // Added for email tracking
+  failedAt: timestamp('failed_at'), // Added for email tracking
 }, (table) => [
   index('notif_receiver_idx').on(table.receiverId),
   index('notif_tenant_idx_2').on(table.tenantId),
@@ -314,19 +260,4 @@ export const notifications = pgTable('notifications', {
   index('notif_status_idx_2').on(table.status),
 ]);
 
-export const deviceTokens = pgTable('device_tokens', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id').notNull(),
-  userRole: varchar('user_role', { length: 50 }).notNull(), // To distinguish between users and partners
-  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-  fcmToken: text('fcm_token').notNull().unique(),
-  deviceName: varchar('device_name', { length: 255 }),
-  browser: varchar('browser', { length: 100 }),
-  operatingSystem: varchar('operating_system', { length: 100 }),
-  lastSeen: timestamp('last_seen').defaultNow().notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (table) => [
-  index('dt_user_idx').on(table.userId, table.userRole),
-  index('dt_token_idx').on(table.fcmToken),
-]);
+// deviceTokens table removed.

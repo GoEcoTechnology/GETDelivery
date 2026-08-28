@@ -22,8 +22,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .set({
         name,
         mobile,
-        status,
-        updatedAt: new Date()
+        status
       })
       .where(condition)
       .returning();

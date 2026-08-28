@@ -22,8 +22,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .set({
         plateNumber,
         vehicleType,
-        status,
-        updatedAt: new Date()
+        status
       })
       .where(condition)
       .returning();

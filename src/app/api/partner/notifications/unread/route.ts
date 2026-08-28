@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { partnerNotifications } from '@/db/schema';
+import { notifications } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { headers } from 'next/headers';
 
@@ -17,17 +17,19 @@ export async function GET() {
     const partnerId = parseInt(partnerIdStr, 10);
 
     const unreadNotifs = await db
-      .select({ id: partnerNotifications.id })
-      .from(partnerNotifications)
+      .select({ id: notifications.id })
+      .from(notifications)
       .where(
         and(
-          eq(partnerNotifications.deliveryPartnerId, partnerId),
-          eq(partnerNotifications.isRead, false)
+          eq(notifications.receiverId, partnerId),
+          eq(notifications.receiverRole, 'DELIVERY_PARTNER'),
+          eq(notifications.status, 'UNREAD')
         )
       );
 
     return NextResponse.json({ count: unreadNotifs.length });
   } catch (error) {
+    console.error('Error fetching partner unread notifs:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

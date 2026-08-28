@@ -11,14 +11,10 @@ import {
   LogOut,
   Shield
 } from 'lucide-react';
-
-import { useFcmToken } from '@/hooks/useFcmToken';
-
 export default function PlatformAdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<{name: string, role: string} | null>(null);
-  const { deleteTokenFromBackend, token } = useFcmToken();
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -35,9 +31,7 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
   }, [router]);
 
   const handleLogout = async () => {
-    if (token) {
-      await deleteTokenFromBackend(token);
-    }
+
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';

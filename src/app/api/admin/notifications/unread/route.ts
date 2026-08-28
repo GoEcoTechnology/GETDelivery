@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { tenantNotifications } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
-import { headers } from 'next/headers';
+import { notifications } from '@/db/schema';
+import { eq, and, or } from 'drizzle-orm';
 import { verifyToken } from '@/lib/auth';
 
 export async function GET(request: Request) {
@@ -22,19 +21,33 @@ export async function GET(request: Request) {
     const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
       : claims.tenantId) as number;
+    
+    const userId = claims.userId as number;
+    const userRole = claims.role as string;
 
     const unreadNotifs = await db
-      .select({ id: tenantNotifications.id })
-      .from(tenantNotifications)
+      .select({ id: notifications.id })
+      .from(notifications)
       .where(
         and(
-          eq(tenantNotifications.tenantId, tenantIdToUse),
-          eq(tenantNotifications.isRead, false)
+          eq(notifications.status, 'UNREAD'),
+          or(
+            and(
+              eq(notifications.receiverId, userId),
+              eq(notifications.receiverRole, userRole)
+            ),
+            and(
+              eq(notifications.receiverId, 0),
+              eq(notifications.receiverRole, userRole),
+              eq(notifications.tenantId, tenantIdToUse)
+            )
+          )
         )
       );
 
     return NextResponse.json({ count: unreadNotifs.length });
   } catch (error) {
+    console.error('Error fetching unread notifs:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -50,6 +50,13 @@
       "when": 1787879782577,
       "tag": "0006_safe_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787899331932,
+      "tag": "0007_violet_spencer_smythe",
+      "breakpoints": true
     }
   ]
 }

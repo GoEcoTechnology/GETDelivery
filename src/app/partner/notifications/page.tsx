@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { partnerNotifications } from '@/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { notifications } from '@/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { Bell } from 'lucide-react';
 import styles from '../partner.module.css';
 
@@ -21,18 +21,29 @@ export default async function PartnerNotificationsPage() {
 
   const partnerId = parseInt(partnerIdStr, 10);
 
-  const notifications = await db
+  const partnerNotifications = await db
     .select()
-    .from(partnerNotifications)
-    .where(eq(partnerNotifications.deliveryPartnerId, partnerId))
-    .orderBy(desc(partnerNotifications.createdAt));
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.receiverId, partnerId),
+        eq(notifications.receiverRole, 'DELIVERY_PARTNER')
+      )
+    )
+    .orderBy(desc(notifications.createdAt));
 
-  // Mark all as read (optional, we could do this via API, but for simplicity we can do it on page load)
-  if (notifications.some(n => !n.isRead)) {
+  // Mark all as read
+  if (partnerNotifications.some(n => n.status === 'UNREAD')) {
     await db
-      .update(partnerNotifications)
-      .set({ isRead: true })
-      .where(eq(partnerNotifications.deliveryPartnerId, partnerId));
+      .update(notifications)
+      .set({ status: 'READ', readAt: new Date() })
+      .where(
+        and(
+          eq(notifications.receiverId, partnerId),
+          eq(notifications.receiverRole, 'DELIVERY_PARTNER'),
+          eq(notifications.status, 'UNREAD')
+        )
+      );
   }
 
   return (
@@ -42,17 +53,17 @@ export default async function PartnerNotificationsPage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {notifications.length === 0 ? (
+        {partnerNotifications.length === 0 ? (
           <div className={styles.emptyState}>
             <Bell size={48} color="#cbd5e1" style={{ margin: '0 auto' }} />
             <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#0f172a', marginTop: '16px' }}>All caught up</h3>
             <p className={styles.textMuted} style={{ marginTop: '4px' }}>You don't have any notifications.</p>
           </div>
         ) : (
-          notifications.map(notif => (
-            <div key={notif.id} className={styles.card} style={{ marginBottom: 0, backgroundColor: !notif.isRead ? '#e0e7ff' : 'white' }}>
+          partnerNotifications.map(notif => (
+            <div key={notif.id} className={styles.card} style={{ marginBottom: 0, backgroundColor: notif.status === 'UNREAD' ? '#e0e7ff' : 'white' }}>
               <div className={styles.cardContent} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                <div style={{ marginTop: '4px', height: '8px', width: '8px', borderRadius: '50%', flexShrink: 0, backgroundColor: !notif.isRead ? '#4f46e5' : 'transparent' }} />
+                <div style={{ marginTop: '4px', height: '8px', width: '8px', borderRadius: '50%', flexShrink: 0, backgroundColor: notif.status === 'UNREAD' ? '#4f46e5' : 'transparent' }} />
                 <div>
                   <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#0f172a', margin: 0 }}>{notif.title}</h4>
                   <p style={{ fontSize: '0.875rem', color: '#475569', margin: '4px 0 0 0' }}>{notif.body}</p>
