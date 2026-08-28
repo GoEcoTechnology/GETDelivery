@@ -17,6 +17,7 @@ import {
   Settings
 } from 'lucide-react';
 import AdminNotifListener from './AdminNotifListener';
+import { useFcmToken } from '@/hooks/useFcmToken';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -33,12 +34,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setUser(JSON.parse(userData));
   }, [router]);
 
+  const { deleteTokenFromBackend, token } = useFcmToken();
+
   useEffect(() => {
     // Close sidebar on navigation
     setSidebarOpen(false);
   }, [pathname]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (token) {
+      await deleteTokenFromBackend(token);
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';

@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { deviceTokens, notificationQueue } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
-import { queueFcm } from '@/lib/queues';
+import { eq, and, inArray } from 'drizzle-orm';
+import { messaging } from '@/lib/firebase-admin';
 
 type SendPushOptions = {
   userId?: number;
@@ -62,26 +62,76 @@ export async function sendPushNotification({
       },
     };
 
-    // 3. Queue the pushes
-    for (const token of tokenStrings) {
-      // Create a DB record for tracking (optional, but good practice since they have notificationQueue)
-      const [queuedNotif] = await db.insert(notificationQueue).values({
-        tenantId: tenantId || null,
-        deliveryOrderId: deliveryOrderId || null,
-        recipientType: partnerId ? 'DELIVERY_PARTNER' : 'USER',
-        recipientId: partnerId || userId!,
-        channel: 'FCM',
-        status: 'PENDING',
-      }).returning();
+    // 3. Prepare Notification Queue Record
+    const [queuedNotif] = await db.insert(notificationQueue).values({
+      tenantId: tenantId || null,
+      deliveryOrderId: deliveryOrderId || null,
+      recipientType: partnerId ? 'DELIVERY_PARTNER' : 'USER',
+      recipientId: partnerId || userId!,
+      channel: 'FCM',
+      status: 'PENDING',
+    }).returning();
 
-      if (queuedNotif) {
-        await queueFcm(queuedNotif.id, token, payload);
+    if (!messaging) {
+      console.warn('Firebase Admin SDK not initialized. Cannot send push notification.');
+      await db.update(notificationQueue).set({ status: 'FAILED' }).where(eq(notificationQueue.id, queuedNotif.id));
+      return;
+    }
+
+    // 4. Send via Firebase Admin inline
+    const fcmPayload = {
+      tokens: tokenStrings,
+      notification: {
+        title: title,
+        body: body,
+      },
+      data: payload.data,
+      android: {
+        priority: 'high' as const,
+        notification: {
+          sound: 'default',
+        }
+      },
+      webpush: {
+        headers: {
+          Urgency: 'high'
+        },
+        fcmOptions: {
+          link: payload.data.action_url
+        },
+        notification: {
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          vibrate: [200, 100, 200, 100, 200]
+        }
+      }
+    };
+
+    const response = await messaging.sendEachForMulticast(fcmPayload);
+    
+    console.log(`Sent push notification. Success: ${response.successCount}, Failed: ${response.failureCount}`);
+
+    if (response.failureCount > 0) {
+      const invalidTokens: string[] = [];
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success && resp.error) {
+          if (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered') {
+            invalidTokens.push(tokenStrings[idx]);
+          }
+        }
+      });
+      if (invalidTokens.length > 0) {
+        await db.delete(deviceTokens).where(inArray(deviceTokens.fcmToken, invalidTokens));
       }
     }
-    
-    console.log(`Queued push notifications to ${tokenStrings.length} device(s).`);
+
+    // 5. Update Audit Queue Status
+    await db.update(notificationQueue)
+      .set({ status: response.successCount > 0 ? 'COMPLETED' : 'FAILED' })
+      .where(eq(notificationQueue.id, queuedNotif.id));
 
   } catch (error) {
-    console.error('Error queuing push notification:', error);
+    console.error('Error sending push notification inline:', error);
   }
 }
+

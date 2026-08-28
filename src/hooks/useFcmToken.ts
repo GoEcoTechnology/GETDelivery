@@ -176,5 +176,17 @@ export function useFcmToken() {
     }
   };
 
-  return { token, permission, requestPermissionAndGetToken, registerTokenInBackend, error, isStandalone };
+  const deleteTokenFromBackend = async (fcmToken: string) => {
+    try {
+      await fetch('/api/device-tokens/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fcmToken }),
+      });
+    } catch (error) {
+      console.error('Error deleting token on logout', error);
+    }
+  };
+
+  return { token, permission, requestPermissionAndGetToken, registerTokenInBackend, deleteTokenFromBackend, error, isStandalone };
 }
