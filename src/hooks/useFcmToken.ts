@@ -29,8 +29,8 @@ export function useFcmToken() {
         // Auto-register since they enabled it
         if (messaging) {
           try {
-            // Explicitly register service worker with config in URL params
-            const swUrl = `/firebase-messaging-sw.js?apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}&authDomain=${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}&storageBucket=${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`;
+            // Explicitly register service worker with config in URL params and a version bump to bypass cache
+            const swUrl = `/firebase-messaging-sw.js?v=2&apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}&authDomain=${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}&storageBucket=${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`;
             const registration = await navigator.serviceWorker.register(swUrl);
             await navigator.serviceWorker.ready;
 
@@ -44,6 +44,7 @@ export function useFcmToken() {
               if (tokenErr.message && tokenErr.message.includes('Registration failed - push service error')) {
                 console.warn('Corrupted push subscription detected. Unregistering service worker and retrying...');
                 await registration.unregister();
+                const swUrl = `/firebase-messaging-sw.js?v=2&apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}&authDomain=${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}&storageBucket=${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`;
                 const newRegistration = await navigator.serviceWorker.register(swUrl);
                 await navigator.serviceWorker.ready;
                 currentToken = await getToken(messaging, {
@@ -94,8 +95,8 @@ export function useFcmToken() {
       setPermission(currentPermission);
 
       if (currentPermission === 'granted') {
-        // Explicitly register service worker with config in URL params
-        const swUrl = `/firebase-messaging-sw.js?apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}&authDomain=${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}&storageBucket=${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`;
+        // Explicitly register service worker with config in URL params and a version bump
+        const swUrl = `/firebase-messaging-sw.js?v=2&apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}&authDomain=${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}&storageBucket=${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`;
         const registration = await navigator.serviceWorker.register(swUrl);
         await navigator.serviceWorker.ready;
 
@@ -110,6 +111,7 @@ export function useFcmToken() {
           if (tokenErr.message && tokenErr.message.includes('Registration failed - push service error')) {
             console.warn('Corrupted push subscription detected. Unregistering service worker and retrying...');
             await registration.unregister();
+            const swUrl = `/firebase-messaging-sw.js?v=2&apiKey=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}&projectId=${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}&messagingSenderId=${process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}&appId=${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}&authDomain=${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}&storageBucket=${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}`;
             const newRegistration = await navigator.serviceWorker.register(swUrl);
             await navigator.serviceWorker.ready;
             currentToken = await getToken(messaging, {
