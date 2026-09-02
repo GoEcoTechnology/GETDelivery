@@ -14,6 +14,7 @@ export async function GET(request: Request) {
       .select({
         vehicleType: vehicleDeliveryRates.vehicleType,
         basePrice: vehicleDeliveryRates.basePrice,
+        pricePerKm: vehicleDeliveryRates.pricePerKm,
         isActive: vehicleDeliveryRates.isActive,
         updatedAt: vehicleDeliveryRates.updatedAt,
       })
@@ -58,11 +59,13 @@ export async function PUT(request: Request) {
     for (const rate of rates) {
       if (!rate.vehicleType) continue;
       const basePrice = Number(rate.basePrice || 0);
+      const vehiclePricePerKm = Number(rate.pricePerKm || 0);
       await tx
         .insert(vehicleDeliveryRates)
         .values({
           vehicleType: String(rate.vehicleType),
           basePrice: basePrice.toString(),
+          pricePerKm: vehiclePricePerKm.toString(),
           isActive: Boolean(rate.isActive),
           updatedBy: claims.userId as number,
         })
@@ -70,6 +73,7 @@ export async function PUT(request: Request) {
           target: vehicleDeliveryRates.vehicleType,
           set: {
             basePrice: basePrice.toString(),
+            pricePerKm: vehiclePricePerKm.toString(),
             isActive: Boolean(rate.isActive),
             updatedBy: claims.userId as number,
             updatedAt: sql`now()`,

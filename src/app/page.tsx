@@ -48,12 +48,12 @@ export default function Home() {
         <h1 className={styles.title}>
           The unified platform for inventory and <span className={styles.highlight}>delivery logistics
             <svg className={styles.underline} viewBox="0 0 200 20" xmlns="http://www.w3.org/2000/svg">
-              <path d="M5,15 Q100,5 195,15" fill="none" stroke="#3b82f6" strokeWidth="6" strokeLinecap="round"/>
+              <path d="M5,15 Q100,5 195,15" fill="none" stroke="#3b82f6" strokeWidth="6" strokeLinecap="round" />
             </svg>
           </span>
         </h1>
         <p className={styles.subtitle}>
-          GETDelivery connects businesses, dispatchers, and drivers securely and quickly. 
+          GETDelivery connects businesses, dispatchers, and drivers securely and quickly.
           The best-trusted multi-tenant logistics management system.
         </p>
 

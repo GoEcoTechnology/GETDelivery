@@ -244,6 +244,7 @@ export const vehicleDeliveryRates = pgTable('vehicle_delivery_rates', {
   id: serial('id').primaryKey(),
   vehicleType: varchar('vehicle_type', { length: 100 }).notNull().unique(),
   basePrice: decimal('base_price', { precision: 10, scale: 2 }).default('0').notNull(),
+  pricePerKm: decimal('price_per_km', { precision: 10, scale: 2 }).default('0').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   updatedBy: integer('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
