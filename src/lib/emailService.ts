@@ -298,11 +298,13 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
 
     if (validRecipients.length === 0) {
       console.error('✗ No valid recipient email addresses provided');
-      return { 
-        success: false, 
-        error: 'No valid recipient email addresses' 
-      };
+      return { success: false, error: 'No valid recipient email addresses provided' };
     }
+
+    // Append timestamp to subject to prevent Gmail from threading separate notifications
+    // This fixes the issue where new emails get hidden in old threads
+    const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const uniqueSubject = `${options.subject} [${timeStr}]`;
 
     // Prepare sender information
     const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
@@ -356,7 +358,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
         from: fromEmail,
         to: validRecipients,
       },
-      subject: options.subject,
+      subject: uniqueSubject,
       html: options.html,
       text: plainText,
       replyTo,
@@ -376,7 +378,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     // Log successful send
     console.log(
       `✓ Email delivered: From=${fromEmail}, To=${validRecipients.join('; ')}, ` +
-      `Subject="${options.subject}", MessageID=${result.messageId}`
+      `Subject="${uniqueSubject}", MessageID=${result.messageId}`
     );
 
     return result;

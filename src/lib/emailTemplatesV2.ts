@@ -325,7 +325,7 @@ If this delivery has already been accepted by another partner, please disregard 
   });
 
   return {
-    subject: `Delivery Request ${orderRef} - Respond Within 1 Hour`,
+    subject: `Delivery Request - Respond Within 1 Hour`,
     html,
     text,
     preheader: `${orderRef} - New delivery available for ${options.customerName}`,
