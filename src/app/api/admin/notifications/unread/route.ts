@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const token = authHeader.split(' ')[1];
     const claims = await verifyToken(token);
 
-    if (!claims || !['PLATFORM_OWNER', 'BUSINESS_OWNER', 'EMPLOYEE'].includes(claims.role)) {
+    if (!claims || !['PLATFORM_OWNER', 'BUSINESS_OWNER', 'EMPLOYEE'].includes(claims.role as string)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
