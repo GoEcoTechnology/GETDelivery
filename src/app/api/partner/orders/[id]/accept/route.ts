@@ -159,14 +159,22 @@ export async function POST(
           .from(deliveryPartners)
           .where(inArray(deliveryPartners.id, remainingPartnerIds));
 
-        sendDeliveryNoLongerAvailableNotification(
-          orderId,
-          partnerName,
-          dashboardUrl,
-          remainingPartners
-        ).catch(err => {
-          console.error('Failed to send delivery expired notification:', err.message);
-        });
+        // Filter out any partners that share the same email as the winner (common in testing)
+        const winnerEmail = partner?.email?.toLowerCase();
+        const filteredRemainingPartners = remainingPartners.filter(
+          p => !p.email || p.email.toLowerCase() !== winnerEmail
+        );
+
+        if (filteredRemainingPartners.length > 0) {
+          sendDeliveryNoLongerAvailableNotification(
+            orderId,
+            partnerName,
+            dashboardUrl,
+            filteredRemainingPartners
+          ).catch(err => {
+            console.error('Failed to send delivery expired notification:', err.message);
+          });
+        }
       }
 
       return NextResponse.json({ success: true, message: 'Delivery request accepted and assigned successfully.' });
