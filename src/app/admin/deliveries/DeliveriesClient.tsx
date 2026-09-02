@@ -422,7 +422,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
 
                       {/* Partner */}
                       <td style={{ padding: '8px 4px', textAlign: 'center', verticalAlign: 'middle' }}>
-                        {delivery.status === 'WAITING_APPROVAL' && delivery.temporaryWinner ? (
+                        {delivery.temporaryWinner ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center', justifyContent: 'center' }}>
                             <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b', lineHeight: 1.35 }}>
                               {delivery.temporaryWinner.companyName || delivery.temporaryWinner.contactPerson || 'Delivery Partner'}
