@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryAssignments, drivers, vehicles } from '@/db/schema';
+import { deliveryOrders, deliveryAssignments, drivers, vehicles, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
-
+import { deductOrderStock } from '@/lib/inventory-helper';
+import { sendDriverAssignmentNotification } from '@/lib/emailWorkflowHelper';
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -42,8 +43,8 @@ export async function POST(
       return NextResponse.json({ error: 'Delivery order not found' }, { status: 404 });
     }
 
-    if (order.status !== 'READY_FOR_DISPATCH' && order.status !== 'DRAFT') {
-      return NextResponse.json({ error: `Cannot dispatch delivery in status: ${order.status}` }, { status: 400 });
+    if (order.status !== 'READY_FOR_DISPATCH') {
+      return NextResponse.json({ error: `Only READY_FOR_DISPATCH orders can be dispatched. Current status: ${order.status}` }, { status: 400 });
     }
 
     // Validate Driver
@@ -72,15 +73,19 @@ export async function POST(
       return NextResponse.json({ error: 'Valid active vehicle is required' }, { status: 400 });
     }
 
-    await tx.transaction(async (innerTx: any) => {
-      // 1. Update order status
-      await innerTx
-        .update(deliveryOrders)
-        .set({ status: 'DISPATCHED' }) // Matching UI "Out for Delivery" / DISPATCHED state
-        .where(eq(deliveryOrders.id, order.id));
+    try {
+      await tx.transaction(async (innerTx: any) => {
+        // 0. Deduct Stock (throws if insufficient)
+        await deductOrderStock(innerTx, tenantIdToUse, order.id, claims.userId as number);
 
-      // 2. Create Assignment (no deliveryPartnerId for internal)
-      await innerTx.insert(deliveryAssignments).values({
+        // 1. Update order status
+        await innerTx
+          .update(deliveryOrders)
+          .set({ status: 'DISPATCHED' }) // Matching UI "Out for Delivery" / DISPATCHED state
+          .where(eq(deliveryOrders.id, order.id));
+
+        // 2. Create Assignment (no deliveryPartnerId for internal)
+        await innerTx.insert(deliveryAssignments).values({
         tenantId: tenantIdToUse,
         deliveryOrderId: order.id,
         driverName: driver.name,
@@ -89,6 +94,26 @@ export async function POST(
       });
     });
 
+    // Send email to assigned driver (fire-and-forget)
+    const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/driver/dashboard/${order.id}`;
+    sendDriverAssignmentNotification(
+      tenantIdToUse,
+      driver.id,
+      driver.name,
+      `${vehicle.plateNumber} - ${vehicle.vehicleType}`,
+      order.batchId || 0,
+      1, // For single order dispatch
+      order.pickupAddress,
+      order.deliveryTime,
+      dashboardUrl,
+      order.id
+    ).catch(err => {
+      console.error('Failed to send driver assignment email:', err.message);
+    });
+
     return NextResponse.json({ success: true, message: 'Dispatched internally successfully' });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to dispatch order due to inventory constraints' }, { status: 400 });
+  }
   });
 }

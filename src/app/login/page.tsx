@@ -10,7 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
   const [userData, setUserData] = useState<any>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -31,8 +31,15 @@ export default function LoginPage() {
         throw new Error(data.details || data.error || "Login failed");
       }
 
-      // Save user to localStorage so client-side layouts know who is logged in
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Save user AND token to localStorage for client-side API calls
+      const userToStore = { ...data.user };
+      localStorage.setItem('user', JSON.stringify(userToStore));
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        // Also write as a non-httpOnly cookie for the server-side proxy to read
+        // (the httpOnly cookie is already set by the server, this is the fallback)
+        document.cookie = `token=${data.token}; path=/; SameSite=Lax; max-age=${7 * 24 * 60 * 60}`;
+      }
       setUserData(data.user);
 
       proceedToDashboard(data.user);
@@ -45,13 +52,15 @@ export default function LoginPage() {
 
   const proceedToDashboard = (user: any) => {
     if (user.role === "PLATFORM_OWNER") {
-      router.push("/platform-admin/dashboard");
-    } else if (user.role === "BUSINESS_OWNER" || user.role === "ADMIN") {
-      router.push("/admin/dashboard");
+      window.location.href = "/platform-admin/dashboard";
+    } else if (user.role === "BUSINESS_OWNER" || user.role === "ADMIN" || user.role === "EMPLOYEE") {
+      window.location.href = "/admin/dashboard";
     } else if (user.role === "DELIVERY_PARTNER") {
-      router.push("/partner/orders");
+      window.location.href = "/partner/orders";
+    } else if (user.role === "DRIVER") {
+      window.location.href = "/driver";
     } else {
-      router.push("/dashboard");
+      window.location.href = "/admin/dashboard";
     }
   };
 
@@ -105,6 +114,14 @@ export default function LoginPage() {
         >
           {loading ? "Signing in..." : "Sign In"}
         </button>
+
+        <div style={{ textAlign: 'center', fontSize: 14, color: '#64748b', marginTop: 8 }}>
+          Don&apos;t have an account?{' '}
+          <a href="/register" style={{ color: '#4f46e5', fontWeight: 600, textDecoration: 'none' }}>Register here</a>
+        </div>
+        <div style={{ textAlign: 'center', fontSize: 14, color: '#64748b', marginTop: -20 }}>
+          <a href="/" style={{ color: '#4f46e5', fontWeight: 600, textDecoration: 'none' }}> Go back  </a>
+        </div>
       </form>
     </main>
   );

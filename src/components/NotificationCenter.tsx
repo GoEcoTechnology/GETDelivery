@@ -105,9 +105,28 @@ export function NotificationCenter() {
                   className={`${styles.item} ${notif.status === 'UNREAD' ? styles.unreadItem : ''}`}
                 >
                   <div className={styles.itemContent} onClick={() => handleNotificationClick(notif)}>
-                    <h4>{notif.title}</h4>
-                    <p>{notif.body}</p>
-                    <small>{formatDistanceToNow(new Date(notif.createdAt))} ago</small>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <h4 style={{ margin: '0 0 4px 0' }}>{notif.title}</h4>
+                      <span style={{ 
+                        display: 'inline-block',
+                        backgroundColor: notif.notificationType?.includes('order') ? '#3b82f6' : '#10b981',
+                        color: 'white',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {notif.notificationType === 'new_delivery_request' ? 'New Request' :
+                         notif.notificationType === 'order_accepted' ? 'Accepted' :
+                         notif.notificationType === 'order_declined' ? 'Declined' :
+                         notif.notificationType === 'delivery_completed' ? 'Completed' :
+                         'Update'}
+                      </span>
+                    </div>
+                    <p style={{ margin: '4px 0' }}>{notif.body}</p>
+                    <small style={{ color: '#6b7280' }}>{formatDistanceToNow(new Date(notif.createdAt))} ago</small>
                   </div>
                   {notif.status === 'UNREAD' && (
                     <button className={styles.markReadBtn} onClick={() => markAsRead(notif.id)} title="Mark as read">

@@ -29,6 +29,9 @@ export async function GET(request: Request) {
         plateNumber: vehicles.plateNumber,
         vehicleType: vehicles.vehicleType,
         status: vehicles.status,
+        orNumber: vehicles.orNumber,
+        crNumber: vehicles.crNumber,
+        registrationExpiry: vehicles.registrationExpiry,
         createdAt: vehicles.createdAt,
       })
       .from(vehicles)

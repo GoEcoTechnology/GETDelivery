@@ -48,7 +48,11 @@ export async function POST(request: Request) {
 
       const token = await signToken(payload, '7d');
 
-      const response = NextResponse.json({ success: true, user: { id: user.id, name: user.name, role: user.role } });
+      const response = NextResponse.json({
+        success: true,
+        token,
+        user: { id: user.id, name: user.name, role: user.role, tenantId: user.tenantId }
+      });
       
       response.cookies.set({
         name: 'token',
@@ -57,7 +61,7 @@ export async function POST(request: Request) {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
-        maxAge: 7 * 24 * 60 * 60, // 7 days
+        maxAge: 7 * 24 * 60 * 60,
       });
 
       return response;
@@ -85,6 +89,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
       }
 
+      if (partner.status === 'PENDING') {
+        return NextResponse.json({ error: 'Your account is pending Super Admin approval. Please wait for approval before logging in.' }, { status: 403 });
+      }
+
+      if (partner.status === 'REJECTED') {
+        return NextResponse.json({ error: 'Your registration has been rejected. Please contact support.' }, { status: 403 });
+      }
+
       if (!partner.passwordHash) {
         // First-time login: Auto-set the provided password for this partner
         const { hashPassword } = await import('@/lib/password');
@@ -108,7 +120,11 @@ export async function POST(request: Request) {
 
       const token = await signToken(payload, '7d');
 
-      const response = NextResponse.json({ success: true, user: { id: partner.id, name: partner.companyName, role: 'DELIVERY_PARTNER' } });
+      const response = NextResponse.json({
+        success: true,
+        token,
+        user: { id: partner.id, name: partner.companyName, role: 'DELIVERY_PARTNER' }
+      });
       
       response.cookies.set({
         name: 'token',
@@ -117,7 +133,7 @@ export async function POST(request: Request) {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
-        maxAge: 7 * 24 * 60 * 60, // 7 days
+        maxAge: 7 * 24 * 60 * 60,
       });
 
       return response;

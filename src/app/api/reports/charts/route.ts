@@ -6,6 +6,11 @@ import { withAuth } from '@/lib/api-helper';
 
 export async function GET(request: Request) {
   return withAuth(request, { requiredPermissions: ['reports.view'] }, async (tx, claims) => {
+    // Employees cannot access reports
+    if (claims.role === 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Access denied. Employees cannot view reports.' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const range = searchParams.get('range') || 'week'; // week, month, year
 

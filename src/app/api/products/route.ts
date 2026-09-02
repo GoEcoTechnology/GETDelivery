@@ -32,6 +32,7 @@ export async function GET(request: Request) {
         name: products.name,
         sku: products.sku,
         category: products.category,
+        price: products.price,
         stock: products.stock,
         unit: products.unit,
         lowStockThreshold: products.lowStockThreshold,

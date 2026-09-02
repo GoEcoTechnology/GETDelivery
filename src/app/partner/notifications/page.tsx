@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { notifications } from '@/db/schema';
+import { notifications, deliveryOrders } from '@/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { Bell } from 'lucide-react';
+import { Bell, Link, Package, MapPin, User, Phone } from 'lucide-react';
 import styles from '../partner.module.css';
 
 export const metadata = {
@@ -32,6 +32,21 @@ export default async function PartnerNotificationsPage() {
     )
     .orderBy(desc(notifications.createdAt));
 
+  // Fetch delivery order details for each notification
+  const notificationsWithOrders = await Promise.all(
+    partnerNotifications.map(async (notif) => {
+      let order = null;
+      if (notif.deliveryOrderId) {
+        const [foundOrder] = await db
+          .select()
+          .from(deliveryOrders)
+          .where(eq(deliveryOrders.id, notif.deliveryOrderId));
+        order = foundOrder;
+      }
+      return { notif, order };
+    })
+  );
+
   // Mark all as read
   if (partnerNotifications.some(n => n.status === 'UNREAD')) {
     await db
@@ -46,6 +61,28 @@ export default async function PartnerNotificationsPage() {
       );
   }
 
+  const getNotificationBadgeColor = (type: string) => {
+    const colorMap: Record<string, string> = {
+      new_delivery_request: '#10b981',
+      order_accepted: '#3b82f6',
+      order_declined: '#ef4444',
+      delivery_completed: '#8b5cf6',
+      order_assigned: '#f59e0b',
+    };
+    return colorMap[type] || '#6b7280';
+  };
+
+  const formatNotificationType = (type: string) => {
+    const typeMap: Record<string, string> = {
+      new_delivery_request: 'New Request',
+      order_accepted: 'Accepted',
+      order_declined: 'Declined',
+      delivery_completed: 'Completed',
+      order_assigned: 'Assigned',
+    };
+    return typeMap[type] || type;
+  };
+
   return (
     <div style={{ paddingBottom: '64px' }}>
       <div className={styles.flexBetween} style={{ marginBottom: '24px' }}>
@@ -53,21 +90,97 @@ export default async function PartnerNotificationsPage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {partnerNotifications.length === 0 ? (
+        {notificationsWithOrders.length === 0 ? (
           <div className={styles.emptyState}>
             <Bell size={48} color="#cbd5e1" style={{ margin: '0 auto' }} />
             <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#0f172a', marginTop: '16px' }}>All caught up</h3>
             <p className={styles.textMuted} style={{ marginTop: '4px' }}>You don't have any notifications.</p>
+            <Link href="/partner" className={styles.textMuted} style={{ marginTop: '4px' }}>Back to Dashboard</Link>
           </div>
         ) : (
-          partnerNotifications.map(notif => (
+          notificationsWithOrders.map(({ notif, order }) => (
             <div key={notif.id} className={styles.card} style={{ marginBottom: 0, backgroundColor: notif.status === 'UNREAD' ? '#e0e7ff' : 'white' }}>
               <div className={styles.cardContent} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                 <div style={{ marginTop: '4px', height: '8px', width: '8px', borderRadius: '50%', flexShrink: 0, backgroundColor: notif.status === 'UNREAD' ? '#4f46e5' : 'transparent' }} />
-                <div>
-                  <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#0f172a', margin: 0 }}>{notif.title}</h4>
-                  <p style={{ fontSize: '0.875rem', color: '#475569', margin: '4px 0 0 0' }}>{notif.body}</p>
-                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '8px 0 0 0' }}>
+                <div style={{ flex: 1 }}>
+                  {/* Header with Title and Badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
+                    <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#0f172a', margin: 0 }}>{notif.title}</h4>
+                    <span style={{ 
+                      display: 'inline-block',
+                      backgroundColor: getNotificationBadgeColor(notif.notificationType),
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      flexShrink: 0
+                    }}>
+                      {formatNotificationType(notif.notificationType)}
+                    </span>
+                  </div>
+
+                  {/* Notification Message */}
+                  <p style={{ fontSize: '0.875rem', color: '#475569', margin: '0 0 12px 0' }}>{notif.body}</p>
+
+                  {/* Order Details if available */}
+                  {order && (
+                    <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', marginBottom: '12px', fontSize: '0.875rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <Package size={16} color="#4f46e5" />
+                        <span style={{ fontWeight: 600, color: '#0f172a' }}>ORD-{String(order.id).padStart(5, '0')}</span>
+                        <span style={{ fontSize: '0.75rem', backgroundColor: '#e0e7ff', color: '#4f46e5', padding: '2px 6px', borderRadius: '4px' }}>
+                          {order.status}
+                        </span>
+                      </div>
+
+                      {/* Customer Info */}
+                      {order.customerName && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: '#475569' }}>
+                          <User size={14} color="#6b7280" />
+                          <span>{order.customerName}</span>
+                        </div>
+                      )}
+
+                      {/* Customer Contact */}
+                      {order.customerContact && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: '#475569' }}>
+                          <Phone size={14} color="#6b7280" />
+                          <a href={`tel:${order.customerContact}`} style={{ color: '#4f46e5', textDecoration: 'none' }}>
+                            {order.customerContact}
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Addresses */}
+                      {(order.pickupAddress || order.dropoffAddress) && (
+                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e2e8f0' }}>
+                          {order.pickupAddress && (
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '4px', color: '#475569' }}>
+                              <MapPin size={14} color="#059669" style={{ flexShrink: 0 }} />
+                              <span style={{ fontSize: '0.8125rem' }}>Pickup: {order.pickupAddress}</span>
+                            </div>
+                          )}
+                          {order.dropoffAddress && (
+                            <div style={{ display: 'flex', gap: '8px', color: '#475569' }}>
+                              <MapPin size={14} color="#dc2626" style={{ flexShrink: 0 }} />
+                              <span style={{ fontSize: '0.8125rem' }}>Delivery: {order.dropoffAddress}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Scheduled Date */}
+                      {order.deliveryDate && (
+                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e2e8f0', fontSize: '0.8125rem', color: '#475569' }}>
+                          📅 {new Date(order.deliveryDate).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Timestamp */}
+                  <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>
                     {new Date(notif.createdAt).toLocaleString()}
                   </p>
                 </div>

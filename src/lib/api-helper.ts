@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { withRLS } from '@/db';
+import { withRLS, db } from '@/db';
 import type { AppJwtPayload } from '@/lib/auth';
 import { hasPermission, Permission } from '@/lib/permissions';
+import { users } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function withAuth(
   request: Request,
@@ -20,10 +22,21 @@ export async function withAuth(
   let claims: any = {};
   if (role) {
     const partnerIdStr = request.headers.get('x-partner-id');
+    let tenantId = tenantIdStr ? parseInt(tenantIdStr, 10) : null;
+    const userId = userIdStr ? parseInt(userIdStr, 10) : null;
+
+    if (!tenantId && userId && role !== 'PLATFORM_OWNER' && role !== 'DELIVERY_PARTNER') {
+      const [userRow] = await db
+        .select({ tenantId: users.tenantId })
+        .from(users)
+        .where(eq(users.id, userId));
+      tenantId = userRow?.tenantId ?? null;
+    }
+
     claims = {
       role,
-      userId: userIdStr ? parseInt(userIdStr, 10) : null,
-      tenantId: tenantIdStr ? parseInt(tenantIdStr, 10) : null,
+      userId,
+      tenantId,
       partnerId: partnerIdStr ? parseInt(partnerIdStr, 10) : null
     };
 
@@ -51,6 +64,7 @@ export async function withAuth(
     if (error.message && (error.message.includes('not found') || error.message.includes('Insufficient') || error.message.includes('Invalid'))) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+    require('fs').appendFileSync('api-error.log', new Date().toISOString() + '\n' + JSON.stringify({ message: error.message, cause: error.cause ? error.cause.message : null, code: error.code || (error.cause && error.cause.code) }, null, 2) + '\n\n');
     return NextResponse.json({ error: 'Internal server error', details: error.message, stack: error.stack }, { status: 500 });
   }
 }

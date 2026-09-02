@@ -1,51 +1,182 @@
-import { Metadata } from 'next';
+'use client';
+import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Package, Bell } from 'lucide-react';
-import styles from './partner.module.css';
+import styles from '../admin/admin.module.css';
+
+import { 
+  LayoutDashboard, 
+  Package, 
+  Bell, 
+  Settings,
+  LogOut,
+  Briefcase,
+  User,
+  Truck,
+  MapPinned
+} from 'lucide-react';
 import PartnerNotifListener from './PartnerNotifListener';
+import NotificationBell from '../admin/NotificationBell';
 
-import { NotificationCenter } from '@/components/NotificationCenter';
+export default function PartnerLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [user, setUser] = useState<{name: string, role: string} | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsHash, setSettingsHash] = useState('profile');
 
-export const metadata: Metadata = {
-  title: 'Partner Portal | GET Delivery',
-  description: 'Portal for GET Delivery Partners',
-};
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        router.push('/login');
+        return;
+      }
+      const parsedUser = JSON.parse(userData);
+      if (parsedUser.role !== 'DELIVERY_PARTNER') {
+        router.push('/login');
+        return;
+      }
+      setUser(parsedUser);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [router]);
 
-export default function PartnerLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+  useEffect(() => {
+    const timer = setTimeout(() => setSidebarOpen(false), 0);
+    return () => clearTimeout(timer);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!pathname.startsWith('/partner/settings')) return;
+    const updateHash = () => setSettingsHash(window.location.hash.replace('#', '') || 'profile');
+    updateHash();
+    window.addEventListener('hashchange', updateHash);
+    return () => window.removeEventListener('hashchange', updateHash);
+  }, [pathname]);
+
+  const handleLogout = async () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
+    router.push('/login');
+  };
+
+  const settingsTabs = [
+    { key: 'profile', label: 'Profile', icon: User },
+    { key: 'notifications', label: 'Notifications', icon: Bell },
+    { key: 'vehicle', label: 'Vehicle Info', icon: Truck },
+    { key: 'areas', label: 'Operating Areas', icon: MapPinned },
+  ];
+
+  if (!user) return <div className={styles.loading}>Loading secure environment...</div>;
+
   return (
-    <div className={styles.container}>
-      {/* Mobile-first sticky header */}
-      <header className={styles.header}>
-        <div className={styles.headerContent} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span className={styles.logo}>GET<span className={styles.logoLight}>Partner</span></span>
+    <div className={styles.layout}>
+      <PartnerNotifListener />
+      
+      {/* Mobile Header */}
+      <div className={styles.mobileHeader}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, color: '#4f46e5' }}>
+          <Briefcase className="w-5 h-5" /> GETPartner
+        </div>
+        <button className={styles.mobileMenuBtn} onClick={() => setSidebarOpen(true)}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      {/* Overlay for mobile */}
+      <div 
+        className={`${styles.overlay} ${sidebarOpen ? styles.overlayOpen : ''}`} 
+        onClick={() => setSidebarOpen(false)}
+      ></div>
+
+      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
+        <div className={styles.brand}>
+          <Briefcase className="w-6 h-6" /> GETPartner
+        </div>
+        <nav className={styles.nav}>
+          <Link href="/partner/dashboard" className={pathname === '/partner/dashboard' ? styles.active : ''}>
+            <LayoutDashboard size={18} /> Dashboard
+          </Link>
+          <Link href="/partner/orders" className={pathname.startsWith('/partner/orders') ? styles.active : ''}>
+            <Package size={18} /> Orders
+          </Link>
+          <Link href="/partner/settings" className={pathname.startsWith('/partner/settings') ? styles.active : ''}>
+            <Settings size={18} /> Settings
+          </Link>
+          {pathname.startsWith('/partner/settings') && (
+            <div style={{ marginTop: '8px', marginLeft: '28px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {settingsTabs.map((tab) => {
+                const isActive = pathname.startsWith('/partner/settings') && settingsHash === tab.key;
+                const Icon = tab.icon;
+                return (
+                  <a
+                    key={tab.key}
+                    href={`/partner/settings#${tab.key}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '12px',
+                      textDecoration: 'none',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: isActive ? '#1d4ed8' : '#475569',
+                      background: isActive ? '#eff6ff' : 'transparent',
+                      border: isActive ? '1px solid #bfdbfe' : '1px solid transparent',
+                    }}
+                  >
+                    <Icon size={16} />
+                    {tab.label}
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </nav>
+        <div className={styles.userProfile}>
+          <p className={styles.userName}>{user.name}</p>
+          <p className={styles.userRole}>{user.role.replace('_', ' ')}</p>
+          <button onClick={handleLogout} className={styles.logoutBtn}>
+            <LogOut size={16} /> Sign Out
+          </button>
+        </div>
+      </aside>
+      
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden' }}>
+        {/* Top Navbar */}
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 32px', backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', zIndex: 5 }}>
+          <div>
+            <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
+              {pathname.includes('/orders') ? 'My Orders' : 
+               pathname.includes('/settings') ? 'Account Settings' : 
+               'Dashboard Summary'}
+            </h1>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
+              {pathname.includes('/orders') ? 'View and manage your assigned delivery requests' : 
+               pathname.includes('/settings') ? 'Manage your partner profile and preferences' : 
+               'Overview of your delivery requests and performance'}
+            </p>
           </div>
-          <NotificationCenter />
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className={styles.main}>
-        {children}
-      </main>
-
-      {/* Bottom Navigation */}
-      <nav className={styles.bottomNav}>
-        <div className={styles.bottomNavContent}>
-          <Link href="/partner/orders" className={styles.navItem}>
-            <Package size={24} style={{ marginBottom: '4px' }} />
-            <span className={styles.navLabel}>Orders</span>
-          </Link>
-          <Link href="/partner/notifications" className={styles.navItem}>
-            <Bell size={24} style={{ marginBottom: '4px' }} />
-            <span className={styles.navLabel}>Alerts</span>
-          </Link>
-        </div>
-      </nav>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{user.name}</span>
+              <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'capitalize' }}>{user.role.replace(/_/g, ' ').toLowerCase()}</span>
+            </div>
+            <NotificationBell />
+          </div>
+        </header>
+        
+        <main className={styles.mainContent} style={{ overflowY: 'auto' }}>
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

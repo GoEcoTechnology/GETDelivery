@@ -57,6 +57,13 @@
       "when": 1787899331932,
       "tag": "0007_violet_spencer_smythe",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787966264696,
+      "tag": "0008_reintroduce_delivery_batches",
+      "breakpoints": true
     }
   ]
 }

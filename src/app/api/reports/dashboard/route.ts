@@ -6,6 +6,10 @@ import { withAuth } from '@/lib/api-helper';
 
 export async function GET(request: Request) {
   return withAuth(request, { requiredPermissions: ['inventory.view', 'delivery.view'] }, async (tx, claims) => {
+    // Employees cannot access reports
+    if (claims.role === 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Access denied. Employees cannot view reports.' }, { status: 403 });
+    }
     
     // Calculate global stats using efficient SQL aggregations
     // We do NOT use SELECT * to avoid fetching heavy text fields

@@ -11,6 +11,7 @@ export type Permission =
   | 'delivery.assign'
   | 'delivery.cancel'
   | 'delivery.manage'
+  | 'delivery.delete'
   | 'employee.view'
   | 'employee.create'
   | 'employee.update'
@@ -25,7 +26,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     // Platform owners bypass normal permission checks for tenant-level stuff, 
     // but we can list all permissions here just to be explicit if they act on a tenant.
     'inventory.view', 'inventory.create', 'inventory.update', 'inventory.stock_in', 'inventory.stock_out',
-    'delivery.view', 'delivery.create', 'delivery.update', 'delivery.dispatch', 'delivery.assign', 'delivery.cancel', 'delivery.manage',
+    'delivery.view', 'delivery.create', 'delivery.update', 'delivery.dispatch', 'delivery.assign', 'delivery.cancel', 'delivery.manage', 'delivery.delete',
     'employee.view', 'employee.create', 'employee.update', 'employee.delete',
     'reports.view',
     'platform.manage_tenants',
@@ -33,17 +34,15 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ],
   BUSINESS_OWNER: [
     'inventory.view', 'inventory.create', 'inventory.update', 'inventory.stock_in', 'inventory.stock_out',
-    'delivery.view', 'delivery.create', 'delivery.update', 'delivery.dispatch', 'delivery.assign', 'delivery.cancel', 'delivery.manage',
+    'delivery.view', 'delivery.create', 'delivery.update', 'delivery.dispatch', 'delivery.assign', 'delivery.cancel', 'delivery.manage', 'delivery.delete',
     'employee.view', 'employee.create', 'employee.update', 'employee.delete',
     'reports.view'
   ],
   EMPLOYEE: [
-    'inventory.view',
-    'delivery.view',
-    'delivery.create', // Employees can create deliveries
-    'reports.view'
-    // By default, generic employees do NOT have stock_in/stock_out or dispatch abilities
-    // unless explicitly granted. For this phase, we hardcode the baseline.
+    'inventory.view', 'inventory.create', 'inventory.update', 'inventory.stock_in', 'inventory.stock_out',
+    'delivery.view', 'delivery.create', 'delivery.update', 'delivery.dispatch', 'delivery.assign', 'delivery.cancel', 'delivery.manage', 'delivery.delete',
+    'employee.view', 'employee.create', 'employee.update', 'employee.delete'
+    // Employees have all business owner permissions EXCEPT reports.view
   ],
   DELIVERY_PARTNER: [
     'partner.access'

@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems } from '@/db/schema';
+import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems, products } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import PartnerOrderActions from './PartnerOrderActions';
-import { MapPin, User, Package, Calendar, Phone } from 'lucide-react';
+import RouteMap from '@/components/RouteMap';
+import { MapPin, User, Package, Navigation } from 'lucide-react';
 import styles from '../../partner.module.css';
 
 export default async function PartnerOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -13,131 +14,79 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
   const role = headersList.get('x-user-role');
   const orderId = parseInt((await params).id, 10);
 
-  if (!partnerIdStr || role !== 'DELIVERY_PARTNER' || isNaN(orderId)) {
-    redirect('/login');
-  }
-
+  if (!partnerIdStr || role !== 'DELIVERY_PARTNER' || isNaN(orderId)) redirect('/login');
   const partnerId = parseInt(partnerIdStr, 10);
 
-  // Fetch the invitation to get status and ensure the partner has access
-  const [invitation] = await db
-    .select({
-      invitation: deliveryInvitations,
-      order: deliveryOrders,
-      tenant: tenants,
-      customer: customers
-    })
+  const [invitation] = await db.select({ invitation: deliveryInvitations, order: deliveryOrders, tenant: tenants, customer: customers })
     .from(deliveryInvitations)
     .innerJoin(deliveryOrders, eq(deliveryInvitations.deliveryOrderId, deliveryOrders.id))
     .innerJoin(tenants, eq(deliveryInvitations.tenantId, tenants.id))
     .leftJoin(customers, eq(deliveryOrders.customerId, customers.id))
-    .where(
-      and(
-        eq(deliveryInvitations.deliveryPartnerId, partnerId),
-        eq(deliveryInvitations.deliveryOrderId, orderId)
-      )
-    );
+    .where(and(eq(deliveryInvitations.deliveryPartnerId, partnerId), eq(deliveryInvitations.deliveryOrderId, orderId)));
 
   if (!invitation) {
-    return (
-      <div style={{ padding: '24px', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#dc2626' }}>Access Denied</h2>
-        <p style={{ marginTop: '8px', color: '#475569' }}>You don't have access to this order or it doesn't exist.</p>
-      </div>
-    );
+    return <div style={{ padding: '24px', textAlign: 'center' }}><h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#dc2626' }}>Access Denied</h2><p style={{ marginTop: '8px', color: '#475569' }}>You don&apos;t have access to this order or it doesn&apos;t exist.</p></div>;
   }
 
-  const { order, tenant, customer, invitation: invite } = invitation;
-
-  // Fetch items
-  const items = await db.select().from(deliveryItems).where(eq(deliveryItems.deliveryOrderId, order.id));
+  const { order, customer, invitation: invite } = invitation;
+  const items = await db.select({ id: deliveryItems.id, quantity: deliveryItems.quantity, unit: deliveryItems.unit, productName: products.name }).from(deliveryItems).innerJoin(products, eq(deliveryItems.productId, products.id)).where(eq(deliveryItems.deliveryOrderId, order.id));
 
   return (
-    <div style={{ paddingBottom: '96px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header */}
-      <div>
-        <div className={styles.flexBetween} style={{ marginBottom: '8px' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>Order #{order.id}</h1>
-          <span className={`${styles.badge} ${invite.status === 'PENDING' ? styles.badgeYellow : styles.badgeGray}`}>
-            {invite.status.replace(/_/g, ' ')}
-          </span>
-        </div>
-        <p className={styles.textMuted}>From {tenant.name}</p>
+    <div style={{ display: 'grid', gap: '16px', minHeight: 'calc(100vh - 140px)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '16px' }}>
+      
       </div>
 
-      {/* Action Buttons (Sticky at bottom for mobile) */}
-      <PartnerOrderActions orderId={order.id} status={invite.status} />
-
-      {/* Delivery Details */}
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <MapPin size={20} color="#4f46e5" />
-            Delivery Details
-          </h3>
-        </div>
-        <div className={styles.cardContent} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div>
-            <p className={styles.textMuted}>Destination</p>
-            <p style={{ fontWeight: 500, margin: '4px 0 0 0' }}>{order.dropoffAddress}</p>
-          </div>
-          {order.instructions && (
-            <div>
-              <p className={styles.textMuted}>Instructions</p>
-              <p style={{ fontSize: '14px', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #f1f5f9', margin: '4px 0 0 0' }}>
-                {order.instructions}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Customer Details */}
-      {customer && (
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <User size={20} color="#4f46e5" />
-              Customer Information
-            </h3>
-          </div>
-          <div className={styles.cardContent} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div className={styles.flexBetween}>
-              <span style={{ color: '#475569' }}>Name</span>
-              <span style={{ fontWeight: 500 }}>{customer.name}</span>
-            </div>
-            {customer.mobileNumber && (
-              <div className={styles.flexBetween}>
-                <span style={{ color: '#475569' }}>Contact</span>
-                <span style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Phone size={14} /> {customer.mobileNumber}
-                </span>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '16px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gap: '16px' }}>
+          <section className={styles.card} style={{ marginBottom: 0 }}>
+            <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Navigation size={20} color="#4f46e5" /> Route Map</h3></div>
+            <div className={styles.cardContent} style={{ padding: 0 }}>
+              <div style={{ height: '280px' }}>
+                <RouteMap pickupAddress={order.pickupAddress} dropoffAddress={order.dropoffAddress} pickupLat={order.pickupLat ? parseFloat(order.pickupLat) : undefined} pickupLng={order.pickupLng ? parseFloat(order.pickupLng) : undefined} dropoffLat={order.dropoffLat ? parseFloat(order.dropoffLat) : undefined} dropoffLng={order.dropoffLng ? parseFloat(order.dropoffLng) : undefined} routePolyline={order.routePolyline ?? undefined} />
               </div>
-            )}
-          </div>
-        </div>
-      )}
+            </div>
+          </section>
 
-      {/* Items */}
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Package size={20} color="#4f46e5" />
-            Items ({items.reduce((sum, item) => sum + item.quantity, 0)})
-          </h3>
+              <section className={styles.card} style={{ marginBottom: 0 }}>
+            <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MapPin size={20} color="#4f46e5" /> Delivery Details</h3></div>
+            <div className={styles.cardContent} style={{ display: 'grid', gap: '12px' }}>
+              <DetailRow label="Status" value={invite.status.replace(/_/g, ' ')} chip />
+              <DetailRow label="Destination" value={order.dropoffAddress} />
+              {order.preferredVehicle && <DetailRow label="Preferred Vehicle" value={order.preferredVehicle} chip />}
+              {order.requiredVehicleType && <DetailRow label="Required Vehicle" value={order.requiredVehicleType} chip />}
+              {order.distanceKm && <DetailRow label="Distance" value={`${order.distanceKm} km`} />}
+              {order.finalDeliveryPrice && <DetailRow label="Delivery Fee" value={formatCurrency(order.finalDeliveryPrice)} chip />}
+              {order.instructions && <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}><div style={{ fontSize: '12px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px' }}>Instructions</div><div style={{ color: '#334155' }}>{order.instructions}</div></div>}
+            </div>
+          </section>
         </div>
-        <div className={styles.cardContent}>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {items.map(item => (
-              <li key={item.id} className={styles.flexBetween} style={{ paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
-                <span style={{ color: '#0f172a' }}>Product #{item.productId}</span>
-                <span style={{ color: '#64748b', fontWeight: 500 }}>x{item.quantity} {item.unit || ''}</span>
-              </li>
-            ))}
-            {items.length === 0 && <li style={{ padding: '8px 0', color: '#64748b' }}>No specific items listed.</li>}
-          </ul>
+
+        <div style={{ display: 'grid', gap: '16px' }}>
+          {customer && <section className={styles.card} style={{ marginBottom: 0 }}><div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><User size={20} color="#4f46e5" /> Customer Information</h3></div><div className={styles.cardContent} style={{ display: 'grid', gap: '10px' }}><DetailRow label="Name" value={customer.name} /><DetailRow label="Contact" value={customer.mobileNumber || 'Not provided'} /></div></section>}
+          <section className={styles.card} style={{ marginBottom: 0 }}>
+            <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Package size={20} color="#4f46e5" /> Items ({items.reduce((sum, item) => sum + item.quantity, 0)})</h3></div>
+            <div className={styles.cardContent} style={{ display: 'grid', gap: '10px' }}>
+              {items.map((item) => <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}><span>{item.productName}</span><strong>x{item.quantity} {item.unit}</strong></div>)}
+              {items.length === 0 && <div style={{ color: '#64748b' }}>No specific items listed.</div>}
+            </div>
+          </section>
+          <section className={styles.card} style={{ marginBottom: 0 }}>
+            <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MapPin size={20} color="#4f46e5" /> Request Actions</h3></div>
+            <div className={styles.cardContent}><PartnerOrderActions orderId={order.id} status={invite.status} /></div>
+          </section>
         </div>
       </div>
     </div>
   );
+}
+
+function DetailRow({ label, value, chip = false }: { label: string; value: string; chip?: boolean }) {
+  return <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}><span style={{ color: '#64748b', fontSize: '13px' }}>{label}</span><span style={{ fontWeight: 700, color: chip ? '#4338ca' : '#0f172a', background: chip ? '#e0e7ff' : 'transparent', padding: chip ? '4px 8px' : 0, borderRadius: chip ? '8px' : 0 }}>{value}</span></div>;
+}
+
+function formatCurrency(value: string | number) {
+  const num = typeof value === 'number' ? value : Number.parseFloat(String(value));
+  if (!Number.isFinite(num)) return '-';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PHP', maximumFractionDigits: 2 }).format(num);
 }

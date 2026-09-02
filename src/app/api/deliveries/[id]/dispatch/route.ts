@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryPartners, deliveryInvitations, notifications } from '@/db/schema';
-import { eq, and, or, isNotNull } from 'drizzle-orm';
+import { deliveryOrders, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates } from '@/db/schema';
+import { eq, and, or, isNotNull, desc } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { deductOrderStock } from '@/lib/inventory-helper';
 import crypto from 'crypto';
 import { hashPassword } from '@/lib/password';
 import { sendEmail } from '@/lib/emailService';
+import { sendBroadcastDeliveryNotification } from '@/lib/emailWorkflowHelper';
 
 export async function POST(
   request: Request,
@@ -39,9 +41,17 @@ export async function POST(
       return NextResponse.json({ error: 'Delivery order not found' }, { status: 404 });
     }
 
-    if (order.status !== 'READY_FOR_DISPATCH' && order.status !== 'DRAFT') {
-      return NextResponse.json({ error: `Cannot dispatch delivery in status: ${order.status}` }, { status: 400 });
+    if (order.status !== 'READY_FOR_DISPATCH') {
+      return NextResponse.json({ error: `Only READY_FOR_DISPATCH orders can be dispatched. Current status: ${order.status}` }, { status: 400 });
     }
+
+    const [settings] = await tx.select().from(platformDeliverySettings).orderBy(desc(platformDeliverySettings.updatedAt)).limit(1);
+    const vehicleType = order.preferredVehicle || 'Motorcycle';
+    const [rate] = await tx.select().from(vehicleDeliveryRates).where(and(eq(vehicleDeliveryRates.vehicleType, vehicleType), eq(vehicleDeliveryRates.isActive, true)));
+    const distanceKm = Number.parseFloat(String(order.routeDistance || '0').replace(/[^\d.]/g, '')) || 0;
+    const basePrice = Number(rate?.basePrice || 0);
+    const pricePerKm = Number(settings?.pricePerKm || 0);
+    const finalDeliveryPrice = basePrice + (distanceKm * pricePerKm);
 
     // Find eligible ACTIVE delivery partners
     const eligiblePartners = await tx
@@ -67,12 +77,24 @@ export async function POST(
     const partnerIds = eligiblePartners.map((p: { id: number }) => p.id);
 
     // Create invitations and send Emails synchronously in the DB transaction
-    const txResult = await tx.transaction(async (innerTx: any) => {
-      // 1. Update order status atomically
-      await innerTx
-        .update(deliveryOrders)
-        .set({ status: 'DISPATCHED' })
-        .where(eq(deliveryOrders.id, order.id));
+    try {
+      const txResult = await tx.transaction(async (innerTx: any) => {
+        // 0. Deduct Stock (throws if insufficient)
+        await deductOrderStock(innerTx, tenantIdToUse, order.id, claims.userId as number);
+
+        // 1. Update order status atomically
+        await innerTx
+          .update(deliveryOrders)
+          .set({
+            status: 'DISPATCHED',
+            requiredVehicleType: vehicleType,
+            vehicleBasePrice: basePrice.toString(),
+            pricePerKm: pricePerKm.toString(),
+            distanceKm: distanceKm.toString(),
+            finalDeliveryPrice: finalDeliveryPrice.toString(),
+            pricingFrozenAt: new Date(),
+          })
+          .where(eq(deliveryOrders.id, order.id));
 
       // 2. Generate Tokens and Hash
       const tokens = eligiblePartners.map(() => crypto.randomBytes(32).toString('hex'));
@@ -95,15 +117,24 @@ export async function POST(
       const newNotifsToInsert: any[] = [];
       const emailTasks: Promise<any>[] = [];
       
-      const messageTitle = 'New Delivery Request';
-      const messageHtml = `
-        <p>A new delivery request is available.</p>
-        <p><strong>Delivery Request:</strong> DR-000${order.id}</p>
-        <p><strong>Order:</strong> ORD-100${order.id}</p>
-        <p><strong>Customer:</strong> ${order.customerName}</p>
-        <p><strong>Pickup:</strong> ${order.pickupAddress}</p>
-        <p><strong>Dropoff:</strong> ${order.dropoffAddress}</p>
-      `;
+      // Get delivery date for email
+      const deliveryDate = order.deliveryDate
+        ? new Date(order.deliveryDate).toLocaleDateString('en-PH', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+        : 'As soon as possible';
+
+      const acceptUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/partner/orders/${order.id}`;
+
+      // Prepare partner list for email
+      const partnerEmailList = eligiblePartners.map((p: { id: number; email: string | null; companyName: string | null }) => ({
+        id: p.id,
+        email: p.email,
+        companyName: p.companyName
+      }));
 
       // Map tokens by partner ID to ensure correct matching regardless of Postgres returning order
       const partnerTokens = new Map<number, string>();
@@ -111,18 +142,8 @@ export async function POST(
 
       insertedInvitations.forEach((invitation: any) => {
         const partner = eligiblePartners.find((p: any) => p.id === invitation.deliveryPartnerId);
-        const token = partnerTokens.get(invitation.deliveryPartnerId);
-        if (!partner || !token || !partner.email) return;
+        if (!partner || !partner.email) return;
 
-        const fullToken = `${invitation.id}_${token}`;
-        const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/invite/${fullToken}`;
-        
-        const finalHtml = `
-          ${messageHtml}
-          <p>Please click the link below to securely view the delivery request and choose whether you want to accept or decline it.</p>
-          <a href="${inviteLink}" style="display:inline-block;padding:10px 20px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:5px;">View & Accept Request</a>
-        `;
-        
         // Unified Push Notifications / Email log
         newNotifsToInsert.push({
           tenantId: tenantIdToUse,
@@ -132,10 +153,10 @@ export async function POST(
           receiverRole: 'DELIVERY_PARTNER',
           recipientEmail: partner.email,
           notificationType: 'new_delivery_request',
-          title: messageTitle,
-          body: `New order ready for pickup. Order #SO-000${order.id}`,
-          actionUrl: `/partner/orders/${order.id}`,
-          status: 'UNREAD' // Initial status, will be updated by email result
+          title: 'New Delivery Request',
+          body: `New order ready for pickup from ${order.customerName}. Order #ORD-${String(order.id).padStart(5, '0')}`,
+          actionUrl: acceptUrl,
+          status: 'UNREAD'
         });
       });
 
@@ -146,71 +167,38 @@ export async function POST(
         insertedNotifs = await db.insert(notifications).values(newNotifsToInsert).returning();
       }
 
-      // We do not await emails inside the transaction to prevent blocking
-      // We will send them after the transaction commits, using the insertedNotifs to track success
-      return insertedNotifs;
+      // Send emails asynchronously (fire-and-forget after DB commit)
+      return { insertedNotifs, partnerEmailList, deliveryDate, acceptUrl };
     });
 
-    let emailStatus = 'Not attempted';
-    let successCount = 0;
-    let failureCount = 0;
-    
-    // Send Real Emails directly via Nodemailer (outside of DB transaction so it doesn't block DB locks)
-    const insertedNotifs: any[] = txResult || [];
-    
-    if (insertedNotifs.length > 0) {
-      await Promise.all(insertedNotifs.map(async (notif) => {
-        if (!notif.recipientEmail) return;
+    const { insertedNotifs, partnerEmailList, deliveryDate, acceptUrl } = txResult || {};
 
-        const orderDetails = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, notif.deliveryOrderId || 0));
-        const order = orderDetails[0];
-        
-        // Regenerate link (in practice, it's better to just pass it out of the tx)
-        // Since we didn't export the link, we'll just send them to the general order page 
-        // Note: they need to log in to see it if they go here
-        const inviteLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/partner/orders/${order.id}`;
-        
-        const finalHtml = `
-          <p>A new delivery request is available.</p>
-          <p><strong>Delivery Request:</strong> DR-000${order?.id}</p>
-          <p><strong>Order:</strong> ORD-100${order?.id}</p>
-          <p><strong>Customer:</strong> ${order?.customerName}</p>
-          <p><strong>Pickup:</strong> ${order?.pickupAddress}</p>
-          <p><strong>Dropoff:</strong> ${order?.dropoffAddress}</p>
-          <p>Please click the link below to securely view the delivery request and choose whether you want to accept or decline it.</p>
-          <a href="${inviteLink}" style="display:inline-block;padding:10px 20px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:5px;">View & Accept Request</a>
-        `;
-
-        const result = await sendEmail({
-          to: notif.recipientEmail,
-          subject: notif.title,
-          html: finalHtml
-        });
-
-        if (result.success) {
-          successCount++;
-          await db.update(notifications).set({
-            status: 'sent',
-            sentAt: new Date()
-          }).where(eq(notifications.id, notif.id));
-        } else {
-          failureCount++;
-          await db.update(notifications).set({
-            status: 'failed',
-            failedAt: new Date(),
-            errorMessage: String(result.error)
-          }).where(eq(notifications.id, notif.id));
-        }
-      }));
-
-      emailStatus = `Sent successfully. SuccessCount: ${successCount}, FailureCount: ${failureCount}`;
+    // Send broadcast emails asynchronously (non-blocking)
+    if (partnerEmailList && partnerEmailList.length > 0) {
+      sendBroadcastDeliveryNotification(
+        tenantIdToUse,
+        order.id,
+        order.customerName,
+        order.pickupAddress,
+        order.dropoffAddress,
+        deliveryDate,
+        order.customerContact,
+        order.instructions || undefined,
+        partnerEmailList,
+        acceptUrl,
+        order.id
+      ).catch(err => {
+        console.error('Failed to send broadcast email:', err.message);
+      });
     }
 
     return NextResponse.json({ 
       success: true, 
-      message: `Dispatched to ${eligiblePartners.length} partners`,
-      emailStatus 
+      message: `Dispatched to ${eligiblePartners.length} partners. Broadcast emails sent successfully.`
     });
+    } catch (error: any) {
+      return NextResponse.json({ error: error.message || 'Failed to dispatch order due to inventory constraints' }, { status: 400 });
+    }
 
   });
 }

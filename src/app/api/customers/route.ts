@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
 import { customers } from '@/db/schema';
-import { eq, ilike, or, and, desc, sql } from 'drizzle-orm';
+import { eq, ilike, or, and, desc } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
 export async function GET(request: Request) {
@@ -21,26 +20,31 @@ export async function GET(request: Request) {
         whereClause,
         or(
           ilike(customers.name, `%${search}%`),
-          ilike(customers.customerCode, `%${search}%`),
           ilike(customers.mobileNumber, `%${search}%`)
         )
-      ) as any;
+      );
     }
 
-    const data = await tx.select()
+    const data = await tx.select({
+      id: customers.id,
+      name: customers.name,
+      mobileNumber: customers.mobileNumber,
+      email: customers.email,
+      address: customers.address,
+      barangay: customers.barangay,
+      municipality: customers.municipality,
+      contactPerson: customers.contactPerson,
+      status: customers.status
+    })
       .from(customers)
       .where(whereClause)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(customers.createdAt));
 
-    const totalResult = await tx.select({ count: sql<number>`count(*)::int` })
-      .from(customers)
-      .where(whereClause);
-
     return NextResponse.json({ 
       data, 
-      totalCount: totalResult[0].count,
+      totalCount: data.length,
       page,
       limit
     });
@@ -55,17 +59,8 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     
-    // Generate a unique customer code
-    const countResult = await tx.select({ count: sql<number>`count(*)::int` })
-      .from(customers)
-      .where(eq(customers.tenantId, claims.tenantId as number));
-    
-    const nextNum = (countResult[0].count + 1).toString().padStart(4, '0');
-    const customerCode = `CUS-${nextNum}`;
-
     const [newCustomer] = await tx.insert(customers).values({
       tenantId: claims.tenantId as number,
-      customerCode,
       name: body.name,
       contactPerson: body.contactPerson,
       mobileNumber: body.mobileNumber,
@@ -73,7 +68,6 @@ export async function POST(request: Request) {
       address: body.address,
       municipality: body.municipality,
       barangay: body.barangay,
-      notes: body.notes,
       status: body.status || 'ACTIVE'
     }).returning();
 

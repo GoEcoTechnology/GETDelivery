@@ -15,6 +15,9 @@ export async function GET(request: Request) {
       .select({
         id: users.id,
         name: users.name,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        contactNumber: users.contactNumber,
         email: users.email,
         role: users.role,
         status: users.status,
@@ -36,13 +39,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    const name = String(body.name || '').trim();
+    const firstName = String(body.firstName || '').trim();
+    const lastName = String(body.lastName || '').trim();
+    const contactNumber = String(body.contactNumber || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
-    const role = 'EMPLOYEE'; // Force EMPLOYEE role for tenant staff
+    const role = String(body.role || 'EMPLOYEE').toUpperCase();
+    
+    // Ensure role is valid
+    if (!['EMPLOYEE', 'BUSINESS_OWNER'].includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+    }
 
-    if (!name || !email || password.length < 6) {
-      return NextResponse.json({ error: 'Invalid name, email, or short password' }, { status: 400 });
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
+    }
+
+    if (!firstName || !lastName || !contactNumber || !email || password.length < 6) {
+      return NextResponse.json({ error: 'First Name, Last Name, Contact Number, Email, and a password of at least 6 characters are required.' }, { status: 400 });
     }
 
     // Check if email exists
@@ -52,10 +68,14 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = await hashPassword(password);
+    const fullName = `${firstName} ${lastName}`.trim();
 
     const [newUser] = await tx.insert(users).values({
       tenantId: claims.tenantId,
-      name,
+      name: fullName,
+      firstName,
+      lastName,
+      contactNumber,
       email,
       passwordHash,
       role,
@@ -63,6 +83,9 @@ export async function POST(request: Request) {
     }).returning({
       id: users.id,
       name: users.name,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      contactNumber: users.contactNumber,
       email: users.email,
       role: users.role
     });

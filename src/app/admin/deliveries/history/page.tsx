@@ -8,7 +8,7 @@ export default function DeliveriesHistoryPage() {
   const [loading, setLoading] = useState(true);
   
   const [page, setPage] = useState(1);
-  const [limit] = useState(15);
+  const [limit] = useState(7);
   const [totalCount, setTotalCount] = useState(0);
 
   const fetchDeliveries = useCallback(async () => {
@@ -88,7 +88,7 @@ export default function DeliveriesHistoryPage() {
                   <td>
                     <div style={{ fontWeight: 600, color: '#1e293b' }}>{delivery.customerName}</div>
                     <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{delivery.customerContact}</div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Order #{delivery.id}</div>
+
                   </td>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

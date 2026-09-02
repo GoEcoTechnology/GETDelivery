@@ -145,17 +145,11 @@
 }
 
 .header h1 {
-  margin: 0 0 8px;
-  font-size: 32px;
-  font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.02em;
+  display: none;
 }
 
 .header p {
-  margin: 0;
-  color: #64748b;
-  font-size: 15px;
+  display: none;
 }
 
 .grid {
@@ -202,38 +196,79 @@
   letter-spacing: -0.03em;
 }
 
+/* Inner Page Headers */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.header h1 {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 15px;
+}
+
 /* Forms & Tables */
 .table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+  padding: 0 10px;
 }
 
 .table th {
   text-align: left;
-  padding: 16px 24px;
-  font-size: 12px;
+  padding: 8px 14px;
+  font-size: 11px;
   font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
-  background: rgba(248, 250, 252, 0.5);
+  letter-spacing: 0.08em;
+  border: none;
+  background: transparent;
+}
+
+.table tr {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .table td {
-  padding: 16px 24px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
+  padding: 14px 14px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.4);
   font-size: 14px;
   color: #334155;
-  transition: background-color 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.table tr:hover td {
-  background-color: rgba(255, 255, 255, 0.9);
+.table td:first-child {
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.9);
 }
 
-.table tr:last-child td {
-  border-bottom: none;
+.table td:last-child {
+  border-top-right-radius: 16px;
+  border-bottom-right-radius: 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+.table tbody tr:hover td {
+  background: #f1f5f9;
+  cursor: pointer;
 }
 
 .btnPrimary {
@@ -255,6 +290,25 @@
 .btnPrimary:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+}
+
+.btnSecondary {
+  padding: 12px 24px;
+  background: white;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btnSecondary:hover {
+  background: #f1f5f9;
 }
 
 .btnSuccess {

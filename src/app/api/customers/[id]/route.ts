@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
 import { customers } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
@@ -22,7 +21,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         address: body.address,
         municipality: body.municipality,
         barangay: body.barangay,
-        notes: body.notes,
         status: body.status,
         updatedAt: new Date()
       })

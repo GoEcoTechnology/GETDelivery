@@ -1,24 +1,28 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
 import { tenants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withAuth(request, { requiredPermissions: ['platform.manage_tenants'] }, async (tx, claims) => {
+  return withAuth(request, { requiredPermissions: ['platform.manage_tenants'] }, async (tx) => {
     const { id: idParam } = await params;
     const id = parseInt(idParam, 10);
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 
     const body = await request.json();
-    const { name, subscriptionPlan, status } = body;
+    const { name, contactPerson, status } = body;
+
+    const updateData: Record<string, string> = {};
+    if (name !== undefined) updateData.name = name;
+    if (contactPerson !== undefined) updateData.contactPerson = contactPerson;
+    if (status !== undefined) updateData.status = status;
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
 
     const [updated] = await tx.update(tenants)
-      .set({
-        name,
-        subscriptionPlan,
-        status
-      })
+      .set(updateData)
       .where(eq(tenants.id, id))
       .returning();
 
@@ -31,7 +35,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  return withAuth(request, { requiredPermissions: ['platform.manage_tenants'] }, async (tx, claims) => {
+  return withAuth(request, { requiredPermissions: ['platform.manage_tenants'] }, async (tx) => {
     const { id: idParam } = await params;
     const id = parseInt(idParam, 10);
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });

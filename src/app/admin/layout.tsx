@@ -12,11 +12,12 @@ import {
   Users, 
   Car, 
   LogOut,
-  Bell,
   Activity,
-  Settings
+  Settings,
+  UserCog
 } from 'lucide-react';
 import AdminNotifListener from './AdminNotifListener';
+import NotificationBell from './NotificationBell';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -91,8 +92,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/customers" className={pathname.startsWith('/admin/customers') ? styles.active : ''}>
             <Users size={18} /> Customers
           </Link>
-          <Link href="/admin/reports" className={pathname.startsWith('/admin/reports') ? styles.active : ''}>
-            <BarChart3 size={18} /> Reports
+          {user.role !== 'EMPLOYEE' && (
+            <Link href="/admin/reports" className={pathname.startsWith('/admin/reports') ? styles.active : ''}>
+              <BarChart3 size={18} /> Reports
+            </Link>
+          )}
+          
+          <div style={{ marginTop: '16px', marginBottom: '4px', paddingLeft: '16px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Team
+          </div>
+          <Link href="/admin/employees" className={pathname.startsWith('/admin/employees') ? styles.active : ''}>
+            <UserCog size={18} /> Employees
           </Link>
           
           <div style={{ marginTop: '16px', marginBottom: '4px', paddingLeft: '16px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -108,12 +118,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div style={{ marginTop: '16px', marginBottom: '4px', paddingLeft: '16px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             System
           </div>
-          <Link href="/admin/notifications" className={pathname.startsWith('/admin/notifications') ? styles.active : ''}>
-            <Bell size={18} /> Notifications
-          </Link>
-          <Link href="/admin/audit-logs" className={pathname.startsWith('/admin/audit-logs') ? styles.active : ''}>
-            <Activity size={18} /> Audit Logs
-          </Link>
           <Link href="/admin/settings" className={pathname.startsWith('/admin/settings') ? styles.active : ''}>
             <Settings size={18} /> Settings
           </Link>
@@ -126,9 +130,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
       </aside>
-      <main className={styles.mainContent}>
-        {children}
-      </main>
+      
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden' }}>
+        {/* Top Navbar */}
+        <header style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '16px 32px', backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', zIndex: 5 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{user.name}</span>
+              <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'capitalize' }}>{user.role.replace(/_/g, ' ').toLowerCase()}</span>
+            </div>
+            <NotificationBell />
+          </div>
+        </header>
+
+        <main className={styles.mainContent} style={{ overflowY: 'auto' }}>
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

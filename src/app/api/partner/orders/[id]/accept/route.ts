@@ -5,6 +5,10 @@ import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { sendEmail } from '@/lib/emailService';
 import { users } from '@/db/schema';
+import { 
+  sendPartnerAcceptedNotification, 
+  sendDeliveryNoLongerAvailableNotification 
+} from '@/lib/emailWorkflowHelper';
 
 export async function POST(
   request: Request,
@@ -45,7 +49,7 @@ export async function POST(
       const [updatedOrder] = await db
         .update(deliveryOrders)
         .set({
-          status: 'WAITING_APPROVAL',
+          status: 'ASSIGNED',
           temporaryWinnerId: partnerId
         })
         .where(
@@ -75,16 +79,27 @@ export async function POST(
           )
         );
 
+      // Mark all other pending invitations as EXPIRED
+      await db
+        .update(deliveryInvitations)
+        .set({
+          status: 'EXPIRED',
+          respondedAt: new Date()
+        })
+        .where(
+          and(
+            eq(deliveryInvitations.deliveryOrderId, orderId),
+            eq(deliveryInvitations.status, 'PENDING')
+          )
+        );
+
       const [partner] = await db.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
       const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
 
       const messageTitle = 'Your order has been accepted!';
       const messageBody = `Delivery Partner ${partnerName} accepted your delivery request.\nOrder #SO-000${orderId}\nTap to track your delivery.`;
 
-      // Unified Notifications
-      // Since it's going to the tenant, we might broadcast it to all platform owners/admins of that tenant.
-      // But for the database record, we use receiverRole = 'PLATFORM_OWNER' or 'TENANT_ADMIN' and receiverId can be 0 or specific users.
-      // To keep it simple, we insert a notification for receiverRole = 'PLATFORM_OWNER' with tenantId.
+      // Create in-app notification
       await db.insert(notifications).values({
         tenantId: updatedOrder.tenantId,
         deliveryOrderId: orderId,
@@ -98,7 +113,6 @@ export async function POST(
         status: 'UNREAD'
       });
 
-
       // Audit log
       await db.insert(auditLogs).values({
         tenantId: updatedOrder.tenantId,
@@ -107,47 +121,54 @@ export async function POST(
         action: 'DELIVERY_REQUEST_ACCEPTED',
         entityType: 'DELIVERY_ORDER',
         entityId: orderId,
-        details: 'Partner accepted the delivery request, awaiting tenant approval.'
+        details: 'Partner accepted the delivery request and was assigned immediately.'
       });
 
-      // Send Real Email Notification to Tenant Users
-      try {
-        const tenantUsers = await db
-          .select({ email: users.email })
-          .from(users)
-          .where(
-            and(
-              eq(users.tenantId, updatedOrder.tenantId),
-              inArray(users.role, ['PLATFORM_OWNER', 'BUSINESS_OWNER', 'EMPLOYEE'])
-            )
-          );
+      // Send emails asynchronously (fire-and-forget)
+      const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/admin/deliveries/${orderId}`;
+      
+      // Send acceptance email to tenant users
+      sendPartnerAcceptedNotification(
+        updatedOrder.tenantId,
+        orderId,
+        partnerName,
+        partner?.mobileNumber,
+        updatedOrder.pickupAddress,
+        undefined,
+        dashboardUrl,
+        orderId
+      ).catch(err => {
+        console.error('Failed to send partner accepted notification:', err.message);
+      });
 
-        const emailAddresses = tenantUsers.map(u => u.email).filter(Boolean);
+      // Send "no longer available" emails to remaining partners
+      const remainingInvitations = await db
+        .select()
+        .from(deliveryInvitations)
+        .where(
+          and(
+            eq(deliveryInvitations.deliveryOrderId, orderId),
+            eq(deliveryInvitations.status, 'EXPIRED')
+          )
+        );
 
-        if (emailAddresses.length > 0) {
-          const actionUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/admin/deliveries/${orderId}`;
-          const finalHtml = `
-            <p>Your delivery request has been accepted by a delivery partner.</p>
-            <p><strong>Delivery Request:</strong> DR-000${orderId}</p>
-            <p><strong>Order:</strong> ORD-100${orderId}</p>
-            <p><strong>Delivery Partner:</strong> ${partnerName}</p>
-            <p><strong>Current Status:</strong> Awaiting your final approval</p>
-            <p><a href="${actionUrl}" style="display:inline-block;padding:10px 20px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:5px;">View Order</a></p>
-          `;
+      if (remainingInvitations.length > 0) {
+        const remainingPartnerIds = remainingInvitations.map(inv => inv.deliveryPartnerId);
+        const remainingPartners = await db
+          .select()
+          .from(deliveryPartners)
+          .where(inArray(deliveryPartners.id, remainingPartnerIds));
 
-          // Send to all tenant admins/employees
-          await Promise.all(emailAddresses.map(email => 
-            sendEmail({
-              to: email,
-              subject: 'Delivery Request Accepted',
-              html: finalHtml
-            })
-          ));
-        }
-      } catch (emailError) {
-        console.error('Failed to send email to tenant on accept:', emailError);
+        sendDeliveryNoLongerAvailableNotification(
+          orderId,
+          partnerName,
+          dashboardUrl,
+          remainingPartners
+        ).catch(err => {
+          console.error('Failed to send delivery expired notification:', err.message);
+        });
       }
 
-      return NextResponse.json({ success: true, message: 'Delivery request accepted! Awaiting tenant approval.' });
+      return NextResponse.json({ success: true, message: 'Delivery request accepted and assigned successfully.' });
   });
 }

@@ -12,7 +12,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const limit = parseInt(searchParams.get('limit') || '7', 10);
     const search = searchParams.get('search') || '';
     const offset = (page - 1) * limit;
 
@@ -47,17 +47,29 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { companyName, contactPerson, mobileNumber, email, status } = body;
+    const { companyName, contactPerson, mobileNumber, email, password, status } = body;
 
     if (!companyName || !contactPerson || !mobileNumber) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
+
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    }
+
+    if (!password || password.length < 6) {
+      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+    }
+
+    const { hashPassword } = await import('@/lib/password');
+    const passwordHash = await hashPassword(password);
 
     const [partner] = await tx.insert(deliveryPartners).values({
       companyName,
       contactPerson,
       mobileNumber,
       email,
+      passwordHash,
       status: status || 'ACTIVE',
     }).returning();
 

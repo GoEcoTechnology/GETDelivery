@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { deliveryOrders, deliveryInvitations, deliveryAssignments } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { revertOrderStock } from '@/lib/inventory-helper';
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(request, { requiredPermissions: ['delivery.cancel'] }, async (tx, claims) => {
@@ -41,6 +42,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await tx.update(deliveryAssignments)
       .set({ status: 'CANCELLED' })
       .where(and(eq(deliveryAssignments.deliveryOrderId, id)));
+
+    // 5. Revert stock if it was already deducted
+    const statesWithStockDeducted = ['DISPATCHED', 'WAITING_APPROVAL', 'ASSIGNED', 'IN_TRANSIT'];
+    if (statesWithStockDeducted.includes(order.status)) {
+      await revertOrderStock(tx, tenantIdToUse as number, order.id, claims.userId as number);
+    }
 
     return NextResponse.json({ success: true });
   });

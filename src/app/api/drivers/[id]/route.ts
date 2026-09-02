@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
 import { drivers } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
@@ -11,7 +10,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 
     const body = await request.json();
-    const { name, mobile, status } = body;
+    const { name, mobile, status, licenseNumber, licenseType, licenseExpiry } = body;
+    const parsedLicenseExpiry = licenseExpiry ? new Date(licenseExpiry) : null;
 
     let condition = eq(drivers.id, id);
     if (claims.role !== 'PLATFORM_OWNER') {
@@ -22,7 +22,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .set({
         name,
         mobile,
-        status
+        status,
+        licenseNumber: licenseNumber || null,
+        licenseType: licenseType || null,
+        licenseExpiry: parsedLicenseExpiry,
       })
       .where(condition)
       .returning();

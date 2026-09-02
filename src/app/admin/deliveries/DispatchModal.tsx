@@ -1,3 +1,4 @@
+'use client';
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { X, Truck, Users } from 'lucide-react';

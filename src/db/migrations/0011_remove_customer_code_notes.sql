@@ -1,0 +1,2 @@
+ALTER TABLE customers DROP COLUMN IF EXISTS customer_code;
+ALTER TABLE customers DROP COLUMN IF EXISTS notes;

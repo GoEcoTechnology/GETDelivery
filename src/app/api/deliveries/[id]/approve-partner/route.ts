@@ -3,6 +3,8 @@ import { db } from '@/db';
 import { deliveryOrders, deliveryInvitations, deliveryAssignments, auditLogs } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { sendEmail } from '@/lib/emailService';
+import { notifications, deliveryPartners } from '@/db/schema';
 
 export async function POST(
   request: Request,
@@ -87,6 +89,46 @@ export async function POST(
         entityId: orderId,
         details: `Tenant approved partner ID ${order.temporaryWinnerId} for the delivery request.`
       });
+
+      // Send Email to Partner
+      try {
+        const [partner] = await tx.select().from(deliveryPartners).where(eq(deliveryPartners.id, order.temporaryWinnerId));
+        if (partner && partner.email) {
+          const { partnerApprovalTemplate } = await import('@/lib/emailTemplates');
+          const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/partner/orders`;
+          const template = partnerApprovalTemplate({
+            orderId,
+            partnerName: partner.companyName || partner.contactPerson || 'Delivery Partner',
+            dashboardUrl,
+          });
+
+          const result = await sendEmail({
+            to: partner.email,
+            subject: `🎉 Approved! Assigned to ORD-${String(orderId).padStart(5, '0')}`,
+            html: template.html,
+            text: template.text,
+          });
+
+          await tx.insert(notifications).values({
+            tenantId: tenantIdToUse,
+            deliveryOrderId: orderId,
+            senderId: claims.userId as number,
+            receiverId: partner.id,
+            receiverRole: 'DELIVERY_PARTNER',
+            recipientEmail: partner.email,
+            notificationType: 'partner_approved',
+            title: 'Assigned to Order',
+            body: `You have been approved and assigned to ORD-${String(orderId).padStart(5, '0')}.`,
+            actionUrl: '/partner/orders',
+            status: result.success ? 'sent' : 'failed',
+            sentAt: result.success ? new Date() : null,
+            failedAt: result.success ? null : new Date(),
+            errorMessage: result.success ? null : (result.error || 'Unknown error'),
+          });
+        }
+      } catch (e) {
+        console.error('Failed to send approval email to partner:', e);
+      }
 
       return NextResponse.json({ success: true, message: 'Partner approved successfully.', assignment });
 

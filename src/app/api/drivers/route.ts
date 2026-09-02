@@ -29,6 +29,9 @@ export async function GET(request: Request) {
         name: drivers.name,
         mobile: drivers.mobile,
         status: drivers.status,
+        licenseNumber: drivers.licenseNumber,
+        licenseType: drivers.licenseType,
+        licenseExpiry: drivers.licenseExpiry,
         createdAt: drivers.createdAt,
       })
       .from(drivers)
