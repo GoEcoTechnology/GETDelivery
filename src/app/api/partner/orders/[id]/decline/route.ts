@@ -6,6 +6,7 @@ import { withAuth } from '@/lib/api-helper';
 import { sendEmail } from '@/lib/emailService';
 import { users } from '@/db/schema';
 import { sendPartnerDeclinedNotification } from '@/lib/emailWorkflowHelper';
+import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 
 export async function POST(
   request: Request,
@@ -65,7 +66,11 @@ export async function POST(
       const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
 
       const messageTitle = 'Delivery Request Declined';
-      const messageBody = `${partnerName} declined your delivery request.\nReason: ${declineReason || 'Not specified'}`;
+      const messageBody = await buildStandardNotificationBody(messageTitle, {
+        orderId: orderId,
+        status: 'DECLINED',
+        reason: declineReason || 'Not specified'
+      });
 
       // Insert Unified Notification
       await db.insert(notifications).values({

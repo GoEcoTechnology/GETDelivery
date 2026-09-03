@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { deliveryOrders, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates } from '@/db/schema';
 import { eq, and, or, isNotNull, desc } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 import { deductOrderStock } from '@/lib/inventory-helper';
 import crypto from 'crypto';
 import { hashPassword } from '@/lib/password';
@@ -140,6 +141,12 @@ export async function POST(
       const partnerTokens = new Map<number, string>();
       eligiblePartners.forEach((p: any, i: number) => partnerTokens.set(p.id, tokens[i]));
 
+      const bodyStr = await buildStandardNotificationBody('New Delivery Request', {
+        orderId: order.id,
+        status: 'PENDING',
+        reason: 'New order available for pickup'
+      });
+
       insertedInvitations.forEach((invitation: any) => {
         const partner = eligiblePartners.find((p: any) => p.id === invitation.deliveryPartnerId);
         if (!partner || !partner.email) return;
@@ -154,7 +161,7 @@ export async function POST(
           recipientEmail: partner.email,
           notificationType: 'new_delivery_request',
           title: 'New Delivery Request',
-          body: `New order ready for pickup from ${order.customerName}. Order #ORD-${String(order.id).padStart(5, '0')}`,
+          body: bodyStr,
           actionUrl: acceptUrl,
           status: 'UNREAD'
         });

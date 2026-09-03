@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryInvitations, deliveryAssignments, auditLogs } from '@/db/schema';
+import { deliveryOrders, deliveryInvitations, deliveryAssignments, auditLogs, notifications, deliveryPartners } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { sendEmail } from '@/lib/emailService';
-import { notifications, deliveryPartners } from '@/db/schema';
+import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 
 export async function POST(
   request: Request,
@@ -40,12 +40,7 @@ export async function POST(
         return NextResponse.json({ error: 'Order is not waiting for partner approval' }, { status: 400 });
       }
 
-      // Update the order to DISPATCHED (actually the next step is usually ASSIGNED, but wait, the prompt says:
-      // "If Client Approves: Request becomes Assigned. Delivery status becomes Out for Delivery.")
-      // Let's set it to 'DISPATCHED' or whatever the business logic is. Actually "Out for Delivery" usually maps to 'DISPATCHED' in our ENUM?
-      // Wait, our ENUM is DRAFT, CONFIRMED, READY_FOR_DISPATCH, DISPATCHED, WAITING_APPROVAL, COMPLETED, CANCELLED.
-      // We will set it to 'DISPATCHED'.
-      
+      // Update the order to DISPATCHED
       const [updatedOrder] = await tx
         .update(deliveryOrders)
         .set({
@@ -66,14 +61,14 @@ export async function POST(
           )
         );
 
-      // Create the delivery assignment record (this was previously done when they accepted the token)
+      // Create the delivery assignment record
       const [assignment] = await tx
         .insert(deliveryAssignments)
         .values({
           tenantId: tenantIdToUse,
           deliveryOrderId: orderId,
           deliveryPartnerId: order.temporaryWinnerId,
-          driverName: 'Assigned Partner Driver', // They will update this later or we can fetch partner details
+          driverName: 'Assigned Partner Driver', 
           vehicleDetails: 'Partner Vehicle',
           status: 'ASSIGNED'
         })
@@ -102,28 +97,31 @@ export async function POST(
             dashboardUrl,
           });
 
-          const result = await sendEmail({
+          await sendEmail({
             to: partner.email,
             subject: `🎉 Approved! Assigned to ORD-${String(orderId).padStart(5, '0')}`,
             html: template.html,
             text: template.text,
           });
 
+          const bodyStr = await buildStandardNotificationBody('Assignment Confirmed', {
+            orderId: order.id,
+            status: 'ASSIGNED',
+            reason: 'You have been selected as the Delivery Partner.'
+          });
+
           await tx.insert(notifications).values({
             tenantId: tenantIdToUse,
-            deliveryOrderId: orderId,
+            deliveryOrderId: order.id,
             senderId: claims.userId as number,
             receiverId: partner.id,
             receiverRole: 'DELIVERY_PARTNER',
             recipientEmail: partner.email,
-            notificationType: 'partner_approved',
-            title: 'Assigned to Order',
-            body: `You have been approved and assigned to ORD-${String(orderId).padStart(5, '0')}.`,
-            actionUrl: '/partner/orders',
-            status: result.success ? 'sent' : 'failed',
-            sentAt: result.success ? new Date() : null,
-            failedAt: result.success ? null : new Date(),
-            errorMessage: result.success ? null : (result.error || 'Unknown error'),
+            notificationType: 'order_accepted',
+            title: 'Assignment Confirmed',
+            body: bodyStr,
+            actionUrl: `/partner/orders/${order.id}`,
+            status: 'UNREAD',
           });
         }
       } catch (e) {

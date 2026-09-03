@@ -8,7 +8,6 @@ import {
   LayoutDashboard, 
   Package, 
   Bell, 
-  Settings,
   LogOut,
   Briefcase,
   User,
@@ -23,7 +22,6 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const [user, setUser] = useState<{name: string, role: string} | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [settingsHash, setSettingsHash] = useState('profile');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -47,27 +45,12 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
     return () => clearTimeout(timer);
   }, [pathname]);
 
-  useEffect(() => {
-    if (!pathname.startsWith('/partner/settings')) return;
-    const updateHash = () => setSettingsHash(window.location.hash.replace('#', '') || 'profile');
-    updateHash();
-    window.addEventListener('hashchange', updateHash);
-    return () => window.removeEventListener('hashchange', updateHash);
-  }, [pathname]);
-
   const handleLogout = async () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
     router.push('/login');
   };
-
-  const settingsTabs = [
-    { key: 'profile', label: 'Profile', icon: User },
-    { key: 'notifications', label: 'Notifications', icon: Bell },
-    { key: 'vehicle', label: 'Vehicle Info', icon: Truck },
-    { key: 'areas', label: 'Operating Areas', icon: MapPinned },
-  ];
 
   if (!user) return <div className={styles.loading}>Loading secure environment...</div>;
 
@@ -106,39 +89,6 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           <Link href="/partner/orders" className={pathname.startsWith('/partner/orders') ? styles.active : ''}>
             <Package size={18} /> Orders
           </Link>
-          <Link href="/partner/settings" className={pathname.startsWith('/partner/settings') ? styles.active : ''}>
-            <Settings size={18} /> Settings
-          </Link>
-          {pathname.startsWith('/partner/settings') && (
-            <div style={{ marginTop: '8px', marginLeft: '28px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {settingsTabs.map((tab) => {
-                const isActive = pathname.startsWith('/partner/settings') && settingsHash === tab.key;
-                const Icon = tab.icon;
-                return (
-                  <a
-                    key={tab.key}
-                    href={`/partner/settings#${tab.key}`}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '10px 12px',
-                      borderRadius: '12px',
-                      textDecoration: 'none',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: isActive ? '#1d4ed8' : '#475569',
-                      background: isActive ? '#eff6ff' : 'transparent',
-                      border: isActive ? '1px solid #bfdbfe' : '1px solid transparent',
-                    }}
-                  >
-                    <Icon size={16} />
-                    {tab.label}
-                  </a>
-                );
-              })}
-            </div>
-          )}
         </nav>
         <div className={styles.userProfile}>
           <p className={styles.userName}>{user.name}</p>
@@ -155,12 +105,10 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           <div>
             <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
               {pathname.includes('/orders') ? 'My Orders' : 
-               pathname.includes('/settings') ? 'Account Settings' : 
                'Dashboard Summary'}
             </h1>
             <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
               {pathname.includes('/orders') ? 'View and manage your assigned delivery requests' : 
-               pathname.includes('/settings') ? 'Manage your partner profile and preferences' : 
                'Overview of your delivery requests and performance'}
             </p>
           </div>

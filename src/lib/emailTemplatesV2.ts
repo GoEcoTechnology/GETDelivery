@@ -518,38 +518,16 @@ export function orderAcceptedTemplate(options: {
       <p style="color:${COLORS.text};margin:0;font-size:15px;font-weight:500;">Your delivery order has been accepted by a partner.</p>
     </div>
 
-    <!-- Order Reference Banner -->
-    <div style="background:linear-gradient(135deg,#f0f9ff,#ecfdf5);border:1px solid #c7d2fe;border-radius:12px;padding:24px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:center;">
-      <div>
-        <div style="font-size:11px;font-weight:700;color:${COLORS.muted};text-transform:uppercase;letter-spacing:0.1em;">Order Reference</div>
-        <div style="font-size:32px;font-weight:900;color:${COLORS.primary};margin-top:8px;letter-spacing:-1px;">${escapeHtml(orderRef)}</div>
-      </div>
-      <div style="text-align:right;">
-        <div style="font-size:11px;font-weight:700;color:${COLORS.muted};text-transform:uppercase;letter-spacing:0.1em;">Status</div>
-        <div style="display:inline-block;background:${COLORS.success};color:white;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:700;margin-top:8px;border:1px solid #34d399;">ACCEPTED</div>
-      </div>
-    </div>
 
     <!-- Partner Information Card -->
     <div style="background:${COLORS.background};border:1px solid ${COLORS.border};border-radius:12px;padding:24px;margin-bottom:28px;">
       <h3 style="font-size:14px;font-weight:700;color:${COLORS.text};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid ${COLORS.border};">Assigned Partner</h3>
       
       <div style="display:flex;align-items:center;gap:12px;padding:16px;background:white;border-radius:8px;border:1px solid ${COLORS.border};">
-        <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,${COLORS.primary},${COLORS.secondary});display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;">
-          ${escapeHtml(options.partnerName.charAt(0)).toUpperCase()}
-        </div>
         <div>
           <div style="font-size:15px;font-weight:600;color:${COLORS.text};">${escapeHtml(options.partnerName)}</div>
-          <div style="font-size:13px;color:${COLORS.muted};margin-top:2px;">Delivery Partner</div>
         </div>
       </div>
-    </div>
-
-    <!-- Next Steps -->
-    <div style="background:#fef3c7;border-left:4px solid ${COLORS.warning};border-radius:0 8px 8px 0;padding:16px;margin-bottom:28px;">
-      <p style="margin:0;font-size:13px;color:#78350f;line-height:1.6;">
-        <strong>Next Step:</strong> Please review and approve this partner's application. Once approved, they can proceed with the pickup.
-      </p>
     </div>
 
     <!-- Action Button -->
@@ -557,15 +535,10 @@ export function orderAcceptedTemplate(options: {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
         <tr>
           <td align="center">
-            <a href="${escapeHtml(options.dashboardUrl)}" style="display:inline-block;padding:16px 48px;background-color:${COLORS.primary};color:white;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;text-align:center;mso-padding-alt:16px 48px;">Review & Approve in Dashboard</a>
+            <a href="${escapeHtml(options.dashboardUrl)}" style="display:inline-block;padding:16px 48px;background-color:${COLORS.primary};color:white;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;text-align:center;mso-padding-alt:16px 48px;">${escapeHtml(options.partnerName)}</a>
           </td>
         </tr>
       </table>
-    </div>
-
-    <!-- Info Box -->
-    <div style="background:#f0f9ff;border-left:4px solid ${COLORS.primary};border-radius:0 8px 8px 0;padding:14px 16px;margin-top:24px;">
-      <p style="margin:0;font-size:13px;color:#0c4a6e;line-height:1.6;">The partner is now waiting for your approval. Once approved, they will proceed with the delivery. You can track progress in your dashboard at any time.</p>
     </div>
   `;
 
@@ -574,40 +547,28 @@ export function orderAcceptedTemplate(options: {
 
 Your delivery order has been accepted by a partner.
 
-ORDER REFERENCE: ${orderRef}
 STATUS: ACCEPTED
 
 ASSIGNED PARTNER
 ================
 
 Company: ${escapeHtml(options.partnerName)}
-Status: Awaiting Your Approval
 
-NEXT STEPS
-==========
-
-1. Review the partner's details and track record
-2. Approve or request changes in your dashboard
-3. Once approved, the partner will proceed with pickup
-
-To review and approve:
+To view the delivery in dashboard:
 ${options.dashboardUrl}
-
-The partner is now waiting for your approval. Once approved, they will proceed 
-with the delivery. You can track progress in your dashboard at any time.
 
 ---
 
 This is an automated notification from ${COMPANY_NAME}.`;
 
   const { html, text } = createEmailWrapper({
-    preheader: `${orderRef} accepted by delivery partner - Action required`,
+    preheader: `Delivery accepted by partner - Action required`,
     content,
     textContent,
   });
 
   return {
-    subject: `Order ${orderRef} Accepted by Delivery Partner - Approval Required`,
+    subject: `Delivery Accepted by Partner`,
     html,
     text,
   };

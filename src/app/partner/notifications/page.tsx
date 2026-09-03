@@ -121,63 +121,7 @@ export default async function PartnerNotificationsPage() {
                   </div>
 
                   {/* Notification Message */}
-                  <p style={{ fontSize: '0.875rem', color: '#475569', margin: '0 0 12px 0' }}>{notif.body}</p>
-
-                  {/* Order Details if available */}
-                  {order && (
-                    <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', marginBottom: '12px', fontSize: '0.875rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                        <Package size={16} color="#4f46e5" />
-                        <span style={{ fontWeight: 600, color: '#0f172a' }}>ORD-{String(order.id).padStart(5, '0')}</span>
-                        <span style={{ fontSize: '0.75rem', backgroundColor: '#e0e7ff', color: '#4f46e5', padding: '2px 6px', borderRadius: '4px' }}>
-                          {order.status}
-                        </span>
-                      </div>
-
-                      {/* Customer Info */}
-                      {order.customerName && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: '#475569' }}>
-                          <User size={14} color="#6b7280" />
-                          <span>{order.customerName}</span>
-                        </div>
-                      )}
-
-                      {/* Customer Contact */}
-                      {order.customerContact && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', color: '#475569' }}>
-                          <Phone size={14} color="#6b7280" />
-                          <a href={`tel:${order.customerContact}`} style={{ color: '#4f46e5', textDecoration: 'none' }}>
-                            {order.customerContact}
-                          </a>
-                        </div>
-                      )}
-
-                      {/* Addresses */}
-                      {(order.pickupAddress || order.dropoffAddress) && (
-                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e2e8f0' }}>
-                          {order.pickupAddress && (
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '4px', color: '#475569' }}>
-                              <MapPin size={14} color="#059669" style={{ flexShrink: 0 }} />
-                              <span style={{ fontSize: '0.8125rem' }}>Pickup: {order.pickupAddress}</span>
-                            </div>
-                          )}
-                          {order.dropoffAddress && (
-                            <div style={{ display: 'flex', gap: '8px', color: '#475569' }}>
-                              <MapPin size={14} color="#dc2626" style={{ flexShrink: 0 }} />
-                              <span style={{ fontSize: '0.8125rem' }}>Delivery: {order.dropoffAddress}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Scheduled Date */}
-                      {order.deliveryDate && (
-                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e2e8f0', fontSize: '0.8125rem', color: '#475569' }}>
-                          📅 {new Date(order.deliveryDate).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <p style={{ fontSize: '0.875rem', color: '#475569', margin: '0 0 12px 0', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{notif.body}</p>
 
                   {/* Timestamp */}
                   <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>

@@ -3,11 +3,11 @@ import { db } from '@/db';
 import { deliveryOrders, deliveryInvitations, auditLogs, notifications, deliveryPartners } from '@/db/schema';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 import { sendEmail } from '@/lib/emailService';
 import { users } from '@/db/schema';
 import { 
-  sendPartnerAcceptedNotification, 
-  sendDeliveryNoLongerAvailableNotification 
+  sendPartnerAcceptedNotification
 } from '@/lib/emailWorkflowHelper';
 
 export async function POST(
@@ -66,7 +66,7 @@ export async function POST(
       }
 
       // Mark the invitation for this partner as TEMPORARY_WINNER
-      await db
+      const [updatedInvitation] = await db
         .update(deliveryInvitations)
         .set({
           status: 'TEMPORARY_WINNER',
@@ -77,7 +77,8 @@ export async function POST(
             eq(deliveryInvitations.deliveryOrderId, orderId),
             eq(deliveryInvitations.deliveryPartnerId, partnerId)
           )
-        );
+        )
+        .returning();
 
       // Mark all other pending invitations as EXPIRED
       await db
@@ -96,19 +97,22 @@ export async function POST(
       const [partner] = await db.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
       const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
 
-      const messageTitle = 'Your order has been accepted!';
-      const messageBody = `Delivery Partner ${partnerName} accepted your delivery request.\nOrder #SO-000${orderId}\nTap to track your delivery.`;
+      const bodyStr = await buildStandardNotificationBody('Partner Accepted Request', {
+        orderId: orderId,
+        status: 'TEMPORARY_WINNER',
+        reason: 'A partner has accepted the delivery request and is awaiting approval.'
+      });
 
-      // Create in-app notification
+      // Insert Unified Notification
       await db.insert(notifications).values({
-        tenantId: updatedOrder.tenantId,
+        tenantId: updatedInvitation.tenantId,
         deliveryOrderId: orderId,
         senderId: partnerId,
-        receiverId: 0, // 0 for broadcast to tenant
+        receiverId: 0, // 0 means broadcast to tenant
         receiverRole: 'PLATFORM_OWNER',
         notificationType: 'order_accepted',
-        title: messageTitle,
-        body: messageBody,
+        title: 'Partner Accepted Request',
+        body: bodyStr,
         actionUrl: `/admin/deliveries/${orderId}`,
         status: 'UNREAD'
       });
@@ -141,41 +145,7 @@ export async function POST(
         console.error('Failed to send partner accepted notification:', err.message);
       });
 
-      // Send "no longer available" emails to remaining partners
-      const remainingInvitations = await db
-        .select()
-        .from(deliveryInvitations)
-        .where(
-          and(
-            eq(deliveryInvitations.deliveryOrderId, orderId),
-            eq(deliveryInvitations.status, 'EXPIRED')
-          )
-        );
 
-      if (remainingInvitations.length > 0) {
-        const remainingPartnerIds = remainingInvitations.map(inv => inv.deliveryPartnerId);
-        const remainingPartners = await db
-          .select()
-          .from(deliveryPartners)
-          .where(inArray(deliveryPartners.id, remainingPartnerIds));
-
-        // Filter out any partners that share the same email as the winner (common in testing)
-        const winnerEmail = partner?.email?.toLowerCase();
-        const filteredRemainingPartners = remainingPartners.filter(
-          p => !p.email || p.email.toLowerCase() !== winnerEmail
-        );
-
-        if (filteredRemainingPartners.length > 0) {
-          sendDeliveryNoLongerAvailableNotification(
-            orderId,
-            partnerName,
-            dashboardUrl,
-            filteredRemainingPartners
-          ).catch(err => {
-            console.error('Failed to send delivery expired notification:', err.message);
-          });
-        }
-      }
 
       return NextResponse.json({ success: true, message: 'Delivery request accepted and assigned successfully.' });
   });

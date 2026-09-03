@@ -5,7 +5,8 @@ import { Bell, Info } from 'lucide-react';
 
 type NotificationItem = {
   id: number;
-  message: string;
+  title: string;
+  body: string;
   status: 'UNREAD' | 'READ' | string;
   createdAt: string;
 };
@@ -150,8 +151,9 @@ export default function NotificationBell() {
                     </div>
                   </div>
                   <div style={{ flex: 1, textAlign: 'left' }}>
-                    <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#1e293b', fontWeight: notif.status === 'UNREAD' ? 600 : 400, lineHeight: 1.4 }}>
-                      {notif.message}
+                    {notif.title && <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#0f172a', fontWeight: 700 }}>{notif.title}</h4>}
+                    <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#1e293b', fontWeight: notif.status === 'UNREAD' ? 600 : 400, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                      {notif.body}
                     </p>
                     <span style={{ fontSize: '11px', color: '#94a3b8' }}>
                       {new Date(notif.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}

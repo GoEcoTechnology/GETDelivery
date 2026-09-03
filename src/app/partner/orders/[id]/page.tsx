@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems, products } from '@/db/schema';
+import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems, products, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import PartnerOrderActions from './PartnerOrderActions';
 import RouteMap from '@/components/RouteMap';
@@ -28,8 +28,13 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     return <div style={{ padding: '24px', textAlign: 'center' }}><h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#dc2626' }}>Access Denied</h2><p style={{ marginTop: '8px', color: '#475569' }}>You don&apos;t have access to this order or it doesn&apos;t exist.</p></div>;
   }
 
-  const { order, customer, invitation: invite } = invitation;
+  const { order, customer, invitation: invite, tenant } = invitation;
   const items = await db.select({ id: deliveryItems.id, quantity: deliveryItems.quantity, unit: deliveryItems.unit, productName: products.name }).from(deliveryItems).innerJoin(products, eq(deliveryItems.productId, products.id)).where(eq(deliveryItems.deliveryOrderId, order.id));
+
+  const [businessOwner] = await db.select({ name: users.name, contactNumber: users.contactNumber, email: users.email })
+    .from(users)
+    .where(and(eq(users.tenantId, tenant.id), eq(users.role, 'BUSINESS_OWNER')))
+    .limit(1);
 
   return (
     <div style={{ display: 'grid', gap: '16px', minHeight: 'calc(100vh - 140px)' }}>
@@ -63,6 +68,16 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
         </div>
 
         <div style={{ display: 'grid', gap: '16px' }}>
+          <section className={styles.card} style={{ marginBottom: 0 }}>
+            <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><User size={20} color="#4f46e5" /> Business Owner Information</h3></div>
+            <div className={styles.cardContent} style={{ display: 'grid', gap: '10px' }}>
+              <DetailRow label="Business Name" value={tenant.name} />
+              <DetailRow label="Owner Name" value={businessOwner?.name || tenant.contactPerson || 'Not provided'} />
+              <DetailRow label="Contact" value={businessOwner?.contactNumber || 'Not provided'} />
+              <DetailRow label="Email" value={businessOwner?.email || 'Not provided'} />
+            </div>
+          </section>
+
           {customer && <section className={styles.card} style={{ marginBottom: 0 }}><div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><User size={20} color="#4f46e5" /> Customer Information</h3></div><div className={styles.cardContent} style={{ display: 'grid', gap: '10px' }}><DetailRow label="Name" value={customer.name} /><DetailRow label="Contact" value={customer.mobileNumber || 'Not provided'} /></div></section>}
           <section className={styles.card} style={{ marginBottom: 0 }}>
             <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Package size={20} color="#4f46e5" /> Items ({items.reduce((sum, item) => sum + item.quantity, 0)})</h3></div>

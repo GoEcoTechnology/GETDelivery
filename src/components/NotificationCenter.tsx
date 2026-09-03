@@ -125,7 +125,7 @@ export function NotificationCenter() {
                          'Update'}
                       </span>
                     </div>
-                    <p style={{ margin: '4px 0' }}>{notif.body}</p>
+                    <p style={{ margin: '4px 0', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{notif.body}</p>
                     <small style={{ color: '#6b7280' }}>{formatDistanceToNow(new Date(notif.createdAt))} ago</small>
                   </div>
                   {notif.status === 'UNREAD' && (
