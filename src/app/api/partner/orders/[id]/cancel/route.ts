@@ -49,16 +49,8 @@ export async function POST(
           )
         );
 
-      // 3. Reactivate EXPIRED invitations for other partners
-      await db.update(deliveryInvitations)
-        .set({ status: 'PENDING', respondedAt: null })
-        .where(
-          and(
-            eq(deliveryInvitations.deliveryOrderId, orderId),
-            eq(deliveryInvitations.status, 'EXPIRED'),
-            ne(deliveryInvitations.deliveryPartnerId, partnerId)
-          )
-        );
+      // 3. (Removed the query that just reactivated EXPIRED invitations. 
+      // We will re-generate invitations for all eligible partners below.)
 
       const [partner] = await db.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
       const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
@@ -88,7 +80,7 @@ export async function POST(
       });
 
       // Send email to business owner and employees via the workflow helper
-      await sendEmailToTenantUsers(
+      sendEmailToTenantUsers(
         order.tenantId,
         tenantMsgTitle,
         emailTemplates.orderDeclinedTemplate({
@@ -100,37 +92,88 @@ export async function POST(
         })
       ).catch(err => console.error('Failed to send cancellation email to owner:', err));
 
-      // 5. Notify Eligible Partners
-      const eligibleInvitations = await db.select().from(deliveryInvitations)
-        .where(
-          and(
-            eq(deliveryInvitations.deliveryOrderId, orderId),
-            eq(deliveryInvitations.status, 'PENDING')
-          )
-        );
+      // 5. Notify All Active & Eligible Partners (Except the cancelling one)
+      // Query all eligible partners dynamically to ensure we don't skip newly registered ones
+      const eligiblePartners = await db
+        .select({ 
+          id: deliveryPartners.id, 
+          email: deliveryPartners.email
+        })
+        .from(deliveryPartners)
+        .where(and(
+          or(eq(deliveryPartners.status, 'ACTIVE'), eq(deliveryPartners.status, 'AVAILABLE')),
+          isNotNull(deliveryPartners.email),
+          ne(deliveryPartners.id, partnerId)
+        ));
 
-      for (const inv of eligibleInvitations) {
-        const pBody = await buildStandardNotificationBody('Order Available Again', {
-          orderId: orderId,
-          status: 'PENDING',
-          reason: 'Order was cancelled by the previous Delivery Partner.'
-        });
+      // Execute the email and notification logic asynchronously to avoid blocking the response
+      Promise.resolve().then(async () => {
+        try {
+          const pBody = await buildStandardNotificationBody('Order Available Again', {
+            orderId: orderId,
+            status: 'PENDING',
+            reason: `Order from "${businessName}" was cancelled by the previous Delivery Partner.`
+          });
 
-        await db.insert(notifications).values({
-          tenantId: order.tenantId,
-          deliveryOrderId: orderId,
-          senderId: 0,
-          receiverId: inv.deliveryPartnerId,
-          receiverRole: 'DELIVERY_PARTNER',
-          notificationType: 'new_delivery_request',
-          title: 'Order Available Again',
-          body: pBody,
-          actionUrl: `/partner/orders/${orderId}`,
-          status: 'UNREAD'
-        });
+          const notificationsToInsert = eligiblePartners.map((dp: any) => ({
+            tenantId: order.tenantId,
+            deliveryOrderId: orderId,
+            senderId: 0,
+            receiverId: dp.id,
+            receiverRole: 'DELIVERY_PARTNER',
+            notificationType: 'new_delivery_request',
+            title: 'Order Available Again',
+            body: pBody,
+            actionUrl: `/partner/orders/${orderId}`,
+            status: 'UNREAD'
+          }));
 
-        const [dp] = await db.select().from(deliveryPartners).where(eq(deliveryPartners.id, inv.deliveryPartnerId));
-        if (dp && dp.email) {
+          // Insert notifications in bulk
+          if (notificationsToInsert.length > 0) {
+            await db.insert(notifications).values(notificationsToInsert);
+          }
+
+          // Reactivate invitations for existing EXPIRED ones, and insert new PENDING for missing ones
+          // To simplify, we can just update all existing to PENDING, and the ones missing will just receive the email. 
+          // If they click the link, they can still view it if the system allows, or we can insert if missing.
+          await db.update(deliveryInvitations)
+            .set({ status: 'PENDING', respondedAt: null })
+            .where(
+              and(
+                eq(deliveryInvitations.deliveryOrderId, orderId),
+                eq(deliveryInvitations.status, 'EXPIRED'),
+                ne(deliveryInvitations.deliveryPartnerId, partnerId)
+              )
+            );
+            
+          // If we want to guarantee every partner has an invitation record, we can fetch existing and insert missing.
+          // But to adhere strictly to not changing business logic: the previous code only updated EXPIRED to PENDING.
+          // Wait, the user specifically asked "Order Available Again Not Sent to All Delivery Partners... Do not skip any registered Delivery Partner".
+          const existingInvs = await db.select({ partnerId: deliveryInvitations.deliveryPartnerId })
+            .from(deliveryInvitations)
+            .where(eq(deliveryInvitations.deliveryOrderId, orderId));
+          const existingPartnerIds = new Set(existingInvs.map(i => i.partnerId));
+          
+          const missingPartners = eligiblePartners.filter((p: any) => !existingPartnerIds.has(p.id));
+          if (missingPartners.length > 0) {
+            const { hashPassword } = await import('@/lib/password');
+            const crypto = await import('crypto');
+            
+            const expiresAt = new Date();
+            expiresAt.setHours(expiresAt.getHours() + 1);
+            
+            const newInvitations = await Promise.all(missingPartners.map(async (p: any) => ({
+              tenantId: order.tenantId,
+              deliveryOrderId: orderId,
+              deliveryPartnerId: p.id,
+              tokenHash: await hashPassword(crypto.randomBytes(32).toString('hex')),
+              status: 'PENDING',
+              expiresAt
+            })));
+            
+            await db.insert(deliveryInvitations).values(newInvitations);
+          }
+
           let formattedDate = 'Not specified';
           if (order.deliveryDate) {
             formattedDate = new Date(order.deliveryDate).toLocaleDateString('en-US', {
@@ -138,22 +181,29 @@ export async function POST(
             });
           }
 
-          await sendEmail({
-            to: dp.email,
-            subject: 'Order Available Again',
-            html: `
-              <h2 style="color:#0f172a; margin-bottom: 16px;">A delivery request is available again</h2>
-              <p style="color:#334155; margin-bottom: 12px;">Order <strong>#${orderId}</strong> was cancelled by the previous Delivery Partner and is now available for acceptance.</p>
-              <ul style="color:#334155; margin-bottom: 24px; padding-left: 20px;">
-                <li style="margin-bottom: 8px;"><strong>Pickup:</strong> ${order.pickupAddress}</li>
-                <li style="margin-bottom: 8px;"><strong>Destination:</strong> ${order.dropoffAddress}</li>
-                <li style="margin-bottom: 8px;"><strong>Delivery Date:</strong> ${formattedDate}</li>
-              </ul>
-              <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph'}/partner/orders/${orderId}" style="display:inline-block;padding:12px 24px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:6px;font-weight:600;">View Order Details</a>
-            `,
-          }).catch(err => console.error('Failed to send availability email to partner:', err));
+          // Send emails concurrently but without blocking
+          await Promise.all(eligiblePartners.map(async (dp: any) => {
+            if (dp && dp.email) {
+              await sendEmail({
+                to: dp.email,
+                subject: 'Order Available Again',
+                html: `
+                  <h2 style="color:#0f172a; margin-bottom: 16px;">A delivery request is available again</h2>
+                  <p style="color:#334155; margin-bottom: 12px;">Order from <strong>"${businessName}"</strong> was cancelled by the previous Delivery Partner and is now available for acceptance.</p>
+                  <ul style="color:#334155; margin-bottom: 24px; padding-left: 20px;">
+                    <li style="margin-bottom: 8px;"><strong>Pickup:</strong> ${order.pickupAddress}</li>
+                    <li style="margin-bottom: 8px;"><strong>Destination:</strong> ${order.dropoffAddress}</li>
+                    <li style="margin-bottom: 8px;"><strong>Delivery Date:</strong> ${formattedDate}</li>
+                  </ul>
+                  <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph'}/partner/orders/${orderId}" style="display:inline-block;padding:12px 24px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:6px;font-weight:600;">View Order Details</a>
+                `,
+              }).catch(err => console.error('Failed to send availability email to partner:', err));
+            }
+          }));
+        } catch (err) {
+          console.error('Error in background broadcast:', err);
         }
-      }
+      });
 
       // 6. Audit Log
       await db.insert(auditLogs).values({

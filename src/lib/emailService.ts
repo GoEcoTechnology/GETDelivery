@@ -301,7 +301,10 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       return { success: false, error: 'No valid recipient email addresses provided' };
     }
 
-    const uniqueSubject = options.subject;
+    // Append invisible zero-width spaces to subject to prevent Gmail from threading separate notifications
+    // This fixes the issue where new emails get hidden in old threads without showing a visible timestamp
+    const zwsp = '\u200B'.repeat(Math.floor(Math.random() * 10) + 1);
+    const uniqueSubject = `${options.subject}${zwsp}`;
 
     // Prepare sender information
     const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;

@@ -66,17 +66,7 @@ export async function GET(request: Request) {
     // Fetch products and quotas for these orders
     const orderIds = data.map((o: any) => o.id);
     if (orderIds.length > 0) {
-      const winners = await tx
-        .select({
-          id: deliveryPartners.id,
-          companyName: deliveryPartners.companyName,
-          contactPerson: deliveryPartners.contactPerson,
-          mobileNumber: deliveryPartners.mobileNumber,
-          email: deliveryPartners.email,
-        })
-        .from(deliveryPartners)
-        .where(inArray(deliveryPartners.id, data.map((o: any) => o.temporaryWinnerId).filter(Boolean)));
-
+      const winnerIds = data.map((o: any) => o.temporaryWinnerId).filter(Boolean);
       const winnerMap = new Map<number, {
         id: number;
         companyName: string | null;
@@ -84,13 +74,21 @@ export async function GET(request: Request) {
         mobileNumber: string | null;
         email: string | null;
       }>();
-      winners.forEach((winner: {
-        id: number;
-        companyName: string | null;
-        contactPerson: string | null;
-        mobileNumber: string | null;
-        email: string | null;
-      }) => winnerMap.set(winner.id, winner));
+
+      if (winnerIds.length > 0) {
+        const winners = await tx
+          .select({
+            id: deliveryPartners.id,
+            companyName: deliveryPartners.companyName,
+            contactPerson: deliveryPartners.contactPerson,
+            mobileNumber: deliveryPartners.mobileNumber,
+            email: deliveryPartners.email,
+          })
+          .from(deliveryPartners)
+          .where(inArray(deliveryPartners.id, winnerIds));
+
+        winners.forEach((winner: any) => winnerMap.set(winner.id, winner));
+      }
 
       const items = await tx
         .select({

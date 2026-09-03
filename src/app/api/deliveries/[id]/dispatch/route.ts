@@ -97,107 +97,109 @@ export async function POST(
           })
           .where(eq(deliveryOrders.id, order.id));
 
-      // 2. Generate Tokens and Hash
-      const tokens = eligiblePartners.map(() => crypto.randomBytes(32).toString('hex'));
-      const tokenHashes = await Promise.all(tokens.map((t: string) => hashPassword(t)));
+      }); // End of transaction
 
-      const invitationsToInsert = eligiblePartners.map((partner: any, i: number) => ({
-        tenantId: tenantIdToUse,
-        deliveryOrderId: order.id,
-        deliveryPartnerId: partner.id,
-        tokenHash: tokenHashes[i],
-        status: 'PENDING',
-        expiresAt
-      }));
+      // At this point, the order is safely DISPATCHED and stock is deducted.
+      // We can immediately return a success response to the client to meet the < 1s requirement.
+      // All heavy operations (argon2 hashing for tokens, bulk DB inserts, emails) will run in the background.
 
-      const insertedInvitations = await innerTx
-        .insert(deliveryInvitations)
-        .values(invitationsToInsert)
-        .returning();
+      Promise.resolve().then(async () => {
+        try {
+          // 2. Generate Tokens and Hash
+          const tokens = eligiblePartners.map(() => crypto.randomBytes(32).toString('hex'));
+          const tokenHashes = await Promise.all(tokens.map((t: string) => hashPassword(t)));
 
-      const newNotifsToInsert: any[] = [];
-      const emailTasks: Promise<any>[] = [];
-      
-      // Get delivery date for email
-      const deliveryDate = order.deliveryDate
-        ? new Date(order.deliveryDate).toLocaleDateString('en-PH', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })
-        : 'As soon as possible';
+          const invitationsToInsert = eligiblePartners.map((partner: any, i: number) => ({
+            tenantId: tenantIdToUse,
+            deliveryOrderId: order.id,
+            deliveryPartnerId: partner.id,
+            tokenHash: tokenHashes[i],
+            status: 'PENDING',
+            expiresAt
+          }));
 
-      const acceptUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/partner/orders/${order.id}`;
+          // Insert invitations outside of the main request transaction
+          const insertedInvitations = await db
+            .insert(deliveryInvitations)
+            .values(invitationsToInsert)
+            .returning();
 
-      // Prepare partner list for email
-      const partnerEmailList = eligiblePartners.map((p: { id: number; email: string | null; companyName: string | null }) => ({
-        id: p.id,
-        email: p.email,
-        companyName: p.companyName
-      }));
+          const newNotifsToInsert: any[] = [];
+          
+          // Get delivery date for email
+          const deliveryDate = order.deliveryDate
+            ? new Date(order.deliveryDate).toLocaleDateString('en-PH', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })
+            : 'As soon as possible';
 
-      // Map tokens by partner ID to ensure correct matching regardless of Postgres returning order
-      const partnerTokens = new Map<number, string>();
-      eligiblePartners.forEach((p: any, i: number) => partnerTokens.set(p.id, tokens[i]));
+          const acceptUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/partner/orders/${order.id}`;
 
-      const bodyStr = await buildStandardNotificationBody('New Delivery Request', {
-        orderId: order.id,
-        status: 'PENDING',
-        reason: 'New order available for pickup'
+          // Prepare partner list for email
+          const partnerEmailList = eligiblePartners.map((p: { id: number; email: string | null; companyName: string | null }) => ({
+            id: p.id,
+            email: p.email,
+            companyName: p.companyName
+          }));
+
+          const bodyStr = await buildStandardNotificationBody('New Delivery Request', {
+            orderId: order.id,
+            status: 'PENDING',
+            reason: 'New order available for pickup'
+          });
+
+          insertedInvitations.forEach((invitation: any) => {
+            const partner = eligiblePartners.find((p: any) => p.id === invitation.deliveryPartnerId);
+            if (!partner || !partner.email) return;
+
+            // Unified Push Notifications
+            newNotifsToInsert.push({
+              tenantId: tenantIdToUse,
+              deliveryOrderId: order.id,
+              senderId: claims.userId || null,
+              receiverId: partner.id,
+              receiverRole: 'DELIVERY_PARTNER',
+              recipientEmail: partner.email,
+              notificationType: 'new_delivery_request',
+              title: 'New Delivery Request',
+              body: bodyStr,
+              actionUrl: acceptUrl,
+              status: 'UNREAD'
+            });
+          });
+
+          // Insert unified notifications
+          if (newNotifsToInsert.length > 0) {
+            await db.insert(notifications).values(newNotifsToInsert);
+          }
+
+          // Send broadcast emails asynchronously (non-blocking)
+          if (partnerEmailList && partnerEmailList.length > 0) {
+            await sendBroadcastDeliveryNotification(
+              tenantIdToUse,
+              order.id,
+              order.customerName,
+              order.pickupAddress,
+              order.dropoffAddress,
+              deliveryDate,
+              order.customerContact,
+              order.instructions || undefined,
+              partnerEmailList,
+              acceptUrl,
+              order.id
+            ).catch(err => {
+              console.error('Failed to send broadcast email:', err.message);
+            });
+          }
+        } catch (err) {
+          console.error('Error in background dispatch tasks:', err);
+        }
       });
 
-      insertedInvitations.forEach((invitation: any) => {
-        const partner = eligiblePartners.find((p: any) => p.id === invitation.deliveryPartnerId);
-        if (!partner || !partner.email) return;
-
-        // Unified Push Notifications / Email log
-        newNotifsToInsert.push({
-          tenantId: tenantIdToUse,
-          deliveryOrderId: order.id,
-          senderId: claims.userId || null,
-          receiverId: partner.id,
-          receiverRole: 'DELIVERY_PARTNER',
-          recipientEmail: partner.email,
-          notificationType: 'new_delivery_request',
-          title: 'New Delivery Request',
-          body: bodyStr,
-          actionUrl: acceptUrl,
-          status: 'UNREAD'
-        });
-      });
-
-      // Insert unified notifications (returns the inserted rows so we can track them)
-      let insertedNotifs: any[] = [];
-      if (newNotifsToInsert.length > 0) {
-        // Use global `db` instead of `innerTx` to bypass RLS when inserting for a different role
-        insertedNotifs = await db.insert(notifications).values(newNotifsToInsert).returning();
-      }
-
-      // Send emails asynchronously (fire-and-forget after DB commit)
-      return { insertedNotifs, partnerEmailList, deliveryDate, acceptUrl };
-    });
-
-    const { insertedNotifs, partnerEmailList, deliveryDate, acceptUrl } = txResult || {};
-
-    // Send broadcast emails asynchronously (non-blocking)
-    if (partnerEmailList && partnerEmailList.length > 0) {
-      sendBroadcastDeliveryNotification(
-        tenantIdToUse,
-        order.id,
-        order.customerName,
-        order.pickupAddress,
-        order.dropoffAddress,
-        deliveryDate,
-        order.customerContact,
-        order.instructions || undefined,
-        partnerEmailList,
-        acceptUrl,
-        order.id
-      ).catch(err => {
-        console.error('Failed to send broadcast email:', err.message);
-      });
-    }
+    // The broadcast emails and tokens are processed in the background.
 
     return NextResponse.json({ 
       success: true, 

@@ -211,13 +211,60 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
       if (!res.ok) throw new Error(data.error || 'Failed to add quota');
       return { ...data, deliveryId, productId };
     },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previousData = queryClient.getQueryData<any>(queryKey);
+      
+      // Optimistic update
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          data: old.data.map((d: any) => {
+            if (d.id !== variables.deliveryId) return d;
+            
+            let allReached = true;
+            const updatedProducts = d.products.map((p: any) => {
+              if (p.productId === variables.productId) {
+                const newAccQty = (p.accumulatedQuantity || 0) + variables.quantity;
+                if (newAccQty < (p.targetQuantity || 20)) {
+                  allReached = false;
+                }
+                return { ...p, accumulatedQuantity: newAccQty };
+              }
+              if ((p.accumulatedQuantity || 0) < (p.targetQuantity || 20)) {
+                allReached = false;
+              }
+              return p;
+            });
+            
+            // Auto-ready logic
+            const newStatus = (allReached && d.status === 'DRAFT') ? 'READY_FOR_DISPATCH' : d.status;
+            
+            return {
+              ...d,
+              status: newStatus,
+              products: updatedProducts
+            };
+          })
+        };
+      });
+
+      // Instantly clear the inputs
+      setAddQuotaInputs(prev => ({ ...prev, [`${variables.deliveryId}-${variables.productId}`]: 0 }));
+      setAddQuotaErrors(prev => ({ ...prev, [`${variables.deliveryId}-${variables.productId}`]: '' }));
+
+      return { previousData };
+    },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['deliveries'] });
-      setAddQuotaInputs(prev => ({ ...prev, [`${data.deliveryId}-${data.productId}`]: 0 }));
-      setAddQuotaErrors(prev => ({ ...prev, [`${data.deliveryId}-${data.productId}`]: '' }));
+      // Invalidate silently in the background without showing loading state
+      queryClient.invalidateQueries({ queryKey });
       showToast(`Added ${data.addedCount} to quota`, 'success');
     },
-    onError: (error: any, variables) => {
+    onError: (error: any, variables, context: any) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(queryKey, context.previousData);
+      }
       setAddQuotaErrors(prev => ({ ...prev, [`${variables.deliveryId}-${variables.productId}`]: error.message }));
     }
   });

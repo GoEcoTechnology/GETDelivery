@@ -56,9 +56,8 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
               <section className={styles.card} style={{ marginBottom: 0 }}>
             <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MapPin size={20} color="#4f46e5" /> Delivery Details</h3></div>
             <div className={styles.cardContent} style={{ display: 'grid', gap: '12px' }}>
-              <DetailRow label="Status" value={invite.status.replace(/_/g, ' ')} chip />
+              <DetailRow label="Status" value={invite.status === 'TEMPORARY_WINNER' ? 'ASSIGNED' : invite.status.replace(/_/g, ' ')} chip />
               <DetailRow label="Destination" value={order.dropoffAddress} />
-              {order.preferredVehicle && <DetailRow label="Preferred Vehicle" value={order.preferredVehicle} chip />}
               {order.requiredVehicleType && <DetailRow label="Required Vehicle" value={order.requiredVehicleType} chip />}
               {order.distanceKm && <DetailRow label="Distance" value={`${order.distanceKm} km`} />}
               {order.finalDeliveryPrice && <DetailRow label="Delivery Fee" value={formatCurrency(order.finalDeliveryPrice)} chip />}

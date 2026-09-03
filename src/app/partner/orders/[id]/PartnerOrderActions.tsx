@@ -28,7 +28,7 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
       const res = await fetch(`/api/partner/orders/${orderId}/accept`, { method: 'POST' });
       const data = (await res.json()) as ApiError;
       if (!res.ok) throw new Error(data.error || 'Failed to accept');
-      alert('Accepted! Waiting for tenant approval.');
+      alert('Delivery accepted!');
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -108,8 +108,7 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
     return (
       <div style={{ display: 'grid', gap: '16px' }}>
         <div style={{ padding: '16px 20px', borderRadius: '18px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', justifyContent: 'center' }}>
-          {status === 'TEMPORARY_WINNER' && <StateMessage icon={<Clock size={18} />} color="#4f46e5" text="Awaiting tenant approval" />}
-          {status === 'ASSIGNED' && <StateMessage icon={<CheckCircle2 size={18} />} color="#16a34a" text="You have been assigned!" />}
+          {(status === 'TEMPORARY_WINNER' || status === 'ASSIGNED') && <StateMessage icon={<CheckCircle2 size={18} />} color="#16a34a" text="You have been assigned!" />}
           {status === 'DECLINED' && <StateMessage icon={<XCircle size={18} />} color="#dc2626" text="You declined this request" />}
           {status === 'CANCELLED' && <StateMessage icon={<XCircle size={18} />} color="#dc2626" text="You cancelled this assignment" />}
           {!['TEMPORARY_WINNER', 'ASSIGNED', 'DECLINED', 'CANCELLED'].includes(status) && <StateMessage icon={<AlertTriangle size={18} />} color="#64748b" text="Request is closed" />}

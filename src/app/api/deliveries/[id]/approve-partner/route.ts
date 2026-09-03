@@ -97,12 +97,12 @@ export async function POST(
             dashboardUrl,
           });
 
-          await sendEmail({
+          sendEmail({
             to: partner.email,
             subject: `🎉 Approved! Assigned to ORD-${String(orderId).padStart(5, '0')}`,
             html: template.html,
             text: template.text,
-          });
+          }).catch(err => console.error('Failed to send approval email:', err));
 
           const bodyStr = await buildStandardNotificationBody('Assignment Confirmed', {
             orderId: order.id,
