@@ -11,7 +11,7 @@
  */
 
 // Get the base URL from environment, fallback to localhost for development
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph';
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@getdelivery.com';
 const COMPANY_NAME = 'GETDelivery';
 
@@ -184,9 +184,6 @@ ${'='.repeat(COMPANY_NAME.length)}
 ${options.textContent}
 
 ---
-Visit: ${BASE_URL}
-Support: ${SUPPORT_EMAIL}
-
 © ${new Date().getFullYear()} ${COMPANY_NAME}. All rights reserved.`;
 
   return { html, text };
@@ -207,6 +204,8 @@ export function newDeliveryRequestTemplate(options: {
   acceptUrl: string;
   declineUrl?: string;
 }): EmailTemplate {
+  const orderRef = `ORD-${String(options.orderId).padStart(5, '0')}`;
+
   const content = `
     <h2 style="font-size:24px;margin-bottom:8px;color:${COLORS.text};">Delivery Request Assignment</h2>
     <p style="color:${COLORS.muted};margin-bottom:28px;font-size:15px;line-height:1.6;">
@@ -256,8 +255,6 @@ export function newDeliveryRequestTemplate(options: {
     </div>
 
 
-
-    <!-- Action Buttons -->
     <div style="text-align:center;margin:32px 0;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
         <tr>
@@ -306,15 +303,16 @@ This is an automated notification from ${COMPANY_NAME}.
 If this delivery has already been accepted by another partner, please disregard this email.`;
 
   const { html, text } = createEmailWrapper({
-    preheader: `Delivery request requires your response.`,
+    preheader: `${orderRef} - Delivery request requires your response.`,
     content,
     textContent,
   });
 
   return {
-    subject: `Delivery Request for ${options.customerName}`,
+    subject: `Delivery Request - Action Required`,
     html,
     text,
+    preheader: `${orderRef} - New delivery available for ${options.customerName}`,
   };
 }
 
@@ -491,28 +489,16 @@ ${options.actionUrl ? `\nView and manage this order:\n${options.actionUrl}` : ''
  * Sent to: Business Owner + Employees
  */
 export function orderAcceptedTemplate(options: {
-  orderId: number;
-  partnerName: string;
-  customerName: string;
   businessName: string;
-  pickupLocation: string;
-  dropoffLocation: string;
-  deliveryDate: Date | null;
+  customerName: string;
+  orderId: number;
+  deliveryDate: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  partnerName: string;
+  acceptanceTime: string;
   dashboardUrl: string;
 }): EmailTemplate {
-  let formattedDate = 'Not specified';
-  if (options.deliveryDate) {
-    formattedDate = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Manila',
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    }).format(new Date(options.deliveryDate));
-  }
   const orderRef = `ORD-${String(options.orderId).padStart(5, '0')}`;
 
   const content = `
@@ -522,29 +508,55 @@ export function orderAcceptedTemplate(options: {
       <p style="color:${COLORS.text};margin:0;font-size:15px;font-weight:500;">Your delivery order has been accepted by a partner.</p>
     </div>
 
-
-    <!-- Delivery Information Card -->
+    <!-- Delivery Details Card -->
     <div style="background:${COLORS.background};border:1px solid ${COLORS.border};border-radius:12px;padding:24px;margin-bottom:28px;">
-      <h3 style="font-size:14px;font-weight:700;color:${COLORS.text};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid ${COLORS.border};">Delivery Details</h3>
+      <h3 style="font-size:14px;font-weight:700;color:${COLORS.text};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid ${COLORS.border};">Delivery Information</h3>
       
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
         <tr>
-          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;width:35%;vertical-align:top;">Customer</td>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;width:35%;vertical-align:top;">Business Name</td>
+          <td style="padding:12px 0;color:${COLORS.text};font-weight:600;vertical-align:top;">${escapeHtml(options.businessName)}</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;width:35%;vertical-align:top;">Customer Name</td>
           <td style="padding:12px 0;color:${COLORS.text};font-weight:600;vertical-align:top;">${escapeHtml(options.customerName)}</td>
         </tr>
         <tr>
-          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Pickup</td>
-          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;word-break:break-word;">${escapeHtml(options.pickupLocation)}</td>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Order ID</td>
+          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;">${escapeHtml(orderRef)}</td>
         </tr>
         <tr>
-          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Destination</td>
-          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;word-break:break-word;">${escapeHtml(options.dropoffLocation)}</td>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Delivery Date</td>
+          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;">${escapeHtml(options.deliveryDate)}</td>
         </tr>
         <tr>
-          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Date</td>
-          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;">${formattedDate} (PHT)</td>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Pickup Address</td>
+          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;word-break:break-word;line-height:1.5;">${escapeHtml(options.pickupAddress)}</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Delivery Address</td>
+          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;word-break:break-word;line-height:1.5;">${escapeHtml(options.dropoffAddress)}</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Current Status</td>
+          <td style="padding:12px 0;vertical-align:top;"><span style="color:#059669;font-weight:600;">Accepted</span></td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Acceptance Time</td>
+          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;">${escapeHtml(options.acceptanceTime)}</td>
         </tr>
       </table>
+    </div>
+
+    <!-- Partner Information Card -->
+    <div style="background:${COLORS.background};border:1px solid ${COLORS.border};border-radius:12px;padding:24px;margin-bottom:28px;">
+      <h3 style="font-size:14px;font-weight:700;color:${COLORS.text};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid ${COLORS.border};">Assigned Partner</h3>
+      
+      <div style="display:flex;align-items:center;gap:12px;padding:16px;background:white;border-radius:8px;border:1px solid ${COLORS.border};">
+        <div>
+          <div style="font-size:15px;font-weight:600;color:${COLORS.text};">${escapeHtml(options.partnerName)}</div>
+        </div>
+      </div>
     </div>
 
     <!-- Action Button -->
@@ -552,7 +564,7 @@ export function orderAcceptedTemplate(options: {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
         <tr>
           <td align="center">
-            <a href="${escapeHtml(options.dashboardUrl)}" style="display:inline-block;padding:16px 48px;background-color:${COLORS.primary};color:white;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;text-align:center;mso-padding-alt:16px 48px;">View More Details</a>
+            <a href="${escapeHtml(options.dashboardUrl)}" style="display:inline-block;padding:16px 48px;background-color:${COLORS.primary};color:white;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;text-align:center;mso-padding-alt:16px 48px;">View More</a>
           </td>
         </tr>
       </table>
@@ -564,15 +576,17 @@ export function orderAcceptedTemplate(options: {
 
 Your delivery order has been accepted by a partner.
 
-STATUS: ACCEPTED
+DELIVERY INFORMATION
+====================
 
-DELIVERY DETAILS
-================
-
-Customer: ${escapeHtml(options.customerName)}
-Pickup: ${escapeHtml(options.pickupLocation)}
-Destination: ${escapeHtml(options.dropoffLocation)}
-Date: ${formattedDate} (PHT)
+Business Name: ${escapeHtml(options.businessName)}
+Customer Name: ${escapeHtml(options.customerName)}
+Order ID: ${orderRef}
+Delivery Date: ${escapeHtml(options.deliveryDate)}
+Pickup Address: ${escapeHtml(options.pickupAddress)}
+Delivery Address: ${escapeHtml(options.dropoffAddress)}
+Current Status: Accepted
+Acceptance Time: ${escapeHtml(options.acceptanceTime)}
 
 ASSIGNED PARTNER
 ================
@@ -581,19 +595,16 @@ Company: ${escapeHtml(options.partnerName)}
 
 To view the delivery in dashboard:
 ${options.dashboardUrl}
-
----
-
-This is an automated notification from ${COMPANY_NAME}.`;
+`;
 
   const { html, text } = createEmailWrapper({
-    preheader: `Delivery for ${options.customerName} accepted by partner - Action required`,
+    preheader: `Delivery accepted by partner - Action required`,
     content,
     textContent,
   });
 
   return {
-    subject: `Delivery for ${options.businessName} - Accepted by Partner`,
+    subject: `Delivery for "${options.businessName}"`,
     html,
     text,
   };

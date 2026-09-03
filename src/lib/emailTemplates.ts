@@ -4,7 +4,7 @@ export interface EmailTemplate {
 }
 
 const COMPANY_NAME = 'GETDelivery';
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph';
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@getdelivery.com';
 
 function escapeHtml(value: string): string {
@@ -138,31 +138,36 @@ export function orderAcceptedTemplate(options: {
 }
 
 export function orderDeclinedTemplate(options: {
+  businessName: string;
   orderId: number;
   partnerName: string;
   reason: string;
   dashboardUrl: string;
-}): EmailTemplate {
+}): EmailTemplate & { title: string } {
   const ref = orderRef(options.orderId);
-  return wrapEmail({
-    title: `Delivery Request Declined`,
-    preheader: `A partner declined a delivery.`,
+  const email = wrapEmail({
+    title: `Delivery Declined`,
+    preheader: `A partner declined ${ref}.`,
     content: `
       <h2 style="margin:0 0 12px;font-size:22px;">Delivery request declined</h2>
       <p style="margin:0 0 16px;color:#64748b;">The request has been returned to pending status and will be offered to other partners.</p>
+      <p style="margin:0 0 8px;"><strong>Order ID:</strong> ${escapeHtml(ref)}</p>
       <p style="margin:0 0 8px;"><strong>Partner:</strong> ${escapeHtml(options.partnerName)}</p>
       <p style="margin:0;"><strong>Reason:</strong> ${escapeHtml(options.reason || 'Not specified')}</p>
     `,
     textContent: [
       `Delivery request declined.`,
+      `Order ID: ${ref}`,
       `Partner: ${options.partnerName}`,
       `Reason: ${options.reason || 'Not specified'}`,
       `Check status in your dashboard: ${options.dashboardUrl}`,
     ].join('\n'),
-    ctaText: 'View Order Status',
+    ctaText: 'View More',
     ctaUrl: options.dashboardUrl,
     footerNote: 'This is an automated transactional email.',
   });
+  
+  return { ...email, title: `Delivery for "${options.businessName}"` };
 }
 
 export function newDeliveryRequestTemplate(options: {

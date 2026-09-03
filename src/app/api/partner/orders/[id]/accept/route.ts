@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryInvitations, auditLogs, notifications, deliveryPartners, tenants } from '@/db/schema';
+import { deliveryOrders, deliveryInvitations, auditLogs, notifications, deliveryPartners } from '@/db/schema';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
@@ -129,9 +129,7 @@ export async function POST(
       });
 
       // Send emails asynchronously (fire-and-forget)
-      const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/admin/deliveries/${orderId}`;
-      
-      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, updatedOrder.tenantId));
+      const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph'}/admin/deliveries/${orderId}`;
       
       // Send acceptance email to tenant users
       sendPartnerAcceptedNotification(
@@ -140,10 +138,7 @@ export async function POST(
         partnerName,
         partner?.mobileNumber,
         updatedOrder.pickupAddress,
-        updatedOrder.dropoffAddress,
-        updatedOrder.deliveryDate,
-        updatedOrder.customerName,
-        tenant?.name || 'Business Owner',
+        undefined,
         dashboardUrl,
         orderId
       ).catch(err => {

@@ -63,6 +63,9 @@ export async function POST(
       const [partner] = await db.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
       const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
 
+      const [tenant] = await db.select().from(tenants).where(eq(tenants.id, order.tenantId));
+      const businessName = tenant?.name || 'Business Owner';
+
       // 4. Notify Business Owner
       const tenantMsgTitle = 'Assigned Delivery Cancelled';
       const tenantMsgBody = await buildStandardNotificationBody(tenantMsgTitle, {
@@ -89,10 +92,11 @@ export async function POST(
         order.tenantId,
         tenantMsgTitle,
         emailTemplates.orderDeclinedTemplate({
+          businessName,
           partnerName: partnerName,
           orderId: orderId,
           reason: cancelReason || 'None provided',
-          dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/admin/deliveries/${orderId}`,
+          dashboardUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph'}/admin/deliveries/${orderId}`,
         })
       ).catch(err => console.error('Failed to send cancellation email to owner:', err));
 
@@ -145,7 +149,7 @@ export async function POST(
                 <li style="margin-bottom: 8px;"><strong>Destination:</strong> ${order.dropoffAddress}</li>
                 <li style="margin-bottom: 8px;"><strong>Delivery Date:</strong> ${formattedDate}</li>
               </ul>
-              <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/partner/orders/${orderId}" style="display:inline-block;padding:12px 24px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:6px;font-weight:600;">View Order Details</a>
+              <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph'}/partner/orders/${orderId}" style="display:inline-block;padding:12px 24px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:6px;font-weight:600;">View Order Details</a>
             `,
           }).catch(err => console.error('Failed to send availability email to partner:', err));
         }

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Bell, Info } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 type NotificationItem = {
   id: number;
@@ -10,7 +9,6 @@ type NotificationItem = {
   body: string;
   status: 'UNREAD' | 'READ' | string;
   createdAt: string;
-  actionUrl?: string | null;
 };
 
 export default function NotificationBell() {
@@ -19,7 +17,6 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const router = useRouter();
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -144,17 +141,9 @@ export default function NotificationBell() {
                     gap: '12px',
                     transition: 'background-color 0.2s',
                     position: 'relative',
-                    cursor: 'pointer'
+                    cursor: notif.status === 'UNREAD' ? 'pointer' : 'default'
                   }}
-                  onClick={() => {
-                    if (notif.status === 'UNREAD') {
-                      markNotificationsRead([notif.id]);
-                    }
-                    if (notif.actionUrl) {
-                      router.push(notif.actionUrl);
-                      setOpen(false);
-                    }
-                  }}
+                  onClick={() => notif.status === 'UNREAD' && markNotificationsRead([notif.id])}
                 >
                   <div style={{ flexShrink: 0, marginTop: '2px' }}>
                     <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: notif.status === 'UNREAD' ? '#e0e7ff' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: notif.status === 'UNREAD' ? '#4f46e5' : '#94a3b8' }}>

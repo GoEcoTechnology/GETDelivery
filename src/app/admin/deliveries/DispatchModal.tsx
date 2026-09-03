@@ -104,7 +104,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
     <div className={styles.modalOverlay}>
       <div className={styles.modalContent}>
         <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>Dispatch Delivery</h2>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>Dispatch Delivery #{deliveryId}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
             <X size={24} />
           </button>
@@ -192,7 +192,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
           {selectedOption === 'partner' && (
             <div style={{ padding: '20px', backgroundColor: '#f0fdf4', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
               <p style={{ margin: 0, fontSize: '14px', color: '#166534', fontWeight: 500 }}>
-                This will instantly send a Push Notification to all delivery partners. You will be notified once a partner accepts.
+                This will instantly send a Push Notification to all delivery partners with "AVAILABLE" status. You will be notified once a partner accepts.
               </p>
             </div>
           )}

@@ -170,7 +170,8 @@ export async function POST(
       // Insert unified notifications (returns the inserted rows so we can track them)
       let insertedNotifs: any[] = [];
       if (newNotifsToInsert.length > 0) {
-        insertedNotifs = await innerTx.insert(notifications).values(newNotifsToInsert).returning();
+        // Use global `db` instead of `innerTx` to bypass RLS when inserting for a different role
+        insertedNotifs = await db.insert(notifications).values(newNotifsToInsert).returning();
       }
 
       // Send emails asynchronously (fire-and-forget after DB commit)

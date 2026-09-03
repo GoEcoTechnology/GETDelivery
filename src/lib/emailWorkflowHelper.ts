@@ -12,7 +12,7 @@ import { sendEmail, SendEmailResult } from './emailService';
 import * as emailTemplates from './emailTemplates';
 import * as emailTemplatesV2 from './emailTemplatesV2';
 import { db } from '@/db';
-import { users, notifications } from '@/db/schema';
+import { users, notifications, tenants, deliveryOrders } from '@/db/schema';
 import type { InferSelectModel } from 'drizzle-orm';
 import { eq, and, inArray } from 'drizzle-orm';
 
@@ -305,11 +305,16 @@ export async function sendBroadcastDeliveryNotification(
   deliveryOrderId: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Fetch tenant name for businessOwnerName
+    const { tenants } = await import('@/db/schema');
+    const [tenant] = await db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, tenantId));
+    const businessOwnerName = tenant?.name || 'GET Delivery Customer';
+
     // Generate email template
     const emailTemplate = emailTemplatesV2.newDeliveryRequestTemplate({
       orderId,
       customerName,
-      businessOwnerName: 'GET Delivery', // Fast fallback to prevent DB query timeout
+      businessOwnerName,
       pickupAddress,
       dropoffAddress,
       deliveryDate,
@@ -318,7 +323,7 @@ export async function sendBroadcastDeliveryNotification(
       acceptUrl,
     });
 
-    // Send to all partners in ONE email call
+    // Send to all partners
     const emailResult = await sendEmailToAllPartners(
       partners,
       emailTemplate.subject,
@@ -328,10 +333,25 @@ export async function sendBroadcastDeliveryNotification(
     if (!emailResult.success) {
       console.error('Failed to send broadcast email:', emailResult.error);
     }
-    
-    // NOTE: We DO NOT create in-app notifications here because they are 
-    // already bulk-inserted in the transaction inside dispatch/route.ts!
-    // Removing the for-loop of DB inserts here completely fixes Vercel 504 timeouts.
+
+    // Create in-app notifications for each partner
+    for (const partner of partners) {
+      if (partner.email) {
+        await createNotification({
+          tenantId,
+          deliveryOrderId,
+          senderId: undefined,
+          receiverId: partner.id,
+          receiverRole: 'DELIVERY_PARTNER',
+          recipientEmail: partner.email,
+          notificationType: 'new_delivery_request',
+          title: `New Delivery Request Available`,
+          body: `Order ORD-${String(orderId).padStart(5, '0')} for ${customerName}. Expires in 1 hour.`,
+          actionUrl: acceptUrl,
+          status: 'UNREAD',
+        });
+      }
+    }
 
     return { success: true };
   } catch (error: unknown) {
@@ -340,29 +360,51 @@ export async function sendBroadcastDeliveryNotification(
     return { success: false, error: message };
   }
 }
+
 export async function sendPartnerAcceptedNotification(
   tenantId: number,
   orderId: number,
   partnerName: string,
   contactNumber: string | undefined,
   pickupLocation: string,
-  dropoffLocation: string,
-  deliveryDate: Date | null,
-  customerName: string,
-  businessName: string,
+  estimatedArrival: string | undefined,
   dashboardUrl: string,
   deliveryOrderId: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Fetch tenant and order info
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+    const [order] = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, orderId));
+
+    const businessName = tenant?.name || 'Business Owner';
+    const customerName = order?.customerName || 'Customer';
+    const pickupAddress = order?.pickupAddress || pickupLocation;
+    const dropoffAddress = order?.dropoffAddress || 'Not specified';
+    
+    let deliveryDate = 'Not specified';
+    if (order?.deliveryDate) {
+      deliveryDate = new Date(order.deliveryDate).toLocaleDateString('en-US', {
+        timeZone: 'Asia/Manila',
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+      });
+    }
+    
+    const acceptanceTime = new Date().toLocaleString('en-US', {
+      timeZone: 'Asia/Manila',
+      hour: 'numeric', minute: 'numeric', hour12: true,
+      weekday: 'short', month: 'short', day: 'numeric'
+    }) + ' PHT';
+
     // Generate email template
     const emailTemplate = emailTemplatesV2.orderAcceptedTemplate({
-      orderId,
-      partnerName,
-      customerName,
       businessName,
-      pickupLocation,
-      dropoffLocation,
+      customerName,
+      orderId,
       deliveryDate,
+      pickupAddress,
+      dropoffAddress,
+      partnerName,
+      acceptanceTime,
       dashboardUrl,
     });
 
@@ -385,7 +427,7 @@ export async function sendPartnerAcceptedNotification(
       receiverId: 0,
       notificationType: 'order_accepted',
       title: `Delivery Partner Accepted`,
-      body: `${partnerName} has accepted the delivery request for ${customerName}.`,
+      body: `${partnerName} has accepted your delivery request.`,
       actionUrl: dashboardUrl,
       status: 'UNREAD',
     });
@@ -411,8 +453,13 @@ export async function sendPartnerDeclinedNotification(
   deliveryOrderId: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Fetch tenant
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+    const businessName = tenant?.name || 'Business Owner';
+
     // Generate email template
     const emailTemplate = emailTemplates.orderDeclinedTemplate({
+      businessName,
       orderId,
       partnerName,
       reason,
@@ -422,15 +469,14 @@ export async function sendPartnerDeclinedNotification(
     // Send email to all tenant users
     const emailResult = await sendEmailToTenantUsers(
       tenantId,
-      `📢 Delivery Partner Declined · ORD-${String(orderId).padStart(5, '0')}`,
-      emailTemplate
+      emailTemplate.title || `Delivery for "${businessName}"`,
+      { html: emailTemplate.html, text: emailTemplate.text }
     );
 
     if (!emailResult.success) {
       console.error('Failed to send partner declined email:', emailResult.error);
     }
 
-    // Create in-app notification
     await createNotification({
       tenantId,
       deliveryOrderId,

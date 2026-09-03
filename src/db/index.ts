@@ -10,7 +10,7 @@ const globalForPostgres = global as unknown as { postgresClient: postgres.Sql | 
 
 export const client =
   globalForPostgres.postgresClient ??
-  postgres(connectionString, { prepare: false, max: 1, idle_timeout: 10 });
+  postgres(connectionString, { prepare: false, max: 20 });
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPostgres.postgresClient = client;
