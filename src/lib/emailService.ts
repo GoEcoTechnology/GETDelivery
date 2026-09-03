@@ -301,10 +301,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       return { success: false, error: 'No valid recipient email addresses provided' };
     }
 
-    // Append timestamp to subject to prevent Gmail from threading separate notifications
-    // This fixes the issue where new emails get hidden in old threads
-    const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    const uniqueSubject = `${options.subject} [${timeStr}]`;
+    const uniqueSubject = options.subject;
 
     // Prepare sender information
     const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
@@ -349,39 +346,56 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     // Merge custom headers
     const headers = { ...defaultHeaders, ...options.headers };
 
-    // Build mail options with all required fields for deliverability
-    const mailOptions: SendMailOptions = {
-      from, // Display name and email
-      to: validRecipients.join(','),
-      sender, // Authenticated SMTP user for SPF/DKIM
-      envelope: {
-        from: fromEmail,
-        to: validRecipients,
-      },
-      subject: uniqueSubject,
-      html: options.html,
-      text: plainText,
-      replyTo,
-      ...(fromDomain !== 'gmail.com' ? { messageId: `<${Date.now()}.${Math.random().toString(36).substring(2, 15)}@${fromDomain}>` } : {}),
-      date: new Date(),
-      headers,
-      priority: 'normal',
-    };
+    // Send emails individually to avoid exposing recipients and triggering spam filters
+    const sendPromises = validRecipients.map(async (recipient) => {
+      // Generate unique message ID for each email
+      const uniqueMessageId = `<${Date.now()}.${Math.random().toString(36).substring(2, 15)}@${fromDomain}>`;
 
-    // Send with retry logic
-    const result = await sendWithRetry(mailOptions);
+      // Build mail options with all required fields for deliverability
+      const mailOptions: SendMailOptions = {
+        from, // Display name and email
+        to: recipient,
+        sender, // Authenticated SMTP user for SPF/DKIM
+        envelope: {
+          from: fromEmail,
+          to: recipient,
+        },
+        subject: uniqueSubject,
+        html: options.html,
+        text: plainText,
+        replyTo,
+        messageId: uniqueMessageId,
+        date: new Date(),
+        headers,
+        priority: 'normal',
+      };
 
-    if (!result.success) {
+      // Send with retry logic
+      const result = await sendWithRetry(mailOptions);
+
+      if (result.success) {
+        // Log successful send
+        console.log(
+          `✓ Email delivered: From=${fromEmail}, To=${recipient}, ` +
+          `Subject="${uniqueSubject}", MessageID=${result.messageId}`
+        );
+      }
       return result;
-    }
+    });
 
-    // Log successful send
-    console.log(
-      `✓ Email delivered: From=${fromEmail}, To=${validRecipients.join('; ')}, ` +
-      `Subject="${uniqueSubject}", MessageID=${result.messageId}`
-    );
+    const results = await Promise.all(sendPromises);
 
-    return result;
+    const hasSuccess = results.some(r => r.success);
+    const failedResults = results.filter(r => !r.success);
+    const recipientsFailed = failedResults.flatMap(r => r.recipientsFailed || []);
+    
+    // Return overall result
+    return {
+      success: hasSuccess,
+      messageId: results.find(r => r.success)?.messageId, // Return first successful messageId
+      error: failedResults.length > 0 ? `Failed for some recipients: ${failedResults.map(r => r.error).join(', ')}` : undefined,
+      recipientsFailed: recipientsFailed.length > 0 ? recipientsFailed : undefined,
+    };
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);

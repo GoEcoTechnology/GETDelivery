@@ -303,7 +303,7 @@ This is an automated notification from ${COMPANY_NAME}.
 If this delivery has already been accepted by another partner, please disregard this email.`;
 
   const { html, text } = createEmailWrapper({
-    preheader: `${orderRef} - Delivery request requires your response.`,
+    preheader: `Delivery request requires your response.`,
     content,
     textContent,
   });
@@ -312,7 +312,7 @@ If this delivery has already been accepted by another partner, please disregard 
     subject: `Delivery Request - Action Required`,
     html,
     text,
-    preheader: `${orderRef} - New delivery available for ${options.customerName}`,
+    preheader: `New delivery available for ${options.customerName}`,
   };
 }
 
