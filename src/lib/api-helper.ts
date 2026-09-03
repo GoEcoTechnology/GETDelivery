@@ -69,6 +69,6 @@ export async function withAuth(
     } catch (e) {
       console.error('Failed to write to api-error.log', e);
     }
-    return NextResponse.json({ error: 'Internal server error', details: error.message, stack: error.stack }, { status: 500 });
+    return NextResponse.json({ error: `Server Error: ${error.message}` }, { status: 500 });
   }
 }
