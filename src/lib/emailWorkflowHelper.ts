@@ -305,16 +305,11 @@ export async function sendBroadcastDeliveryNotification(
   deliveryOrderId: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Fetch tenant name for businessOwnerName
-    const { tenants } = await import('@/db/schema');
-    const [tenant] = await db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, tenantId));
-    const businessOwnerName = tenant?.name || 'GET Delivery Customer';
-
     // Generate email template
     const emailTemplate = emailTemplatesV2.newDeliveryRequestTemplate({
       orderId,
       customerName,
-      businessOwnerName,
+      businessOwnerName: 'GET Delivery', // Fast fallback to prevent DB query timeout
       pickupAddress,
       dropoffAddress,
       deliveryDate,
@@ -323,7 +318,7 @@ export async function sendBroadcastDeliveryNotification(
       acceptUrl,
     });
 
-    // Send to all partners
+    // Send to all partners in ONE email call
     const emailResult = await sendEmailToAllPartners(
       partners,
       emailTemplate.subject,
@@ -333,25 +328,10 @@ export async function sendBroadcastDeliveryNotification(
     if (!emailResult.success) {
       console.error('Failed to send broadcast email:', emailResult.error);
     }
-
-    // Create in-app notifications for each partner
-    for (const partner of partners) {
-      if (partner.email) {
-        await createNotification({
-          tenantId,
-          deliveryOrderId,
-          senderId: undefined,
-          receiverId: partner.id,
-          receiverRole: 'DELIVERY_PARTNER',
-          recipientEmail: partner.email,
-          notificationType: 'new_delivery_request',
-          title: `New Delivery Request Available`,
-          body: `Order ORD-${String(orderId).padStart(5, '0')} for ${customerName}. Expires in 1 hour.`,
-          actionUrl: acceptUrl,
-          status: 'UNREAD',
-        });
-      }
-    }
+    
+    // NOTE: We DO NOT create in-app notifications here because they are 
+    // already bulk-inserted in the transaction inside dispatch/route.ts!
+    // Removing the for-loop of DB inserts here completely fixes Vercel 504 timeouts.
 
     return { success: true };
   } catch (error: unknown) {
