@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryInvitations, deliveryOrders, auditLogs, notifications, deliveryPartners, tenants } from '@/db/schema';
-import { eq, and, ne } from 'drizzle-orm';
+import { eq, and, ne, or, isNotNull } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 import { sendEmail } from '@/lib/emailService';
