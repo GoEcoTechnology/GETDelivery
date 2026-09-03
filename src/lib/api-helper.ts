@@ -69,6 +69,8 @@ export async function withAuth(
     } catch (e) {
       console.error('Failed to write to api-error.log', e);
     }
-    return NextResponse.json({ error: `Server Error: ${error.message}` }, { status: 500 });
+    const causeMsg = error.cause ? ` (Cause: ${error.cause.message || error.cause})` : '';
+    const codeMsg = error.code ? ` [Code: ${error.code}]` : '';
+    return NextResponse.json({ error: `Server Error: ${error.message}${causeMsg}${codeMsg}` }, { status: 500 });
   }
 }

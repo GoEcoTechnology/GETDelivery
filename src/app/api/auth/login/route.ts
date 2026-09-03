@@ -144,6 +144,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error.message,
+      cause: error.cause ? error.cause.message : null,
+      code: error.code || (error.cause && error.cause.code),
       stack: error.stack 
     }, { status: 500 });
   }
