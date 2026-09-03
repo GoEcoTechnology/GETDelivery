@@ -366,7 +366,10 @@ export async function sendPartnerAcceptedNotification(
   partnerName: string,
   contactNumber: string | undefined,
   pickupLocation: string,
-  estimatedArrival: string | undefined,
+  dropoffLocation: string,
+  deliveryDate: Date | null,
+  customerName: string,
+  businessName: string,
   dashboardUrl: string,
   deliveryOrderId: number
 ): Promise<{ success: boolean; error?: string }> {
@@ -375,6 +378,11 @@ export async function sendPartnerAcceptedNotification(
     const emailTemplate = emailTemplatesV2.orderAcceptedTemplate({
       orderId,
       partnerName,
+      customerName,
+      businessName,
+      pickupLocation,
+      dropoffLocation,
+      deliveryDate,
       dashboardUrl,
     });
 

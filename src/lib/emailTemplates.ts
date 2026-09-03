@@ -61,8 +61,6 @@ function wrapEmail(options: {
           <tr>
             <td style="padding:18px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;">
               <div>${COMPANY_NAME}</div>
-              <div style="margin-top:4px;">Visit: <a href="${BASE_URL}" style="color:#475569;">${BASE_URL}</a></div>
-              <div>Support: <a href="mailto:${SUPPORT_EMAIL}" style="color:#475569;">${SUPPORT_EMAIL}</a></div>
               <div style="margin-top:4px;">&copy; ${new Date().getFullYear()} ${COMPANY_NAME}. All rights reserved.</div>
             </td>
           </tr>
@@ -79,8 +77,6 @@ function wrapEmail(options: {
     '',
     options.textContent.trim(),
     '',
-    `Visit: ${BASE_URL}`,
-    `Support: ${SUPPORT_EMAIL}`,
     `© ${new Date().getFullYear()} ${COMPANY_NAME}. All rights reserved.`,
   ].join('\n');
 
@@ -149,18 +145,16 @@ export function orderDeclinedTemplate(options: {
 }): EmailTemplate {
   const ref = orderRef(options.orderId);
   return wrapEmail({
-    title: `Order Declined: ${ref}`,
-    preheader: `A partner declined ${ref}.`,
+    title: `Delivery Request Declined`,
+    preheader: `A partner declined a delivery.`,
     content: `
       <h2 style="margin:0 0 12px;font-size:22px;">Delivery request declined</h2>
       <p style="margin:0 0 16px;color:#64748b;">The request has been returned to pending status and will be offered to other partners.</p>
-      <p style="margin:0 0 8px;"><strong>Order:</strong> ${escapeHtml(ref)}</p>
       <p style="margin:0 0 8px;"><strong>Partner:</strong> ${escapeHtml(options.partnerName)}</p>
       <p style="margin:0;"><strong>Reason:</strong> ${escapeHtml(options.reason || 'Not specified')}</p>
     `,
     textContent: [
       `Delivery request declined.`,
-      `Order: ${ref}`,
       `Partner: ${options.partnerName}`,
       `Reason: ${options.reason || 'Not specified'}`,
       `Check status in your dashboard: ${options.dashboardUrl}`,

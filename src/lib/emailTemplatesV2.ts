@@ -207,8 +207,6 @@ export function newDeliveryRequestTemplate(options: {
   acceptUrl: string;
   declineUrl?: string;
 }): EmailTemplate {
-  const orderRef = `ORD-${String(options.orderId).padStart(5, '0')}`;
-
   const content = `
     <h2 style="font-size:24px;margin-bottom:8px;color:${COLORS.text};">Delivery Request Assignment</h2>
     <p style="color:${COLORS.muted};margin-bottom:28px;font-size:15px;line-height:1.6;">
@@ -257,10 +255,7 @@ export function newDeliveryRequestTemplate(options: {
       </table>
     </div>
 
-    <!-- Urgent Notice -->
-    <div style="background:#f8fafc;border-left:4px solid ${COLORS.secondary};padding:16px;margin-bottom:28px;">
-      <p style="margin:0;font-size:13px;color:${COLORS.text};line-height:1.6;"><strong>Notice:</strong> This request expires in 1 hour. The first partner to accept will be assigned this delivery.</p>
-    </div>
+
 
     <!-- Action Buttons -->
     <div style="text-align:center;margin:32px 0;">
@@ -285,8 +280,6 @@ export function newDeliveryRequestTemplate(options: {
 
 A new delivery order is available and requires your response.
 
-EXPIRATION: 1 hour from receipt
-
 DELIVERY INFORMATION
 ====================
 
@@ -302,12 +295,6 @@ ${escapeHtml(options.dropoffAddress)}
 Scheduled Date: ${escapeHtml(options.deliveryDate)}
 ${options.instructions ? `\nSpecial Instructions:\n${escapeHtml(options.instructions)}\n` : ''}
 
-TIME SENSITIVE NOTICE
-=====================
-
-This request expires in 1 hour. The first partner to accept will be assigned 
-this delivery. Please respond promptly.
-
 To review and accept this request:
 ${options.acceptUrl}
 
@@ -319,16 +306,15 @@ This is an automated notification from ${COMPANY_NAME}.
 If this delivery has already been accepted by another partner, please disregard this email.`;
 
   const { html, text } = createEmailWrapper({
-    preheader: `${orderRef} - Delivery request requires your response. Expires in 1 hour.`,
+    preheader: `Delivery request requires your response.`,
     content,
     textContent,
   });
 
   return {
-    subject: `Delivery Request - Respond Within 1 Hour`,
+    subject: `Delivery Request for ${options.customerName}`,
     html,
     text,
-    preheader: `${orderRef} - New delivery available for ${options.customerName}`,
   };
 }
 
@@ -507,8 +493,26 @@ ${options.actionUrl ? `\nView and manage this order:\n${options.actionUrl}` : ''
 export function orderAcceptedTemplate(options: {
   orderId: number;
   partnerName: string;
+  customerName: string;
+  businessName: string;
+  pickupLocation: string;
+  dropoffLocation: string;
+  deliveryDate: Date | null;
   dashboardUrl: string;
 }): EmailTemplate {
+  let formattedDate = 'Not specified';
+  if (options.deliveryDate) {
+    formattedDate = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Manila',
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }).format(new Date(options.deliveryDate));
+  }
   const orderRef = `ORD-${String(options.orderId).padStart(5, '0')}`;
 
   const content = `
@@ -519,15 +523,28 @@ export function orderAcceptedTemplate(options: {
     </div>
 
 
-    <!-- Partner Information Card -->
+    <!-- Delivery Information Card -->
     <div style="background:${COLORS.background};border:1px solid ${COLORS.border};border-radius:12px;padding:24px;margin-bottom:28px;">
-      <h3 style="font-size:14px;font-weight:700;color:${COLORS.text};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid ${COLORS.border};">Assigned Partner</h3>
+      <h3 style="font-size:14px;font-weight:700;color:${COLORS.text};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid ${COLORS.border};">Delivery Details</h3>
       
-      <div style="display:flex;align-items:center;gap:12px;padding:16px;background:white;border-radius:8px;border:1px solid ${COLORS.border};">
-        <div>
-          <div style="font-size:15px;font-weight:600;color:${COLORS.text};">${escapeHtml(options.partnerName)}</div>
-        </div>
-      </div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+        <tr>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;width:35%;vertical-align:top;">Customer</td>
+          <td style="padding:12px 0;color:${COLORS.text};font-weight:600;vertical-align:top;">${escapeHtml(options.customerName)}</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Pickup</td>
+          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;word-break:break-word;">${escapeHtml(options.pickupLocation)}</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Destination</td>
+          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;word-break:break-word;">${escapeHtml(options.dropoffLocation)}</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Date</td>
+          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;">${formattedDate} (PHT)</td>
+        </tr>
+      </table>
     </div>
 
     <!-- Action Button -->
@@ -535,7 +552,7 @@ export function orderAcceptedTemplate(options: {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
         <tr>
           <td align="center">
-            <a href="${escapeHtml(options.dashboardUrl)}" style="display:inline-block;padding:16px 48px;background-color:${COLORS.primary};color:white;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;text-align:center;mso-padding-alt:16px 48px;">${escapeHtml(options.partnerName)}</a>
+            <a href="${escapeHtml(options.dashboardUrl)}" style="display:inline-block;padding:16px 48px;background-color:${COLORS.primary};color:white;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;text-align:center;mso-padding-alt:16px 48px;">View More Details</a>
           </td>
         </tr>
       </table>
@@ -548,6 +565,14 @@ export function orderAcceptedTemplate(options: {
 Your delivery order has been accepted by a partner.
 
 STATUS: ACCEPTED
+
+DELIVERY DETAILS
+================
+
+Customer: ${escapeHtml(options.customerName)}
+Pickup: ${escapeHtml(options.pickupLocation)}
+Destination: ${escapeHtml(options.dropoffLocation)}
+Date: ${formattedDate} (PHT)
 
 ASSIGNED PARTNER
 ================
@@ -562,13 +587,13 @@ ${options.dashboardUrl}
 This is an automated notification from ${COMPANY_NAME}.`;
 
   const { html, text } = createEmailWrapper({
-    preheader: `Delivery accepted by partner - Action required`,
+    preheader: `Delivery for ${options.customerName} accepted by partner - Action required`,
     content,
     textContent,
   });
 
   return {
-    subject: `Delivery Accepted by Partner`,
+    subject: `Delivery for ${options.businessName} - Accepted by Partner`,
     html,
     text,
   };
