@@ -64,17 +64,11 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-// Remove duplicate recipients
+// Remove duplicate recipients (DISABLED to allow testing multiple partners with the same email)
 function deduplicateRecipients(recipients: string[]): string[] {
-  const seen = new Set<string>();
-  return recipients.filter((email) => {
-    const normalized = normalizeEmail(email);
-    if (seen.has(normalized)) {
-      return false;
-    }
-    seen.add(normalized);
-    return validateEmail(normalized);
-  });
+  // We used to deduplicate here, but if testing multiple partners with the same email,
+  // this prevents them from getting their respective emails. So we return all valid emails.
+  return recipients.filter((email) => validateEmail(normalizeEmail(email)));
 }
 
 // Simplified HTML to plain text conversion with semantic awareness
@@ -302,8 +296,12 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     }
 
     // Append invisible zero-width spaces to subject to prevent Gmail from threading separate notifications
-    // This fixes the issue where new emails get hidden in old threads without showing a visible timestamp
-    const zwsp = '\u200B'.repeat(Math.floor(Math.random() * 10) + 1);
+    // We use a mix of zero-width characters to guarantee near-absolute uniqueness so Gmail never threads them.
+    const zwChars = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+    let zwsp = '';
+    for (let i = 0; i < 12; i++) {
+      zwsp += zwChars[Math.floor(Math.random() * zwChars.length)];
+    }
     const uniqueSubject = `${options.subject}${zwsp}`;
 
     // Prepare sender information
