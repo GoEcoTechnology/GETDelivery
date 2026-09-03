@@ -405,7 +405,7 @@ export async function sendPartnerAcceptedNotification(
       receiverId: 0,
       notificationType: 'order_accepted',
       title: `Delivery Partner Accepted`,
-      body: `${partnerName} has accepted your delivery request for order ORD-${String(orderId).padStart(5, '0')}.`,
+      body: `${partnerName} has accepted the delivery request for ${customerName}.`,
       actionUrl: dashboardUrl,
       status: 'UNREAD',
     });

@@ -64,7 +64,11 @@ export async function withAuth(
     if (error.message && (error.message.includes('not found') || error.message.includes('Insufficient') || error.message.includes('Invalid'))) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    require('fs').appendFileSync('api-error.log', new Date().toISOString() + '\n' + JSON.stringify({ message: error.message, cause: error.cause ? error.cause.message : null, code: error.code || (error.cause && error.cause.code) }, null, 2) + '\n\n');
+    try {
+      require('fs').appendFileSync('api-error.log', new Date().toISOString() + '\n' + JSON.stringify({ message: error.message, cause: error.cause ? error.cause.message : null, code: error.code || (error.cause && error.cause.code) }, null, 2) + '\n\n');
+    } catch (e) {
+      console.error('Failed to write to api-error.log', e);
+    }
     return NextResponse.json({ error: 'Internal server error', details: error.message, stack: error.stack }, { status: 500 });
   }
 }
