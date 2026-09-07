@@ -155,7 +155,6 @@ export function DeliveryDetailsModal({
                 </div>
               )}
             </div>
-            </div>
           </section>
         </div>
 
