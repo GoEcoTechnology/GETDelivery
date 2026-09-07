@@ -247,5 +247,6 @@ export function DeliveryDetailsModal({
         </div>
       </div>
     </div>
+    </div>
   );
 }
