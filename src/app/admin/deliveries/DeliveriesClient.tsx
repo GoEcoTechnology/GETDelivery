@@ -257,6 +257,31 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
         };
       });
 
+      // Also update viewingDelivery if it's the one currently open
+      setViewingDelivery((prev: any) => {
+        if (!prev || prev.id !== variables.deliveryId) return prev;
+        
+        let allReached = true;
+        const updatedProducts = prev.products.map((p: any) => {
+          if (p.productId === variables.productId) {
+            const newAccQty = (p.accumulatedQuantity || 0) + variables.quantity;
+            if (newAccQty < (p.targetQuantity || 20)) allReached = false;
+            return { ...p, accumulatedQuantity: newAccQty };
+          }
+          if ((p.accumulatedQuantity || 0) < (p.targetQuantity || 20)) allReached = false;
+          return p;
+        });
+        
+        const newStatus = (allReached && prev.status === 'DRAFT') ? 'READY_FOR_DISPATCH' : prev.status;
+        
+        return {
+          ...prev,
+          status: newStatus,
+          products: updatedProducts
+        };
+      });
+
+
       // Instantly clear the inputs
       setAddQuotaInputs(prev => ({ ...prev, [`${variables.deliveryId}-${variables.productId}`]: 0 }));
       setAddQuotaErrors(prev => ({ ...prev, [`${variables.deliveryId}-${variables.productId}`]: '' }));

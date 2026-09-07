@@ -183,7 +183,7 @@ export default function PartnerProfilePage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {activeTab === 'profile' && (
-            <div className={styles.card} style={{ borderRadius: '18px', padding: '24px' }}>
+            <div className={styles.card} style={{ padding: '32px', maxWidth: '800px', margin: '0 auto', borderRadius: '18px' }}>
               <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <User size={20} /> Personal Information
               </h3>

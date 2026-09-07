@@ -175,7 +175,7 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === 'profile' && (
-        <div className={styles.card} style={{ padding: '32px', maxWidth: '800px' }}>
+        <div className={styles.card} style={{ padding: '32px', maxWidth: '800px', margin: '0 auto' }}>
           <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
               <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
