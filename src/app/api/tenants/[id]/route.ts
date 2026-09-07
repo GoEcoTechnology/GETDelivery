@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { tenants } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { tenants, users } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -12,26 +12,35 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const body = await request.json();
     const { name, contactPerson, status, email } = body;
 
-    const updateData: Record<string, string> = {};
-    if (name !== undefined) updateData.name = name;
-    if (contactPerson !== undefined) updateData.contactPerson = contactPerson;
-    if (status !== undefined) updateData.status = status;
-    if (email !== undefined) updateData.email = email;
+    const tenantUpdateData: any = {};
+    if (name !== undefined) tenantUpdateData.name = name;
+    if (contactPerson !== undefined) tenantUpdateData.contactPerson = contactPerson;
+    if (status !== undefined) tenantUpdateData.status = status;
 
-    if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    let updated;
+    if (Object.keys(tenantUpdateData).length > 0) {
+      const [result] = await tx.update(tenants)
+        .set(tenantUpdateData)
+        .where(eq(tenants.id, id))
+        .returning();
+      updated = result;
     }
 
-    const [updated] = await tx.update(tenants)
-      .set(updateData)
-      .where(eq(tenants.id, id))
-      .returning();
-
-    if (!updated) {
+    if (!updated && Object.keys(tenantUpdateData).length > 0) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ data: updated });
+    const userUpdateData: any = {};
+    if (email !== undefined) userUpdateData.email = email;
+    if (contactPerson !== undefined) userUpdateData.name = contactPerson;
+
+    if (Object.keys(userUpdateData).length > 0) {
+      await tx.update(users)
+        .set(userUpdateData)
+        .where(and(eq(users.tenantId, id), eq(users.role, 'BUSINESS_OWNER')));
+    }
+
+    return NextResponse.json({ data: updated || { success: true } });
   });
 }
 
