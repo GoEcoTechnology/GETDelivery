@@ -70,56 +70,21 @@ export function DeliveryDetailsModal({
         </div>
 
         {/* Content */}
-        <div style={{ padding: '24px', overflowY: 'auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignContent: 'start' }}>
+        <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
           
-          {/* Customer Info */}
-          <section>
-            <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <User size={14} /> Customer Information
-            </h3>
-            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-              <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem' }}>{delivery.customerName}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontSize: '0.875rem', marginTop: '4px' }}>
-                <Phone size={14} /> {delivery.customerContact || 'No contact provided'}
-              </div>
-            </div>
-          </section>
-
-          {/* Location & Pricing */}
-          <section>
-            <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <MapPin size={14} /> Location & Pricing
-            </h3>
-            <div style={{ display: 'grid', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#3b82f6', marginTop: '5px', flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '2px' }}>PICKUP</div>
-                  <div style={{ color: '#0f172a', fontSize: '0.875rem', lineHeight: 1.4 }}>{delivery.pickupAddress}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
+            {/* Customer Info */}
+            <section>
+              <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <User size={14} /> Customer Information
+              </h3>
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem' }}>{delivery.customerName}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontSize: '0.875rem', marginTop: '4px' }}>
+                  <Phone size={14} /> {delivery.customerContact || 'No contact provided'}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981', marginTop: '5px', flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '2px' }}>DROPOFF</div>
-                  <div style={{ color: '#0f172a', fontSize: '0.875rem', lineHeight: 1.4 }}>{delivery.dropoffAddress}</div>
-                </div>
-              </div>
-              
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>VEHICLE REQUIRED</div>
-                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{delivery.requiredVehicleType || 'Any'}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>DELIVERY FEE</div>
-                  <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1.125rem' }}>
-                    {delivery.finalDeliveryPrice != null ? formatCurrency(delivery.finalDeliveryPrice) : 'TBD'}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+            </section>
 
           {/* Products & Quotas */}
           <section>
@@ -189,6 +154,45 @@ export function DeliveryDetailsModal({
                   No products attached to this delivery.
                 </div>
               )}
+            </div>
+            </div>
+          </section>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
+          {/* Location & Pricing */}
+          <section>
+            <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <MapPin size={14} /> Location & Pricing
+            </h3>
+            <div style={{ display: 'grid', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#3b82f6', marginTop: '5px', flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '2px' }}>PICKUP</div>
+                  <div style={{ color: '#0f172a', fontSize: '0.875rem', lineHeight: 1.4 }}>{delivery.pickupAddress}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981', marginTop: '5px', flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '2px' }}>DROPOFF</div>
+                  <div style={{ color: '#0f172a', fontSize: '0.875rem', lineHeight: 1.4 }}>{delivery.dropoffAddress}</div>
+                </div>
+              </div>
+              
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>VEHICLE REQUIRED</div>
+                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{delivery.requiredVehicleType || 'Any'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>DELIVERY FEE</div>
+                  <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1.125rem' }}>
+                    {delivery.finalDeliveryPrice != null ? formatCurrency(delivery.finalDeliveryPrice) : 'TBD'}
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 

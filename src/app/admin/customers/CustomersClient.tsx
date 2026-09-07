@@ -266,55 +266,84 @@ export default function CustomersClient() {
       {/* View Modal */}
       {viewModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
-          <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ margin: 0, fontSize: '20px' }}>Customer Details</h2>
-              <button onClick={() => setViewModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
+          <div style={{ backgroundColor: 'white', borderRadius: '16px', width: '100%', maxWidth: '700px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+            <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a' }}>Customer Details</h2>
+                <div style={{ color: '#64748b', fontSize: '0.875rem', marginTop: '4px' }}>Ref: {viewModal.id}</div>
+              </div>
+              <button onClick={() => setViewModal(null)} style={{ background: '#f1f5f9', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '50%', color: '#64748b' }}><X size={18} /></button>
             </div>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div>
-                <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Business / Full Name</h3>
-                <p style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>{viewModal.name}</p>
+            <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
+                {/* Basic Info */}
+                <section>
+                  <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Users size={14} /> Basic Information
+                  </h3>
+                  <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>BUSINESS / FULL NAME</div>
+                      <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '1rem' }}>{viewModal.name}</div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>STATUS</div>
+                        <span className={`${styles.badge} ${viewModal.status === 'ACTIVE' ? styles.badgeActive : styles.badgeError}`} style={{ display: 'inline-block' }}>
+                          {viewModal.status}
+                        </span>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>CONTACT PERSON</div>
+                        <div style={{ color: '#1e293b', fontSize: '0.875rem' }}>{viewModal.contactPerson || 'N/A'}</div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Contact Info */}
+                <section>
+                  <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Phone size={14} /> Contact Details
+                  </h3>
+                  <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>MOBILE NUMBER</div>
+                      <div style={{ color: '#0f172a', fontSize: '0.875rem' }}>{viewModal.mobileNumber}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>EMAIL ADDRESS</div>
+                      <div style={{ color: '#0f172a', fontSize: '0.875rem' }}>{viewModal.email || 'N/A'}</div>
+                    </div>
+                  </div>
+                </section>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Contact Person</h3>
-                  <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.contactPerson || 'N/A'}</p>
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Mobile Number</h3>
-                  <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.mobileNumber}</p>
-                </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
+                {/* Location */}
+                <section>
+                  <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MapPin size={14} /> Location
+                  </h3>
+                  <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>COMPLETE ADDRESS</div>
+                      <div style={{ color: '#0f172a', fontSize: '0.875rem', lineHeight: 1.4 }}>{viewModal.address}</div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>MUNICIPALITY</div>
+                        <div style={{ color: '#1e293b', fontSize: '0.875rem' }}>{viewModal.municipality || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>BARANGAY</div>
+                        <div style={{ color: '#1e293b', fontSize: '0.875rem' }}>{viewModal.barangay || 'N/A'}</div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </div>
-              <div>
-                <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Email Address</h3>
-                <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.email || 'N/A'}</p>
-              </div>
-              <div>
-                <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Complete Address</h3>
-                <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.address}</p>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Municipality</h3>
-                  <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.municipality || 'N/A'}</p>
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Barangay</h3>
-                  <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.barangay || 'N/A'}</p>
-                </div>
-              </div>
-              <div>
-                <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Status</h3>
-                <span className={`${styles.badge} ${viewModal.status === 'ACTIVE' ? styles.badgeActive : styles.badgeError}`} style={{ marginTop: '4px', display: 'inline-block' }}>
-                  {viewModal.status}
-                </span>
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
-              <button onClick={() => setViewModal(null)} className={styles.btnPrimary}>Close</button>
             </div>
           </div>
         </div>
