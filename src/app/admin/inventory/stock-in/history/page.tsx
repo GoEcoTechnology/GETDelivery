@@ -63,10 +63,16 @@ export default function StockInHistoryPage() {
 
   return (
     <div>
+      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <button
+            onClick={() => router.push('/admin/inventory')}
+            style={{ background: 'none', border: 'none', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px', padding: 0 }}
+          >
             <ArrowLeft size={16} /> Back to Inventory
           </button>
-          <h1>Stock In History</h1>
-          <p>View all bulk stock-in transactions and their details</p>
+          <h1 style={{ margin: '8px 0 4px 0' }}>Stock In History</h1>
+          <p style={{ margin: 0, color: '#64748b' }}>View all bulk stock-in transactions and their details</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <button className={styles.btnSecondary} onClick={() => window.print()}>

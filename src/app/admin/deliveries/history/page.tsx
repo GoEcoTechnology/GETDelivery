@@ -39,7 +39,9 @@ export default function DeliveriesHistoryPage() {
 
   return (
     <div>
-          <button 
+      <div style={{ marginBottom: '24px' }}>
+        <div>
+          <button
             onClick={() => window.location.href = '/admin/deliveries'}
             className={styles.btnSecondary}
           >

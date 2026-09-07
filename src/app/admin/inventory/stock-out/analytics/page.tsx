@@ -29,10 +29,16 @@ export default function StockOutAnalyticsPage() {
 
   return (
     <div>
+      <div style={{ marginBottom: '24px' }}>
+        <div>
+          <button
+            onClick={() => router.push('/admin/inventory')}
+            style={{ background: 'none', border: 'none', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px', padding: 0 }}
+          >
             <ArrowLeft size={16} /> Back to Inventory
           </button>
-          <h1>Stock Out Analytics</h1>
-          <p>Analyze inventory stock out trends and reasons</p>
+          <h1 style={{ margin: '8px 0 4px 0' }}>Stock Out Analytics</h1>
+          <p style={{ margin: 0, color: '#64748b' }}>Analyze inventory stock out trends and reasons</p>
         </div>
       </div>
 
