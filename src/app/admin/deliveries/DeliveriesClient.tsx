@@ -486,6 +486,10 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
           addQuotaMutation.variables?.deliveryId === deliveryId && 
           addQuotaMutation.variables?.productId === productId
         }
+        onDispatch={() => {
+          setViewingDelivery(null);
+          handleDispatch(viewingDelivery.id);
+        }}
       />
     </div>
   );

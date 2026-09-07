@@ -111,7 +111,12 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
                 if (resolvedStatus === 'IN_TRANSIT') displayStatus = 'IN TRANSIT';
                 if (resolvedStatus === 'DISPATCHED') displayStatus = 'AVAILABLE';
                 if (resolvedStatus === 'ASSIGNED') displayStatus = 'ACCEPTED';
-                return <DetailRow label="Status" value={displayStatus} chip />;
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontSize: '13px' }}>Status</span>
+                    <StatusBadge status={resolvedStatus === 'TEMPORARY_WINNER' ? 'ASSIGNED' : resolvedStatus} />
+                  </div>
+                );
               })()}
               <DetailRow label="Dropoff" value={order.dropoffAddress} />
               {order.requiredVehicleType && <DetailRow label="Required Vehicle" value={order.requiredVehicleType} chip />}
@@ -165,6 +170,28 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
 
 function DetailRow({ label, value, chip = false }: { label: string; value: string; chip?: boolean }) {
   return <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}><span style={{ color: '#64748b', fontSize: '13px' }}>{label}</span><span style={{ fontWeight: 700, color: chip ? '#4338ca' : '#0f172a', background: chip ? '#e0e7ff' : 'transparent', padding: chip ? '4px 8px' : 0, borderRadius: chip ? '8px' : 0 }}>{value}</span></div>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  let color = '#475569', bg = '#f1f5f9';
+  let displayStatus = status.replace(/_/g, ' ');
+
+  if (status === 'READY_FOR_DISPATCH') { color = '#d97706'; bg = '#fef3c7'; displayStatus = 'READY FOR DISPATCH'; }
+  else if (status === 'DRAFT') { color = '#64748b'; bg = '#f1f5f9'; }
+  else if (status === 'WAITING_APPROVAL') { color = '#0284c7'; bg = '#e0f2fe'; }
+  else if (status === 'DISPATCHED') { color = '#2563eb'; bg = '#dbeafe'; displayStatus = 'AVAILABLE'; }
+  else if (status === 'ASSIGNED') { color = '#2563eb'; bg = '#dbeafe'; displayStatus = 'ACCEPTED'; }
+  else if (status === 'IN_TRANSIT') { color = '#8b5cf6'; bg = '#ede9fe'; }
+  else if (status === 'DELIVERED') { color = '#16a34a'; bg = '#dcfce7'; }
+  else if (status === 'COMPLETED') { color = '#16a34a'; bg = '#dcfce7'; }
+  else if (status === 'CANCELLED' || status === 'DECLINED') { color = '#ef4444'; bg = '#fee2e2'; }
+  else if (status === 'EXPIRED') { color = '#94a3b8'; bg = '#f1f5f9'; }
+  
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 9px', backgroundColor: bg, color, borderRadius: '999px', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.2s ease' }}>
+      {displayStatus}
+    </span>
+  );
 }
 
 function formatCurrency(value: string | number) {

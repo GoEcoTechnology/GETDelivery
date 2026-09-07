@@ -40,8 +40,7 @@ export async function POST(request: Request) {
     const lockedProducts = await tx
       .select({ id: products.id, stock: products.stock })
       .from(products)
-      .where(and(inArray(products.id, productIds), eq(products.tenantId, tenantIdToUse as number)))
-      .for('update');
+      .where(and(inArray(products.id, productIds), eq(products.tenantId, tenantIdToUse as number)));
 
     if (lockedProducts.length !== itemMap.size) {
       return NextResponse.json({ error: 'One or more products not found or belong to a different tenant' }, { status: 400 });

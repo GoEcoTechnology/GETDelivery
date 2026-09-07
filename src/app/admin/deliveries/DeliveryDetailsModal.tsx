@@ -13,6 +13,7 @@ type DeliveryDetailsModalProps = {
   setAddQuotaErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   handleAddQuota: (deliveryId: number, productId: number, targetQty: number, currentQty: number) => void;
   isAdding: (deliveryId: number, productId: number) => boolean;
+  onDispatch?: () => void;
 };
 
 function formatCurrency(value: string | number) {
@@ -30,7 +31,8 @@ export function DeliveryDetailsModal({
   addQuotaErrors,
   setAddQuotaErrors,
   handleAddQuota,
-  isAdding
+  isAdding,
+  onDispatch
 }: DeliveryDetailsModalProps) {
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -64,9 +66,19 @@ export function DeliveryDetailsModal({
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Delivery Details</h2>
             <div style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '4px' }}>Ref: {delivery.trackingNumber || delivery.id}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: 'all 0.2s' }}>
-            <X size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {delivery.status === 'READY_FOR_DISPATCH' && onDispatch && (
+              <button 
+                onClick={onDispatch}
+                style={{ padding: '8px 16px', background: '#10b981', color: 'white', borderRadius: '10px', border: 'none', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Truck size={14} /> Dispatch Order
+              </button>
+            )}
+            <button onClick={onClose} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: 'all 0.2s' }}>
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
