@@ -36,7 +36,8 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
       pickupLng: deliveryOrders.pickupLng,
       dropoffLat: deliveryOrders.dropoffLat,
       dropoffLng: deliveryOrders.dropoffLng,
-      routePolyline: deliveryOrders.routePolyline
+      routePolyline: deliveryOrders.routePolyline,
+      instructions: deliveryOrders.instructions
     },
     tenant: {
       id: tenants.id,
