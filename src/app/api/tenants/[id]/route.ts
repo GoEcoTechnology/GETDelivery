@@ -10,12 +10,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 
     const body = await request.json();
-    const { name, contactPerson, status } = body;
+    const { name, contactPerson, status, email } = body;
 
     const updateData: Record<string, string> = {};
     if (name !== undefined) updateData.name = name;
     if (contactPerson !== undefined) updateData.contactPerson = contactPerson;
     if (status !== undefined) updateData.status = status;
+    if (email !== undefined) updateData.email = email;
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });

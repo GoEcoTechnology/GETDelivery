@@ -275,6 +275,10 @@ export default function TenantsPage() {
                 <label className={styles.label}>Contact Person</label>
                 <input className={styles.inputField} type="text" value={editModal.contactPerson || ''} onChange={e => setEditModal({...editModal, contactPerson: e.target.value})} />
               </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label className={styles.label}>Email</label>
+                <input className={styles.inputField} type="email" value={editModal.email || ''} onChange={e => setEditModal({...editModal, email: e.target.value})} />
+              </div>
               <div style={{ marginBottom: '24px' }}>
                 <label className={styles.label}>Status</label>
                 <select className={styles.inputField} value={editModal.status} onChange={e => setEditModal({...editModal, status: e.target.value as TenantEdit['status']})}>
