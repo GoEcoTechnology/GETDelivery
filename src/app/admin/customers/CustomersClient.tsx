@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import styles from '../admin.module.css';
-import { Users, Search, Edit2, Trash2, Plus, X, Phone, Mail, MapPin } from 'lucide-react';
+import { Users, Search, Edit2, Trash2, Plus, X, Phone, Mail, MapPin, Eye } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
 
 export default function CustomersClient() {
@@ -13,6 +13,7 @@ export default function CustomersClient() {
 
   const [addModal, setAddModal] = useState(false);
   const [editModal, setEditModal] = useState<any>(null);
+  const [viewModal, setViewModal] = useState<any>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -192,6 +193,7 @@ export default function CustomersClient() {
                   <td style={{ textAlign: 'center', padding: '12px 8px', verticalAlign: 'middle' }}>
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
                       <ActionMenu actions={[
+                        { label: 'View Details', icon: <Eye size={14} />, onClick: () => setViewModal(c), color: '#0f172a' },
                         { label: 'Edit', icon: <Edit2 size={14} />, onClick: () => openEdit(c), color: '#3b82f6' },
                         { label: 'Delete', icon: <Trash2 size={14} />, onClick: () => handleDelete(c.id), color: '#ef4444' }
                       ]} />
@@ -257,6 +259,63 @@ export default function CustomersClient() {
                 <button type="submit" className={styles.btnPrimary}>{editModal ? 'Save Changes' : 'Create Customer'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Modal */}
+      {viewModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px' }}>Customer Details</h2>
+              <button onClick={() => setViewModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Business / Full Name</h3>
+                <p style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>{viewModal.name}</p>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Contact Person</h3>
+                  <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.contactPerson || 'N/A'}</p>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Mobile Number</h3>
+                  <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.mobileNumber}</p>
+                </div>
+              </div>
+              <div>
+                <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Email Address</h3>
+                <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.email || 'N/A'}</p>
+              </div>
+              <div>
+                <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Complete Address</h3>
+                <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.address}</p>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Municipality</h3>
+                  <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.municipality || 'N/A'}</p>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Barangay</h3>
+                  <p style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>{viewModal.barangay || 'N/A'}</p>
+                </div>
+              </div>
+              <div>
+                <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', margin: '0 0 4px 0' }}>Status</h3>
+                <span className={`${styles.badge} ${viewModal.status === 'ACTIVE' ? styles.badgeActive : styles.badgeError}`} style={{ marginTop: '4px', display: 'inline-block' }}>
+                  {viewModal.status}
+                </span>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button onClick={() => setViewModal(null)} className={styles.btnPrimary}>Close</button>
+            </div>
           </div>
         </div>
       )}
