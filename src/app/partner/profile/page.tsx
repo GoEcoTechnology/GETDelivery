@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { useEffect, useState, useCallback } from 'react';
-import styles from '../admin.module.css';
+import styles from '../../admin/admin.module.css';
 import { User, Building2, Users, Lock, Save, Trash2, Plus, Paintbrush, SlidersHorizontal, Upload } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
 
@@ -18,11 +18,11 @@ type TeamMember = {
   status: string;
 };
 
-export default function SettingsPage() {
+export default function PartnerProfilePage() {
   const [activeTab, setActiveTab] = useState<TabKey>('profile');
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
-  const [profileData, setProfileData] = useState({ name: '', email: '', role: '', tenantName: '' });
+  const [profileData, setProfileData] = useState({ name: '', email: '', contactNumber: '', role: '', tenantName: '' });
   const [passwordData, setPasswordData] = useState({ password: '', confirmPassword: '' });
   const [teamLoading, setTeamLoading] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -36,8 +36,9 @@ export default function SettingsPage() {
         const json = await res.json();
         setProfileData({
           name: json.user.name,
-          email: json.user.email,
-          role: json.user.role,
+          email: json.user.email || '',
+          contactNumber: json.user.contactNumber || '',
+          role: json.user.role || '',
           tenantName: json.tenant?.name || ''
         });
       }
@@ -85,7 +86,11 @@ export default function SettingsPage() {
       }
     }
     try {
-      const payload: { name: string; businessName: string; password?: string } = { name: profileData.name, businessName: profileData.tenantName };
+      const payload: { name: string; businessName: string; contactNumber: string; password?: string } = { 
+        name: profileData.name, 
+        businessName: profileData.tenantName,
+        contactNumber: profileData.contactNumber
+      };
       if (passwordEntered) payload.password = passwordData.password;
       const res = await fetch('/api/settings/profile', {
         method: 'PUT',
@@ -139,11 +144,8 @@ export default function SettingsPage() {
   if (profileLoading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading Settings...</div>;
 
   const tabs = [
-    { key: 'profile' as const, label: 'My Profile', icon: User },
-    { key: 'team' as const, label: 'Team Management', icon: Users, show: profileData.role === 'BUSINESS_OWNER' },
-    { key: 'branding' as const, label: 'Company Branding', icon: Paintbrush, show: true },
-    { key: 'system' as const, label: 'System Preferences', icon: SlidersHorizontal, show: true }
-  ].filter(tab => tab.show !== false);
+    { key: 'profile' as const, label: 'My Profile', icon: User }
+  ];
 
   return (
     <div>
@@ -152,8 +154,8 @@ export default function SettingsPage() {
         <p>Manage your account, branding, and platform preferences</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '260px minmax(0, 1fr)', gap: '20px', alignItems: 'start' }}>
-        <aside style={{ background: 'rgba(255,255,255,0.8)', borderRadius: '18px', border: '1px solid rgba(226,232,240,0.8)', padding: '12px', boxShadow: '0 10px 30px rgba(15,23,42,0.06)', position: 'sticky', top: '88px' }}>
+      {tabs.length > 1 && (
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.key;
@@ -162,29 +164,28 @@ export default function SettingsPage() {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 style={{
-                  width: '100%',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px',
-                  padding: '14px 16px',
+                  gap: '8px',
+                  padding: '8px 16px',
                   border: 'none',
-                  borderRadius: '14px',
+                  borderRadius: '999px',
                   background: active ? '#eff6ff' : 'transparent',
                   color: active ? '#1d4ed8' : '#475569',
                   cursor: 'pointer',
                   fontWeight: 600,
-                  textAlign: 'left',
-                  marginBottom: '4px'
+                  transition: 'all 0.2s'
                 }}
               >
-                <Icon size={18} />
+                <Icon size={16} />
                 {tab.label}
               </button>
             );
           })}
-        </aside>
+        </div>
+      )}
 
-        <main style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {activeTab === 'profile' && (
             <div className={styles.card} style={{ borderRadius: '18px', padding: '24px' }}>
               <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -197,8 +198,12 @@ export default function SettingsPage() {
                     <input autoComplete="name" className={styles.inputField} value={profileData.name} onChange={e => setProfileData({ ...profileData, name: e.target.value })} required />
                   </div>
                   <div>
+                    <label className={styles.label}>Contact Number</label>
+                    <input type="tel" className={styles.inputField} value={profileData.contactNumber} onChange={e => setProfileData({ ...profileData, contactNumber: e.target.value })} />
+                  </div>
+                  <div style={{ gridColumn: 'span 2' }}>
                     <label className={styles.label}>Email Address</label>
-                    <input autoComplete="off" className={styles.inputField} value={profileData.email} onChange={e => setProfileData({ ...profileData, email: e.target.value })} />
+                    <input type="email" autoComplete="email" className={styles.inputField} value={profileData.email} onChange={e => setProfileData({ ...profileData, email: e.target.value })} />
                   </div>
                 </div>
                 {profileData.role === 'BUSINESS_OWNER' && (
@@ -263,7 +268,8 @@ export default function SettingsPage() {
                   </form>
                 </div>
               )}
-              <table className={styles.table}>
+              <div className="table-responsive-wrapper">
+                <table className={styles.table}>
                 <thead>
                   <tr><th>Name</th><th>Contact</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
                 </thead>
@@ -286,32 +292,11 @@ export default function SettingsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
-          {activeTab === 'branding' && (
-            <SettingsPanel title="Company Branding" description="Upload a logo and shape the visual identity of the admin workspace.">
-              <div style={{ display: 'grid', gap: '16px' }}>
-                <UploadZone />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                  <Stat label="Logo" value="Placeholder upload" />
-                  <Stat label="Primary color" value="#1d4ed8" />
-                  <Stat label="Brand assets" value="Ready for backend" />
-                </div>
-              </div>
-            </SettingsPanel>
-          )}
 
-          {activeTab === 'system' && (
-            <SettingsPanel title="System Preferences" description="Tune notifications, visibility, and workspace behavior.">
-              <div style={{ display: 'grid', gap: '14px' }}>
-                <ToggleRow title="Email alerts" description="Send important system updates to administrators." checked />
-                <ToggleRow title="Compact tables" description="Use denser data tables for admin-heavy workflows." />
-                <ToggleRow title="Auto-refresh dashboards" description="Keep dashboards current while the app is open." checked />
-              </div>
-            </SettingsPanel>
-          )}
-        </main>
       </div>
     </div>
   );

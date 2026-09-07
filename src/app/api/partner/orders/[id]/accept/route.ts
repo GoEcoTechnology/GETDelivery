@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryOrders, deliveryInvitations, auditLogs, notifications, deliveryPartners } from '@/db/schema';
-import { eq, and, isNull, inArray } from 'drizzle-orm';
+import { eq, and, isNull, inArray, ne } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 import { sendEmail } from '@/lib/emailService';
@@ -50,7 +50,8 @@ export async function POST(
         .update(deliveryOrders)
         .set({
           status: 'ASSIGNED',
-          temporaryWinnerId: partnerId
+          temporaryWinnerId: partnerId,
+          acceptedAt: new Date()
         })
         .where(
           and(
@@ -65,87 +66,86 @@ export async function POST(
         return NextResponse.json({ error: 'Failed to accept. Order may no longer be available.' }, { status: 409 });
       }
 
-      // Mark the invitation for this partner as TEMPORARY_WINNER
-      const [updatedInvitation] = await db
-        .update(deliveryInvitations)
-        .set({
-          status: 'TEMPORARY_WINNER',
-          respondedAt: new Date()
-        })
-        .where(
-          and(
-            eq(deliveryInvitations.deliveryOrderId, orderId),
-            eq(deliveryInvitations.deliveryPartnerId, partnerId)
-          )
-        )
-        .returning();
+      // Fire and forget all other operations to ensure a lightning fast response to the client
+      (async () => {
+        try {
+          // Mark the invitation for this partner as ACCEPTED
+          const [updatedInvitation] = await db
+            .update(deliveryInvitations)
+            .set({ status: 'ACCEPTED', respondedAt: new Date() })
+            .where(
+              and(
+                eq(deliveryInvitations.deliveryOrderId, orderId),
+                eq(deliveryInvitations.deliveryPartnerId, partnerId)
+              )
+            ).returning();
 
-      // Mark all other pending invitations as EXPIRED
-      await db
-        .update(deliveryInvitations)
-        .set({
-          status: 'EXPIRED',
-          respondedAt: new Date()
-        })
-        .where(
-          and(
-            eq(deliveryInvitations.deliveryOrderId, orderId),
-            eq(deliveryInvitations.status, 'PENDING')
-          )
-        );
+          // Expire ALL other pending invitations for this order instantly
+          await db
+            .update(deliveryInvitations)
+            .set({ status: 'EXPIRED', respondedAt: new Date() })
+            .where(
+              and(
+                eq(deliveryInvitations.deliveryOrderId, orderId),
+                eq(deliveryInvitations.status, 'PENDING'),
+                ne(deliveryInvitations.deliveryPartnerId, partnerId) 
+              )
+            );
 
-      const [partner] = await db.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
-      const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
+          const [partner] = await db.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
+          const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
 
-      const bodyStr = await buildStandardNotificationBody('Partner Accepted Request', {
-        orderId: orderId,
-        status: 'TEMPORARY_WINNER',
-        reason: 'A partner has accepted the delivery request and is awaiting approval.'
-      });
+          const bodyStr = await buildStandardNotificationBody('Partner Accepted Request', {
+            orderId: orderId,
+            status: 'ASSIGNED',
+            reason: 'A partner has claimed the delivery request. The delivery is now active.'
+          });
 
-      // Insert Unified Notification
-      await db.insert(notifications).values({
-        tenantId: updatedInvitation.tenantId,
-        deliveryOrderId: orderId,
-        senderId: partnerId,
-        receiverId: 0, // 0 means broadcast to tenant
-        receiverRole: 'PLATFORM_OWNER',
-        notificationType: 'order_accepted',
-        title: 'Partner Accepted Request',
-        body: bodyStr,
-        actionUrl: `/admin/deliveries/${orderId}`,
-        status: 'UNREAD'
-      });
+          // Insert Unified Notification
+          if (updatedInvitation?.tenantId) {
+            await db.insert(notifications).values({
+              tenantId: updatedInvitation.tenantId,
+              deliveryOrderId: orderId,
+              senderId: partnerId,
+              receiverId: 0, 
+              receiverRole: 'PLATFORM_OWNER',
+              notificationType: 'order_accepted',
+              title: 'Partner Accepted Request',
+              body: bodyStr,
+              actionUrl: `/admin/deliveries/${orderId}`,
+              status: 'UNREAD'
+            });
+          }
 
-      // Audit log
-      await db.insert(auditLogs).values({
-        tenantId: updatedOrder.tenantId,
-        actorType: 'PARTNER',
-        actorId: partnerId,
-        action: 'DELIVERY_REQUEST_ACCEPTED',
-        entityType: 'DELIVERY_ORDER',
-        entityId: orderId,
-        details: 'Partner accepted the delivery request and was assigned immediately.'
-      });
+          // Audit log
+          await db.insert(auditLogs).values({
+            tenantId: updatedOrder.tenantId,
+            actorType: 'PARTNER',
+            actorId: partnerId,
+            action: 'DELIVERY_REQUEST_ACCEPTED',
+            entityType: 'DELIVERY_ORDER',
+            entityId: orderId,
+            details: 'Partner accepted the delivery request and was assigned immediately.'
+          });
 
-      // Send emails asynchronously (fire-and-forget)
-      const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph'}/admin/deliveries/${orderId}`;
-      
-      // Send acceptance email to tenant users
-      sendPartnerAcceptedNotification(
-        updatedOrder.tenantId,
-        orderId,
-        partnerName,
-        partner?.mobileNumber,
-        updatedOrder.pickupAddress,
-        undefined,
-        dashboardUrl,
-        orderId
-      ).catch(err => {
-        console.error('Failed to send partner accepted notification:', err.message);
-      });
-
-
+          // Send emails asynchronously (fire-and-forget)
+          const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph'}/admin/deliveries/${orderId}`;
+          sendPartnerAcceptedNotification(
+            updatedOrder.tenantId,
+            orderId,
+            partnerName,
+            partner?.mobileNumber,
+            updatedOrder.pickupAddress,
+            undefined,
+            dashboardUrl,
+            orderId
+          ).catch(err => {
+            console.error('Failed to send partner accepted notification:', err.message);
+          });
+        } catch (e) {
+          console.error('Error in background tasks for accept order:', e);
+        }
+      })();
 
       return NextResponse.json({ success: true, message: 'Delivery request accepted and assigned successfully.' });
   });

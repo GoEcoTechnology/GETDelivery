@@ -34,6 +34,11 @@ export default async function DeliveriesPage() {
         batchId: deliveryOrders.batchId,
         quota: deliveryOrders.quota,
         temporaryWinnerId: deliveryOrders.temporaryWinnerId,
+        requiredVehicleType: deliveryOrders.requiredVehicleType,
+        finalDeliveryPrice: deliveryOrders.finalDeliveryPrice,
+        partnerDriverName: deliveryOrders.partnerDriverName,
+        partnerDriverContact: deliveryOrders.partnerDriverContact,
+        deliveryDate: deliveryOrders.deliveryDate,
         createdAt: deliveryOrders.createdAt,
       })
       .from(deliveryOrders)

@@ -144,12 +144,6 @@ export default function VehiclesClient() {
 
   return (
     <div>
-      <div className={styles.header}>
-        <div>
-          <h1>Fleet Vehicles</h1>
-          <p>Manage your delivery vehicles</p>
-        </div>
-      </div>
 
       <div className={styles.card} style={{ padding: '0', overflow: 'hidden' }}>
         

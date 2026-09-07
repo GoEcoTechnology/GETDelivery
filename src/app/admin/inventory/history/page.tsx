@@ -40,7 +40,7 @@ export default function InventoryHistoryPage() {
       <div className={styles.card} style={{ padding: '0', overflow: 'hidden' }}>
 
         {/* Toolbar */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <History size={18} color="white" />
@@ -50,7 +50,7 @@ export default function InventoryHistoryPage() {
               <div style={{ fontSize: '12px', color: '#94a3b8' }}>All stock movement records</div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
               {totalCount} total records
             </div>
@@ -64,7 +64,8 @@ export default function InventoryHistoryPage() {
         </div>
 
         {/* Table */}
-        <table className={styles.table}>
+        <div className="table-responsive-wrapper">
+          <table className={styles.table}>
           <thead>
             <tr>
               <th>Date &amp; Time</th>
@@ -180,9 +181,10 @@ export default function InventoryHistoryPage() {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Pagination — consistent style */}
-        <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(226,232,240,0.5)', backgroundColor: 'rgba(248,250,252,0.5)' }}>
+        <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderTop: '1px solid rgba(226, 232, 240, 0.5)', backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>
           <button
             disabled={page === 1}
             onClick={() => setPage(p => p - 1)}

@@ -132,7 +132,7 @@ export default function DeliveryPricingPage() {
                 value={newVehicle}
                 onChange={e => setNewVehicle(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleAddVehicle()}
-                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', width: '200px' }}
+                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', flex: '1 1 150px', minWidth: 0, maxWidth: '200px' }}
               />
               <button 
                 onClick={handleAddVehicle}
@@ -144,7 +144,8 @@ export default function DeliveryPricingPage() {
           </div>
 
           <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+            <div className="table-responsive-wrapper">
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                   <th style={{ padding: '16px', fontWeight: 600, color: '#64748b', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vehicle Class</th>
@@ -188,6 +189,7 @@ export default function DeliveryPricingPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 

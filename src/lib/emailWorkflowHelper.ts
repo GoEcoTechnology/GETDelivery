@@ -334,24 +334,6 @@ export async function sendBroadcastDeliveryNotification(
       console.error('Failed to send broadcast email:', emailResult.error);
     }
 
-    // Create in-app notifications for each partner
-    for (const partner of partners) {
-      if (partner.email) {
-        await createNotification({
-          tenantId,
-          deliveryOrderId,
-          senderId: undefined,
-          receiverId: partner.id,
-          receiverRole: 'DELIVERY_PARTNER',
-          recipientEmail: partner.email,
-          notificationType: 'new_delivery_request',
-          title: `New Delivery Request Available`,
-          body: `Order ORD-${String(orderId).padStart(5, '0')} for ${customerName}. Expires in 1 hour.`,
-          actionUrl: acceptUrl,
-          status: 'UNREAD',
-        });
-      }
-    }
 
     return { success: true };
   } catch (error: unknown) {

@@ -164,7 +164,7 @@ export async function POST(
               receiverRole: 'DELIVERY_PARTNER',
               recipientEmail: partner.email,
               notificationType: 'new_delivery_request',
-              title: 'New Delivery Request',
+              title: 'New Delivery Request Available',
               body: bodyStr,
               actionUrl: acceptUrl,
               status: 'UNREAD'

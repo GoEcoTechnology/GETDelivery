@@ -8,7 +8,7 @@ import {
   LayoutDashboard, 
   Package, 
   Truck, 
-  BarChart3, 
+
   Users, 
   Car, 
   LogOut,
@@ -59,13 +59,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, color: '#4f46e5' }}>
           <Package className="w-5 h-5" /> GETDelivery
         </div>
-        <button className={styles.mobileMenuBtn} onClick={() => setSidebarOpen(true)}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <NotificationBell />
+          <button className={styles.mobileMenuBtn} onClick={() => setSidebarOpen(true)}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Overlay for mobile */}
@@ -92,11 +95,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/customers" className={pathname.startsWith('/admin/customers') ? styles.active : ''}>
             <Users size={18} /> Customers
           </Link>
-          {user.role !== 'EMPLOYEE' && (
-            <Link href="/admin/reports" className={pathname.startsWith('/admin/reports') ? styles.active : ''}>
-              <BarChart3 size={18} /> Reports
-            </Link>
-          )}
+
           
           <div style={{ marginTop: '16px', marginBottom: '4px', paddingLeft: '16px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Team
@@ -118,8 +117,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div style={{ marginTop: '16px', marginBottom: '4px', paddingLeft: '16px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             System
           </div>
-          <Link href="/admin/settings" className={pathname.startsWith('/admin/settings') ? styles.active : ''}>
-            <Settings size={18} /> Settings
+          <Link href="/admin/profile" className={pathname.startsWith('/admin/profile') ? styles.active : ''}>
+            <UserCog size={18} /> Profile
           </Link>
         </nav>
         <div className={styles.userProfile}>
@@ -133,7 +132,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden' }}>
         {/* Top Navbar */}
-        <header style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '16px 32px', backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', zIndex: 5 }}>
+        <header className="hide-mobile-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 32px', backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', zIndex: 5 }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {(() => {
+                if (pathname.startsWith('/admin/inventory')) return 'Inventory Management';
+                if (pathname.startsWith('/admin/deliveries')) return 'Deliveries';
+                if (pathname.startsWith('/admin/customers')) return 'Customers';
+                if (pathname.startsWith('/admin/employees')) return 'Employees';
+                if (pathname.startsWith('/admin/drivers')) return 'Drivers';
+                if (pathname.startsWith('/admin/vehicles')) return 'Vehicles';
+                if (pathname.startsWith('/admin/profile')) return 'Profile Settings';
+                return 'Dashboard';
+              })()}
+            </h1>
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{user.name}</span>

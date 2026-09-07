@@ -48,6 +48,9 @@ export async function GET(request: Request) {
         batchId: deliveryOrders.batchId,
         quota: deliveryOrders.quota,
         temporaryWinnerId: deliveryOrders.temporaryWinnerId,
+        partnerDriverName: deliveryOrders.partnerDriverName,
+        partnerDriverContact: deliveryOrders.partnerDriverContact,
+        deliveryDate: deliveryOrders.deliveryDate,
         currentOrdersCount: drizzleSql<number>`COALESCE((SELECT SUM(quantity) FROM delivery_items WHERE delivery_order_id = ${deliveryOrders.id}), 0)::int`,
         createdAt: deliveryOrders.createdAt,
       })

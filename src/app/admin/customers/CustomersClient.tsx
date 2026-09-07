@@ -122,21 +122,8 @@ export default function CustomersClient() {
 
   return (
     <div>
-      <div className={styles.header}>
-        <div>
-          <h1>Customer Management</h1>
-          <p>Manage your address book and customer records</p>
-        </div>
-        <button
-          onClick={() => { resetForm(); setAddModal(true); }}
-          className={styles.btnPrimary}
-        >
-          <Plus size={16} /> New Customer
-        </button>
-      </div>
-
       <div className={styles.card} style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226,232,240,0.5)', display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226,232,240,0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ position: 'relative', width: '300px' }}>
             <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
@@ -148,8 +135,16 @@ export default function CustomersClient() {
               style={{ paddingLeft: '36px' }}
             />
           </div>
-          <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
-            Total Customers: {totalCount}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
+              Total: {totalCount}
+            </div>
+            <button
+              onClick={() => { resetForm(); setAddModal(true); }}
+              className={`${styles.btnPrimary} ${styles.toolbarBtn}`}
+            >
+              <Plus size={16} style={{ marginRight: '6px' }} /> New Customer
+            </button>
           </div>
         </div>
 

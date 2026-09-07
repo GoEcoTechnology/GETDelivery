@@ -44,7 +44,11 @@ export function ActionMenu({ actions }: Props) {
     };
   }, [isOpen]);
 
-  const toggleMenu = useCallback(() => {
+  const toggleMenu = useCallback((e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     if (!isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       setPosition({
@@ -83,7 +87,8 @@ export function ActionMenu({ actions }: Props) {
             <button
               key={i}
               className={styles.menuItem}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 if (!action.disabled) {
                   action.onClick();
                   setIsOpen(false);

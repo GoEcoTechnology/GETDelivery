@@ -17,6 +17,7 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<{name: string, role: string} | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -44,7 +45,30 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
 
   return (
     <div className={styles.layout}>
-      <aside className={styles.sidebar}>
+      {/* Mobile Header */}
+      <div className={styles.mobileHeader}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, color: '#4f46e5' }}>
+          <Shield className="w-5 h-5" /> GETPlatform
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <NotificationBell />
+          <button className={styles.mobileMenuBtn} onClick={() => setSidebarOpen(true)}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Overlay for mobile */}
+      <div 
+        className={`${styles.overlay} ${sidebarOpen ? styles.overlayOpen : ''}`} 
+        onClick={() => setSidebarOpen(false)}
+      ></div>
+
+      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.brand}>
           <Shield className="w-6 h-6" /> GETPlatform
         </div>
@@ -67,6 +91,12 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
           <Link href="/platform-admin/delivery-pricing" className={pathname.startsWith('/platform-admin/delivery-pricing') ? styles.active : ''}>
             <Receipt size={18} /> Delivery Pricing
           </Link>
+          <div style={{ marginTop: '16px', marginBottom: '4px', paddingLeft: '16px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            System
+          </div>
+          <Link href="/platform-admin/profile" className={pathname.startsWith('/platform-admin/profile') ? styles.active : ''}>
+            <Shield size={18} /> Profile
+          </Link>
         </nav>
         <div className={styles.userProfile}>
           <p className={styles.userName}>{user.name}</p>
@@ -79,18 +109,22 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
       
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden' }}>
         {/* Top Navbar */}
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 32px', backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', zIndex: 5 }}>
+        <header className="header-responsive">
           <div>
             <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
               {pathname.includes('/tenants') ? 'Tenant Management' : 
                pathname.includes('/approvals') ? 'Pending Approvals' : 
                pathname.includes('/partners') ? 'Delivery Partners' : 
+               pathname.includes('/delivery-pricing') ? 'Delivery Pricing' :
+               pathname.includes('/profile') ? 'Profile Settings' :
                'Platform Dashboard'}
             </h1>
             <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
               {pathname.includes('/tenants') ? 'Manage all registered businesses on the platform' : 
                pathname.includes('/approvals') ? 'Review and approve new tenant registrations' : 
                pathname.includes('/partners') ? 'Manage platform delivery partners' : 
+               pathname.includes('/delivery-pricing') ? 'Configure global settings and rates' :
+               pathname.includes('/profile') ? 'Manage your account and platform settings' :
                'Overview of platform activity'}
             </p>
           </div>

@@ -35,8 +35,14 @@ export async function POST(
       }
 
       // 1. Update order status back to DISPATCHED
-      await db.update(deliveryOrders)
-        .set({ status: 'DISPATCHED', temporaryWinnerId: null })
+      const [updatedOrder] = await db
+        .update(deliveryOrders)
+        .set({ 
+          status: 'DISPATCHED', 
+          temporaryWinnerId: null,
+          cancelledAt: new Date(),
+          cancellationReason: cancelReason || null
+        })
         .where(eq(deliveryOrders.id, orderId));
 
       // 2. Mark this partner's invitation as CANCELLED

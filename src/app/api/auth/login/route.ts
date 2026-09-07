@@ -24,20 +24,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Too many login attempts. Please try again later.' }, { status: 429 });
     }
 
-    const isEmail = username.includes('@');
+    // Normalize the username to search both formats (09... and +639...)
+    let alternateUsername = username;
+    if (username.startsWith('09')) {
+      alternateUsername = '+63' + username.substring(1);
+    } else if (username.startsWith('+639')) {
+      alternateUsername = '0' + username.substring(3);
+    }
 
-    if (isEmail) {
-      // Authenticate as User (Admin / Tenant / Platform Owner)
-      const [user] = await db.select().from(users).where(eq(users.email, username));
+    // 1. Authenticate as User (Admin / Tenant / Platform Owner)
+    let [user] = await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          eq(users.email, username),
+          eq(users.contactNumber, username),
+          eq(users.contactNumber, alternateUsername)
+        )
+      );
 
-      if (!user || user.status !== 'ACTIVE') {
-        return NextResponse.json({ error: 'Invalid credentials or inactive account' }, { status: 401 });
+    if (user) {
+      if (user.status !== 'ACTIVE') {
+        return NextResponse.json({ error: 'Inactive account' }, { status: 401 });
       }
 
       const isValid = await verifyPassword(password, user.passwordHash);
-
       if (!isValid) {
-        return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+        return NextResponse.json({ error: 'Incorrect password. Please try again.', code: 'WRONG_PASSWORD' }, { status: 401 });
       }
 
       const payload: UserJwtPayload = {
@@ -47,7 +61,6 @@ export async function POST(request: Request) {
       };
 
       const token = await signToken(payload, '7d');
-
       const response = NextResponse.json({
         success: true,
         token,
@@ -65,30 +78,21 @@ export async function POST(request: Request) {
       });
 
       return response;
-    } else {
-      // Normalize the mobile number to search both formats (09... and +639...)
-      let alternateUsername = username;
-      if (username.startsWith('09')) {
-        alternateUsername = '+63' + username.substring(1);
-      } else if (username.startsWith('+639')) {
-        alternateUsername = '0' + username.substring(3);
-      }
+    }
 
-      // Authenticate as Delivery Partner (Mobile Number)
-      const [partner] = await db
-        .select()
-        .from(deliveryPartners)
-        .where(
-          or(
-            eq(deliveryPartners.mobileNumber, username),
-            eq(deliveryPartners.mobileNumber, alternateUsername)
-          )
-        );
+    // 2. Authenticate as Delivery Partner
+    const [partner] = await db
+      .select()
+      .from(deliveryPartners)
+      .where(
+        or(
+          eq(deliveryPartners.email, username),
+          eq(deliveryPartners.mobileNumber, username),
+          eq(deliveryPartners.mobileNumber, alternateUsername)
+        )
+      );
 
-      if (!partner) {
-        return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
-      }
-
+    if (partner) {
       if (partner.status === 'PENDING') {
         return NextResponse.json({ error: 'Your account is pending Super Admin approval. Please wait for approval before logging in.' }, { status: 403 });
       }
@@ -98,19 +102,18 @@ export async function POST(request: Request) {
       }
 
       if (!partner.passwordHash) {
-        // First-time login: Auto-set the provided password for this partner
+        // First-time login: Set the default password to 123123
         const { hashPassword } = await import('@/lib/password');
-        const newHash = await hashPassword(password);
+        const defaultHash = await hashPassword('123123');
         await db.update(deliveryPartners)
-          .set({ passwordHash: newHash })
+          .set({ passwordHash: defaultHash })
           .where(eq(deliveryPartners.id, partner.id));
-        partner.passwordHash = newHash;
+        partner.passwordHash = defaultHash;
       }
 
       const isValid = await verifyPassword(password, partner.passwordHash);
-
       if (!isValid) {
-        return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+        return NextResponse.json({ error: 'Incorrect password. Your default password is 123123 unless you have changed it.', code: 'WRONG_PASSWORD' }, { status: 401 });
       }
 
       const payload: PartnerLoginJwtPayload = {
@@ -119,7 +122,6 @@ export async function POST(request: Request) {
       };
 
       const token = await signToken(payload, '7d');
-
       const response = NextResponse.json({
         success: true,
         token,
@@ -138,6 +140,9 @@ export async function POST(request: Request) {
 
       return response;
     }
+
+    // If neither user nor partner found
+    return NextResponse.json({ error: 'No account found with that email or mobile number. Please check your credentials or register.', code: 'USER_NOT_FOUND' }, { status: 401 });
 
   } catch (error: any) {
     console.error('Login error:', error);

@@ -39,12 +39,6 @@ export default function DeliveriesHistoryPage() {
 
   return (
     <div>
-      <div className={styles.header}>
-        <div>
-          <h1>Delivery History</h1>
-          <p>Archives of completed and cancelled deliveries</p>
-        </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
           <button 
             onClick={() => window.location.href = '/admin/deliveries'}
             className={styles.btnSecondary}

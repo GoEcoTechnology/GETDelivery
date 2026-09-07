@@ -12,7 +12,8 @@ import {
   Briefcase,
   User,
   Truck,
-  MapPinned
+  MapPinned,
+  CheckSquare
 } from 'lucide-react';
 import PartnerNotifListener from './PartnerNotifListener';
 import NotificationBell from '../admin/NotificationBell';
@@ -86,8 +87,17 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           <Link href="/partner/dashboard" className={pathname === '/partner/dashboard' ? styles.active : ''}>
             <LayoutDashboard size={18} /> Dashboard
           </Link>
-          <Link href="/partner/orders" className={pathname.startsWith('/partner/orders') ? styles.active : ''}>
-            <Package size={18} /> Orders
+          <Link href="/partner/orders" className={pathname === '/partner/orders' || pathname.startsWith('/partner/orders/') ? styles.active : ''}>
+            <Package size={18} /> Available Orders
+          </Link>
+          <Link href="/partner/deliveries" className={pathname === '/partner/deliveries' || pathname.startsWith('/partner/deliveries/') ? styles.active : ''}>
+            <Truck size={18} /> My Deliveries
+          </Link>
+          <Link href="/partner/completed" className={pathname === '/partner/completed' || pathname.startsWith('/partner/completed/') ? styles.active : ''}>
+            <CheckSquare size={18} /> Completed
+          </Link>
+          <Link href="/partner/profile" className={pathname.startsWith('/partner/profile') ? styles.active : ''}>
+            <User size={18} /> Profile
           </Link>
         </nav>
         <div className={styles.userProfile}>
@@ -101,14 +111,16 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
       
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden' }}>
         {/* Top Navbar */}
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 32px', backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', zIndex: 5 }}>
+        <header className="header-responsive">
           <div>
             <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
               {pathname.includes('/orders') ? 'My Orders' : 
+               pathname.includes('/profile') ? 'Profile Settings' :
                'Dashboard Summary'}
             </h1>
             <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
               {pathname.includes('/orders') ? 'View and manage your assigned delivery requests' : 
+               pathname.includes('/profile') ? 'Manage your account and preferences' :
                'Overview of your delivery requests and performance'}
             </p>
           </div>

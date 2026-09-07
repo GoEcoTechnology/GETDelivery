@@ -77,12 +77,6 @@ export default function StockOutHistoryPage() {
 
   return (
     <div>
-      <div className={styles.header}>
-        <div>
-          <button 
-            onClick={() => router.push('/admin/inventory')}
-            style={{ background: 'none', border: 'none', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px', padding: 0 }}
-          >
             <ArrowLeft size={16} /> Back to Inventory
           </button>
           <h1>Stock Out History</h1>

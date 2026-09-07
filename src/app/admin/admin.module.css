@@ -528,3 +528,19 @@
   border-radius: 8px;
   flex-wrap: wrap;
 }
+
+/* Responsive Toolbar Button */
+.toolbarBtn {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  white-space: nowrap;
+  font-size: 13px;
+  padding: 8px 16px;
+}
+@media (max-width: 768px) {
+  .toolbarBtn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+}

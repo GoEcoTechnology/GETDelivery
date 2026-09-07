@@ -193,7 +193,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
       return;
     }
     if (!formData.dropoffLat || !formData.dropoffLng) {
-      alert('Please select a valid Destination from the search results.');
+      alert('Please select a valid Dropoff from the search results.');
       return;
     }
     setLoading(true);
@@ -337,7 +337,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
               required
             />
             <LocationAutocomplete
-              label="Destination"
+              label="Dropoff"
               placeholder="Search business, address, landmark..."
               value={formData.dropoffAddress}
               onSelect={handleDropoffSelect}
@@ -352,7 +352,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: formData.dropoffLat ? '#22c55e' : '#cbd5e1', display: 'inline-block' }} />
-              <span style={{ color: formData.dropoffLat ? '#16a34a' : '#64748b' }}>{formData.dropoffLat ? 'Destination located' : 'Destination not set'}</span>
+              <span style={{ color: formData.dropoffLat ? '#16a34a' : '#64748b' }}>{formData.dropoffLat ? 'Dropoff located' : 'Dropoff not set'}</span>
             </div>
             {formData.routeDistance && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>

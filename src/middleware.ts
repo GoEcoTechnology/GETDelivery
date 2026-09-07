@@ -27,7 +27,7 @@ function getRedirectForRole(role: string): string {
   return '/admin/dashboard';
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Always skip static assets

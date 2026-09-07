@@ -1,1 +1,0 @@
-const postgres = require('postgres'); const sql = postgres('postgresql://postgres.hfvqqhryywkzhsolfdcm:GETDelivery%40123@db.hfvqqhryywkzhsolfdcm.supabase.co:5432/postgres?sslmode=require'); sql\SELECT 1\.then(() => { console.log('Connected!'); process.exit(0); }).catch(err => { console.error('Error:', err); process.exit(1); });

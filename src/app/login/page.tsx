@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [errorField, setErrorField] = useState<'email' | 'password' | 'both' | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [userData, setUserData] = useState<any>(null);
@@ -16,7 +17,16 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setErrorField(null);
     setLoading(true);
+
+    // Detect no internet before even trying
+    if (!navigator.onLine) {
+      setError("Please check your internet connection and try again.");
+      setErrorField('both');
+      setLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/auth/login", {
@@ -28,7 +38,19 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.details || data.error || "Login failed");
+        const code = data.code;
+        if (code === 'USER_NOT_FOUND') {
+          setErrorField('email');
+          setError(data.error);
+        } else if (code === 'WRONG_PASSWORD') {
+          setErrorField('password');
+          setError(data.error);
+        } else {
+          setErrorField('both');
+          setError(data.error || 'Login failed. Please try again.');
+        }
+        setLoading(false);
+        return;
       }
 
       // Save user AND token to localStorage for client-side API calls
@@ -45,7 +67,13 @@ export default function LoginPage() {
       proceedToDashboard(data.user);
     } catch (err: any) {
       console.error(err);
-      setError(err.message);
+      // TypeError usually means a network failure (fetch itself couldn't connect)
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        setError('Please check your internet connection and try again.');
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+      setErrorField('both');
       setLoading(false);
     }
   };
@@ -75,7 +103,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {error && <div className={styles.error}>{error}</div>}
+        {error && errorField === 'both' && <div className={styles.error}>{error}</div>}
 
         <div className={styles.formGroup}>
           <label htmlFor="username" className={styles.label}>
@@ -86,10 +114,14 @@ export default function LoginPage() {
             type="text"
             className={styles.input}
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => { setUsername(e.target.value); if (errorField === 'email') { setErrorField(null); setError(''); } }}
             required
             placeholder="Enter your email or mobile number"
+            style={errorField === 'email' || errorField === 'both' ? { borderColor: '#ef4444' } : {}}
           />
+          {errorField === 'email' && (
+            <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0 0' }}>{error}</p>
+          )}
         </div>
 
         <div className={styles.formGroup}>
@@ -101,10 +133,14 @@ export default function LoginPage() {
             type="password"
             className={styles.input}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => { setPassword(e.target.value); if (errorField === 'password') { setErrorField(null); setError(''); } }}
             required
             placeholder="••••••••"
+            style={errorField === 'password' || errorField === 'both' ? { borderColor: '#ef4444' } : {}}
           />
+          {errorField === 'password' && (
+            <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0 0' }}>{error}</p>
+          )}
         </div>
 
         <button

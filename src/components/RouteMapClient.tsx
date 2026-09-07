@@ -163,7 +163,7 @@ export default function RouteMapClient({
           <Popup><strong>Pickup Location</strong><br />{pickupAddress}</Popup>
         </Marker>
         <Marker position={resolvedDropoff} icon={dropoffIcon}>
-          <Popup><strong>Destination</strong><br />{dropoffAddress}</Popup>
+          <Popup><strong>Dropoff</strong><br />{dropoffAddress}</Popup>
         </Marker>
         {routeLine.length > 0 && (
           <Polyline positions={routeLine} color="#3b82f6" weight={5} opacity={0.8} lineCap="round" lineJoin="round" />

@@ -11,29 +11,26 @@ export async function GET(req: Request) {
       const tenantId = claims.tenantId as number;
 
       const deliveriesBase = tx
-        .select()
+        .select({
+          id: deliveryOrders.id,
+          status: deliveryOrders.status,
+          createdAt: deliveryOrders.createdAt,
+          customerName: customers.name
+        })
         .from(deliveryOrders)
+        .leftJoin(customers, eq(deliveryOrders.customerId, customers.id))
         .orderBy(desc(deliveryOrders.createdAt))
         .limit(5);
 
-      const customersBase = tx
-        .select()
-        .from(customers)
-        .orderBy(desc(customers.createdAt))
-        .limit(5);
-
-      const [deliveries, customersList] = await Promise.all([
+      const [deliveries] = await Promise.all([
         isPlatformOwner
           ? deliveriesBase
-          : deliveriesBase.where(eq(deliveryOrders.tenantId, tenantId)),
-        isPlatformOwner
-          ? customersBase
-          : customersBase.where(eq(customers.tenantId, tenantId)),
+          : deliveriesBase.where(eq(deliveryOrders.tenantId, tenantId))
       ]);
 
       return NextResponse.json({
         recentDeliveries: deliveries,
-        recentCustomers: customersList
+        recentCustomers: []
       });
     } catch (error) {
       console.error('Failed to fetch recent data:', error);

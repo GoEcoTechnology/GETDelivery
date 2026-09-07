@@ -168,20 +168,18 @@ export default function StockOutPage() {
 
   return (
     <div>
-      <div className={styles.header}>
-        <div>
-          <button 
-            onClick={() => router.push('/admin/inventory')}
-            style={{ background: 'none', border: 'none', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px', padding: 0 }}
-          >
-            <ArrowLeft size={16} /> Back to Inventory
-          </button>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <PackageOpen size={28} color="#ef4444" />
-            Bulk Stock Out
-          </h1>
-          <p>Record multiple inventory items taken out in a single transaction.</p>
-        </div>
+      <div style={{ marginBottom: '24px' }}>
+        <button 
+          onClick={() => router.push('/admin/inventory')}
+          style={{ background: 'none', border: 'none', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px', padding: 0 }}
+        >
+          <ArrowLeft size={16} /> Back to Inventory
+        </button>
+        <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '8px 0 4px 0' }}>
+          <PackageOpen size={28} color="#ef4444" />
+          Bulk Stock Out
+        </h1>
+        <p style={{ margin: 0, color: '#64748b' }}>Record multiple inventory items taken out in a single transaction.</p>
       </div>
 
       <form onSubmit={handleFormSubmit}>

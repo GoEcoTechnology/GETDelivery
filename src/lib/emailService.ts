@@ -338,6 +338,8 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       'X-Mailer-Version': '1.0',
       'List-Unsubscribe': `<${baseUrl}/unsubscribe>`, // Proper format for Gmail
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click', // Gmail's one-click unsubscribe
+      'Precedence': 'bulk', // Helps prevent auto-replies and some bounces
+      'X-Auto-Response-Suppress': 'All', // Instructs Exchange/Office365 to suppress auto-replies and delivery reports
     };
 
     if (process.env.DKIM_PRIVATE_KEY) {

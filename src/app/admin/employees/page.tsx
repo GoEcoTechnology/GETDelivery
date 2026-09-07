@@ -68,7 +68,7 @@ export default function EmployeesPage() {
     <div>
       <div className={styles.card} style={{ padding: '0', overflow: 'hidden' }}>
         {/* Toolbar */}
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '14px', fontWeight: 600 }}>
               <Users size={16} />
@@ -108,7 +108,8 @@ export default function EmployeesPage() {
             </p>
           </div>
         ) : (
-          <table className={styles.table}>
+          <div className="table-responsive-wrapper">
+            <table className={styles.table}>
             <thead>
               <tr>
                 <th>Name</th>
@@ -143,6 +144,7 @@ export default function EmployeesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {/* Info footer */}

@@ -28,17 +28,12 @@ export async function buildStandardNotificationBody(
     return `${title}\nOrder ID: #${params.orderId}\nStatus: ${params.status.replace(/_/g, ' ')}${params.reason ? `\nReason: ${params.reason}` : ''}`;
   }
 
-  const { order, tenant, customer, partner } = data;
+  const { order, tenant } = data;
 
   const parts = [];
-  parts.push(`Order ID: #${order.id}`);
-  parts.push(`Business Owner: ${tenant.name}`);
-  if (partner) {
-    parts.push(`Delivery Partner: ${partner.companyName || partner.contactPerson || 'Assigned'}`);
-  }
-  parts.push(`Customer: ${customer ? customer.name : 'Unknown'}`);
+  parts.push(`Delivery for ${tenant.name}`);
   parts.push(`Pickup: ${order.pickupAddress}`);
-  parts.push(`Delivery: ${order.dropoffAddress}`);
+  parts.push(`Drop-off: ${order.dropoffAddress}`);
   
   if (order.deliveryDate) {
     const dDate = new Date(order.deliveryDate);
@@ -46,8 +41,6 @@ export async function buildStandardNotificationBody(
     const timeStr = order.deliveryTime ? ` ${order.deliveryTime}` : '';
     parts.push(`Delivery Date: ${dateStr}${timeStr}`);
   }
-  
-  parts.push(`Status: ${params.status.replace(/_/g, ' ')}`);
   
   if (params.reason) {
     parts.push(`Reason: ${params.reason}`);

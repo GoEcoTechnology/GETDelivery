@@ -102,9 +102,9 @@ export default function PartnersPage() {
     <div>
       <div className={styles.card} style={{ padding: '0', overflow: 'hidden' }}>
         {/* Toolbar */}
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ position: 'relative', width: '280px' }}>
+            <div style={{ position: 'relative', flex: '1 1 280px', minWidth: '200px' }}>
               <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
@@ -121,7 +121,9 @@ export default function PartnersPage() {
           </button>
         </div>
 
-        <table className={styles.table}>
+        <div className="table-responsive-wrapper">
+
+          <table className={styles.table}>
           <thead>
             <tr>
               <th>Company Name</th>
@@ -198,9 +200,11 @@ export default function PartnersPage() {
             )}
           </tbody>
         </table>
+
+        </div>
         <style>{`@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
 
-        <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(226, 232, 240, 0.5)', backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>
+        <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderTop: '1px solid rgba(226, 232, 240, 0.5)', backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>
           <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: page === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontWeight: 600, opacity: page === 1 ? 0.5 : 1 }}>
             <ChevronLeft size={16} /> Prev
           </button>

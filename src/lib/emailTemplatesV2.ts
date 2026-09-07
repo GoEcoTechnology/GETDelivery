@@ -522,10 +522,6 @@ export function orderAcceptedTemplate(options: {
           <td style="padding:12px 0;color:${COLORS.text};font-weight:600;vertical-align:top;">${escapeHtml(options.customerName)}</td>
         </tr>
         <tr>
-          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Order ID</td>
-          <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;">${escapeHtml(orderRef)}</td>
-        </tr>
-        <tr>
           <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Delivery Date</td>
           <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;">${escapeHtml(options.deliveryDate)}</td>
         </tr>

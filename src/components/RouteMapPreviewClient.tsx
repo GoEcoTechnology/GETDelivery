@@ -105,7 +105,7 @@ export default function RouteMapPreviewClient({ pickupLat, pickupLng, dropoffLat
     return (
       <div style={{ width: '100%', height: '300px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', gap: '8px' }}>
         <span style={{ fontSize: '32px' }}>🗺️</span>
-        <span style={{ fontSize: '14px' }}>Search and select a Pickup and Destination to see the route</span>
+        <span style={{ fontSize: '14px' }}>Search and select a Pickup and Dropoff to see the route</span>
       </div>
     );
   }
@@ -141,7 +141,7 @@ export default function RouteMapPreviewClient({ pickupLat, pickupLng, dropoffLat
           )}
           {hasDropoff && (
             <Marker position={[dropoffLat!, dropoffLng!]} icon={dropoffIcon}>
-              <Popup><strong>Destination</strong></Popup>
+              <Popup><strong>Dropoff</strong></Popup>
             </Marker>
           )}
           {route.length > 0 && (
