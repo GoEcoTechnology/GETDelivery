@@ -23,14 +23,15 @@ function getStatusDisplay(status: string) {
 function getStatusBadge(status: string) {
   const displayStatus = getStatusDisplay(status).toUpperCase();
   switch (displayStatus) {
-    case 'AVAILABLE': return <span className={`${styles.badge} ${styles.badgeYellow}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800 }}>AVAILABLE</span>;
-    case 'ACCEPTED': return <span className={`${styles.badge} ${styles.badgeBlue}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800 }}>ACCEPTED</span>;
-    case 'IN TRANSIT': return <span className={`${styles.badge} ${styles.badgeBlue}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800 }}>IN TRANSIT</span>;
-    case 'DELIVERED': return <span className={`${styles.badge} ${styles.badgeBlue}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800, background: '#dcfce7', color: '#16a34a' }}>DELIVERED</span>;
-    case 'DECLINED': return <span className={`${styles.badge} ${styles.badgeRed}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800 }}>DECLINED</span>;
-    case 'EXPIRED': return <span className={`${styles.badge} ${styles.badgeGray}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800 }}>EXPIRED</span>;
-    case 'CANCELLED': return <span className={`${styles.badge} ${styles.badgeGray}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800 }}>CANCELLED</span>;
-    default: return <span className={`${styles.badge} ${styles.badgeGray}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800 }}>{displayStatus}</span>;
+    case 'AVAILABLE': return <span className={`${styles.badge}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800, background: '#fef3c7', color: '#d97706' }}>AVAILABLE</span>;
+    case 'ACCEPTED': return <span className={`${styles.badge}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800, background: '#dbeafe', color: '#2563eb' }}>ACCEPTED</span>;
+    case 'IN TRANSIT': return <span className={`${styles.badge}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800, background: '#ede9fe', color: '#8b5cf6' }}>IN TRANSIT</span>;
+    case 'DELIVERED': return <span className={`${styles.badge}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800, background: '#dcfce7', color: '#16a34a' }}>DELIVERED</span>;
+    case 'COMPLETED': return <span className={`${styles.badge}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800, background: '#dcfce7', color: '#16a34a' }}>COMPLETED</span>;
+    case 'DECLINED': return <span className={`${styles.badge}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800, background: '#fee2e2', color: '#ef4444' }}>DECLINED</span>;
+    case 'EXPIRED': return <span className={`${styles.badge}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800, background: '#f1f5f9', color: '#64748b' }}>EXPIRED</span>;
+    case 'CANCELLED': return <span className={`${styles.badge}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800, background: '#fee2e2', color: '#ef4444' }}>CANCELLED</span>;
+    default: return <span className={`${styles.badge}`} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: 800, background: '#f1f5f9', color: '#64748b' }}>{displayStatus}</span>;
   }
 }
 

@@ -89,10 +89,15 @@ export async function POST(
         accumMap[a.productId] = (accumMap[a.productId] || 0) + a.quantityAdded;
       }
 
-      let allReached = true;
+      const reqMap: Record<number, number> = {};
       for (const oi of orderItems) {
-        const acc = accumMap[oi.productId] || 0;
-        if (acc < oi.quantity) {
+        reqMap[oi.productId] = (reqMap[oi.productId] || 0) + oi.quantity;
+      }
+
+      let allReached = true;
+      for (const [pId, reqQty] of Object.entries(reqMap)) {
+        const acc = accumMap[parseInt(pId)] || 0;
+        if (acc < reqQty) {
           allReached = false;
           break;
         }

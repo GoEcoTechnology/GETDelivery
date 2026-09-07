@@ -98,12 +98,13 @@ export async function GET(request: Request) {
           deliveryOrderId: deliveryItems.deliveryOrderId,
           productId: products.id,
           productName: products.name,
-          quantity: deliveryItems.quantity,
+          quantity: drizzleSql<number>`SUM(${deliveryItems.quantity})::int`,
           unitPrice: products.price
         })
         .from(deliveryItems)
         .innerJoin(products, eq(deliveryItems.productId, products.id))
-        .where(inArray(deliveryItems.deliveryOrderId, orderIds));
+        .where(inArray(deliveryItems.deliveryOrderId, orderIds))
+        .groupBy(deliveryItems.deliveryOrderId, products.id, products.name, products.price);
 
       const accumulations = await tx
         .select({

@@ -503,6 +503,7 @@ function StatusBadge({ status }: { status: string }) {
   else if (status === 'ASSIGNED') { color = '#2563eb'; bg = '#dbeafe'; Icon = Truck; displayStatus = 'ACCEPTED'; }
   else if (status === 'IN_TRANSIT') { color = '#8b5cf6'; bg = '#ede9fe'; Icon = Truck; displayStatus = 'IN TRANSIT'; }
   else if (status === 'DELIVERED') { color = '#16a34a'; bg = '#dcfce7'; Icon = CheckCircle2; }
+  else if (status === 'COMPLETED') { color = '#16a34a'; bg = '#dcfce7'; Icon = CheckCircle2; }
   else if (status === 'CANCELLED') { color = '#ef4444'; bg = '#fee2e2'; Icon = XCircle; }
   
   return (

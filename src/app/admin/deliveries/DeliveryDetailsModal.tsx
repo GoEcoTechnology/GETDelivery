@@ -100,7 +100,7 @@ export function DeliveryDetailsModal({
                   const isReached = accQty >= targetQty;
                   const remaining = targetQty - accQty;
                   const canAddQuota = !['READY_FOR_DISPATCH', 'DISPATCHED', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED'].includes(delivery.status);
-                  const inputKey = `${delivery.id}-${prod.productId}`;
+                  const inputKey = `${delivery.id}-${prod.productId}-${idx}`;
                   const inputQty = addQuotaInputs[inputKey] || 0;
                   const errorMsg = addQuotaErrors[inputKey];
                   const adding = isAdding(delivery.id, prod.productId);
