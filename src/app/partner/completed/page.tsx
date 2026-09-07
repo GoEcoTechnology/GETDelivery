@@ -83,9 +83,6 @@ export default async function PartnerCompletedPage() {
 
   return (
     <div style={{ paddingBottom: '64px' }}>
-      <div className={styles.flexBetween} style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>Completed Deliveries</h1>
-      </div>
 
       <OrdersTableClient invitations={invitationsWithItems} partnerCompanyName={partner?.companyName || 'You'} basePath="/partner/orders" />
     </div>

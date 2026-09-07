@@ -85,9 +85,6 @@ export default async function PartnerNotificationsPage() {
 
   return (
     <div style={{ paddingBottom: '64px' }}>
-      <div className={styles.flexBetween} style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>Notifications</h1>
-      </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {notificationsWithOrders.length === 0 ? (

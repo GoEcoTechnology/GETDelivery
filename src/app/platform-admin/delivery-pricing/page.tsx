@@ -89,10 +89,6 @@ export default function DeliveryPricingPage() {
 
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '16px' }}>
-      <div style={{ marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', margin: '0 0 8px 0' }}>Platform Pricing Settings</h1>
-        <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>Configure global settings and specialized per-vehicle delivery rates.</p>
-      </div>
 
       <div style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 4px 20px rgba(15,23,42,0.04)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
         

@@ -149,10 +149,6 @@ export default function PartnerProfilePage() {
 
   return (
     <div>
-      <div className={styles.header}>
-        <h1>Settings</h1>
-        <p>Manage your account, branding, and platform preferences</p>
-      </div>
 
       {tabs.length > 1 && (
         <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>

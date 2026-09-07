@@ -75,10 +75,6 @@ export default function ApprovalsPage() {
 
   return (
     <div>
-      <div className={styles.header}>
-        <h1>Pending Approvals</h1>
-        <p>Review and approve new registrations for Tenants and Delivery Partners</p>
-      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
         {/* Pending Tenants */}

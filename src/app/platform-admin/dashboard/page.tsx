@@ -72,12 +72,6 @@ export default function PlatformDashboard() {
 
   return (
     <div>
-      <div className={styles.header} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1>Platform Overview</h1>
-          <p>Global metrics across all tenants and logistics partners</p>
-        </div>
-      </div>
         {/* High-Level Stats Cards */}
         <div className={styles.grid}>
           <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px' }}>
