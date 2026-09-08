@@ -15,6 +15,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
   const [selectedOption, setSelectedOption] = useState<'internal' | 'partner' | null>(null);
   const [driverId, setDriverId] = useState<string>('');
   const [vehicleId, setVehicleId] = useState<string>('');
+  const [customFee, setCustomFee] = useState<string>('');
 
   const { data: driversData, isLoading: loadingDrivers } = useQuery({
     queryKey: ['company-drivers'],
@@ -48,7 +49,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
           'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ driverId, vehicleId })
+        body: JSON.stringify({ driverId, vehicleId, customFee: customFee ? parseFloat(customFee) : null })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch internally');
@@ -57,7 +58,6 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
     onSuccess: () => {
       onClose();
       onDispatchComplete();
-      alert('Delivery assigned successfully!');
     },
     onError: (error: any) => {
       alert(`Error: ${error.message}`);
@@ -77,7 +77,6 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
     onSuccess: () => {
       onClose();
       onDispatchComplete();
-      alert('Delivery dispatched successfully! Push Notifications broadcasted.');
     },
     onError: (error: any) => {
       alert(`Error: ${error.message}`);
@@ -184,6 +183,17 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
                     ))}
                   </select>
                   {loadingVehicles && <span style={{ fontSize: '12px', color: '#64748b' }}>Loading vehicles...</span>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>Delivery Fee (Optional)</label>
+                  <input 
+                    type="number"
+                    value={customFee} onChange={(e) => setCustomFee(e.target.value)}
+                    placeholder="Enter fee (e.g. 150)"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                  />
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Set a specific fee to charge the customer when using your own vehicle.</span>
                 </div>
               </div>
             </div>

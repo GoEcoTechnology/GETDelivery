@@ -61,23 +61,33 @@ export async function PUT(request: Request) {
     if (body.contactNumber) updates.contactNumber = String(body.contactNumber).trim();
     if (body.password) updates.passwordHash = await hashPassword(body.password);
 
-    if (Object.keys(updates).length > 0) {
+    if (Object.keys(updates).length > 0 || body.businessName) {
       if (claims.role === 'DELIVERY_PARTNER') {
         const partnerUpdates: any = {};
         if (updates.name) partnerUpdates.contactPerson = updates.name;
         if (updates.contactNumber) partnerUpdates.mobileNumber = updates.contactNumber;
         if (updates.passwordHash) partnerUpdates.passwordHash = updates.passwordHash;
-        await tx.update(deliveryPartners).set(partnerUpdates).where(eq(deliveryPartners.id, claims.partnerId as number));
-      } else {
+        if (body.businessName) partnerUpdates.companyName = String(body.businessName).trim();
+        
+        if (Object.keys(partnerUpdates).length > 0) {
+          await tx.update(deliveryPartners).set(partnerUpdates).where(eq(deliveryPartners.id, claims.partnerId as number));
+        }
+      } else if (Object.keys(updates).length > 0) {
         await tx.update(users).set(updates).where(eq(users.id, claims.userId as number));
       }
     }
 
     // Tenant Updates (Only Business Owners can update Tenant details)
-    if (claims.role === 'BUSINESS_OWNER' && claims.tenantId && body.businessName) {
-      await tx.update(tenants)
-        .set({ name: String(body.businessName).trim() })
-        .where(eq(tenants.id, claims.tenantId as number));
+    if (claims.role === 'BUSINESS_OWNER' && claims.tenantId) {
+      const tenantUpdates: any = {};
+      if (body.businessName) tenantUpdates.name = String(body.businessName).trim();
+      if (body.name) tenantUpdates.contactPerson = String(body.name).trim();
+      
+      if (Object.keys(tenantUpdates).length > 0) {
+        await tx.update(tenants)
+          .set(tenantUpdates)
+          .where(eq(tenants.id, claims.tenantId as number));
+      }
     }
 
     return NextResponse.json({ success: true });

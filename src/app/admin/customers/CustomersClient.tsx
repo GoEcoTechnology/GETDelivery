@@ -124,7 +124,7 @@ export default function CustomersClient() {
   return (
     <div>
       <div className={styles.card} style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226,232,240,0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226,232,240,0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '16px' }}>
           <div style={{ position: 'relative', width: '300px' }}>
             <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
@@ -224,34 +224,34 @@ export default function CustomersClient() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <label className={styles.label}>Business / Full Name*</label>
-                <input required type="text" className={styles.inputField} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                <input required type="text" className={styles.inputField} value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label className={styles.label}>Contact Person</label>
-                  <input type="text" className={styles.inputField} value={formData.contactPerson} onChange={e => setFormData({ ...formData, contactPerson: e.target.value })} />
+                  <input type="text" className={styles.inputField} value={formData.contactPerson || ''} onChange={e => setFormData({ ...formData, contactPerson: e.target.value })} />
                 </div>
                 <div>
                   <label className={styles.label}>Mobile Number*</label>
-                  <input required type="text" className={styles.inputField} value={formData.mobileNumber} onChange={e => setFormData({ ...formData, mobileNumber: e.target.value })} />
+                  <input required type="text" className={styles.inputField} value={formData.mobileNumber || ''} onChange={e => setFormData({ ...formData, mobileNumber: e.target.value })} />
                 </div>
               </div>
               <div>
                 <label className={styles.label}>Email Address</label>
-                <input type="email" className={styles.inputField} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                <input type="email" className={styles.inputField} value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
               </div>
               <div>
                 <label className={styles.label}>Complete Address*</label>
-                <input required type="text" className={styles.inputField} value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+                <input required type="text" className={styles.inputField} value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label className={styles.label}>Municipality</label>
-                  <input type="text" className={styles.inputField} value={formData.municipality} onChange={e => setFormData({ ...formData, municipality: e.target.value })} />
+                  <input type="text" className={styles.inputField} value={formData.municipality || ''} onChange={e => setFormData({ ...formData, municipality: e.target.value })} />
                 </div>
                 <div>
                   <label className={styles.label}>Barangay</label>
-                  <input type="text" className={styles.inputField} value={formData.barangay} onChange={e => setFormData({ ...formData, barangay: e.target.value })} />
+                  <input type="text" className={styles.inputField} value={formData.barangay || ''} onChange={e => setFormData({ ...formData, barangay: e.target.value })} />
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>

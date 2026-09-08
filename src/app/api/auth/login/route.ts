@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { users, deliveryPartners } from '@/db/schema';
+import { users, deliveryPartners, tenants } from '@/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { signToken, UserJwtPayload, PartnerLoginJwtPayload } from '@/lib/auth';
 import { verifyPassword } from '@/lib/password';
@@ -47,6 +47,13 @@ export async function POST(request: Request) {
     if (user) {
       if (user.status !== 'ACTIVE') {
         return NextResponse.json({ error: 'Inactive account' }, { status: 401 });
+      }
+
+      if (user.tenantId) {
+        const [tenant] = await db.select().from(tenants).where(eq(tenants.id, user.tenantId));
+        if (tenant && tenant.status === 'INACTIVE') {
+          return NextResponse.json({ error: 'Your organization account is inactive. Please contact support.' }, { status: 403 });
+        }
       }
 
       const isValid = await verifyPassword(password, user.passwordHash);
@@ -99,6 +106,10 @@ export async function POST(request: Request) {
 
       if (partner.status === 'REJECTED') {
         return NextResponse.json({ error: 'Your registration has been rejected. Please contact support.' }, { status: 403 });
+      }
+
+      if (partner.status === 'INACTIVE') {
+        return NextResponse.json({ error: 'Your delivery partner account is inactive. Please contact support.' }, { status: 403 });
       }
 
       if (!partner.passwordHash) {

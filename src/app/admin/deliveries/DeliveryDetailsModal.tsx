@@ -11,8 +11,8 @@ type DeliveryDetailsModalProps = {
   setAddQuotaInputs: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   addQuotaErrors: Record<string, string>;
   setAddQuotaErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  handleAddQuota: (deliveryId: number, productId: number, targetQty: number, currentQty: number) => void;
-  isAdding: (deliveryId: number, productId: number) => boolean;
+  handleAddQuota: (deliveryId: number, itemId: number, targetQty: number, currentQty: number) => void;
+  isAdding: (deliveryId: number, itemId: number) => boolean;
   onDispatch?: () => void;
 };
 
@@ -112,10 +112,10 @@ export function DeliveryDetailsModal({
                   const isReached = accQty >= targetQty;
                   const remaining = targetQty - accQty;
                   const canAddQuota = !['READY_FOR_DISPATCH', 'DISPATCHED', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED'].includes(delivery.status);
-                  const inputKey = `${delivery.id}-${prod.productId}-${idx}`;
+                  const inputKey = `${delivery.id}-${prod.itemId}`;
                   const inputQty = addQuotaInputs[inputKey] || 0;
                   const errorMsg = addQuotaErrors[inputKey];
-                  const adding = isAdding(delivery.id, prod.productId);
+                  const adding = isAdding(delivery.id, prod.itemId);
 
                   return (
                     <div key={idx} style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -148,7 +148,7 @@ export function DeliveryDetailsModal({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleAddQuota(delivery.id, prod.productId, targetQty, accQty);
+                              handleAddQuota(delivery.id, prod.itemId, targetQty, accQty);
                             }}
                             disabled={adding || remaining <= 0}
                             style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}
@@ -193,10 +193,24 @@ export function DeliveryDetailsModal({
               </div>
               
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>VEHICLE REQUIRED</div>
-                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{delivery.requiredVehicleType || 'Any'}</div>
-                </div>
+                {!delivery.internalAssignment && (
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>VEHICLE REQUIRED</div>
+                    <div style={{ fontWeight: 600, color: '#0f172a' }}>{delivery.requiredVehicleType || 'Any'}</div>
+                  </div>
+                )}
+                {delivery.internalAssignment && (
+                  <>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>INTERNAL VEHICLE</div>
+                      <div style={{ fontWeight: 600, color: '#0f172a' }}>{delivery.internalAssignment.vehicleDetails}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>INTERNAL DRIVER</div>
+                      <div style={{ fontWeight: 600, color: '#0f172a' }}>{delivery.internalAssignment.driverName}</div>
+                    </div>
+                  </>
+                )}
                 <div>
                   <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>DELIVERY FEE</div>
                   <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1.125rem' }}>
@@ -208,11 +222,12 @@ export function DeliveryDetailsModal({
           </section>
 
           {/* Delivery Partner */}
-          <section>
-            <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Truck size={14} /> Assigned Partner
-            </h3>
-            {delivery.temporaryWinner ? (
+          {!delivery.internalAssignment && (
+            <section>
+              <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Truck size={14} /> Assigned Partner
+              </h3>
+              {delivery.temporaryWinner ? (
               <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'grid', gap: '16px' }}>
                 <div>
                   <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>PARTNER COMPANY</div>
@@ -255,6 +270,7 @@ export function DeliveryDetailsModal({
               </div>
             )}
           </section>
+          )}
 
         </div>
       </div>

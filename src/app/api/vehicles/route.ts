@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { vehicles } from '@/db/schema';
-import { desc, eq, and, ilike, sql } from 'drizzle-orm';
+import { desc, eq, and, ilike, sql, isNull } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
 export async function GET(request: Request) {
@@ -13,14 +13,14 @@ export async function GET(request: Request) {
 
     const offset = (page - 1) * limit;
     
-    let conditions: any = undefined;
+    let conditions: any = isNull(vehicles.deliveryPartnerId);
     if (claims.role !== 'PLATFORM_OWNER') {
-      conditions = eq(vehicles.tenantId, claims.tenantId as number);
+      conditions = and(conditions, eq(vehicles.tenantId, claims.tenantId as number));
     }
     
     if (search) {
       const searchCond = ilike(vehicles.plateNumber, `%${search}%`);
-      conditions = conditions ? and(conditions, searchCond) : searchCond;
+      conditions = and(conditions, searchCond);
     }
 
     const data = await tx

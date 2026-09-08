@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { deliveryOrders, deliveryItems, products, productQuotas, quotaAccumulations, deliveryPartners, users } from '@/db/schema';
+import { deliveryOrders, deliveryItems, products, productQuotas, quotaAccumulations, deliveryPartners, users, deliveryAssignments } from '@/db/schema';
 import { eq, desc, and, inArray, sql as drizzleSql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
@@ -95,21 +95,21 @@ export async function GET(request: Request) {
 
       const items = await tx
         .select({
+          itemId: deliveryItems.id,
           deliveryOrderId: deliveryItems.deliveryOrderId,
           productId: products.id,
           productName: products.name,
-          quantity: drizzleSql<number>`SUM(${deliveryItems.quantity})::int`,
+          quantity: deliveryItems.quantity,
           unitPrice: products.price
         })
         .from(deliveryItems)
         .innerJoin(products, eq(deliveryItems.productId, products.id))
-        .where(inArray(deliveryItems.deliveryOrderId, orderIds))
-        .groupBy(deliveryItems.deliveryOrderId, products.id, products.name, products.price);
+        .where(inArray(deliveryItems.deliveryOrderId, orderIds));
 
       const accumulations = await tx
         .select({
           deliveryOrderId: quotaAccumulations.sourceOrderId,
-          productId: quotaAccumulations.productId,
+          itemId: quotaAccumulations.sourceItemId,
           quantityAdded: quotaAccumulations.quantityAdded,
         })
         .from(quotaAccumulations)
@@ -117,7 +117,7 @@ export async function GET(request: Request) {
       
       const accMap: Record<string, number> = {};
       for (const acc of accumulations) {
-        const key = `${acc.deliveryOrderId}-${acc.productId}`;
+        const key = `${acc.deliveryOrderId}-${acc.itemId}`;
         accMap[key] = (accMap[key] || 0) + acc.quantityAdded;
       }
 
@@ -125,7 +125,7 @@ export async function GET(request: Request) {
         order.products = items
           .filter((i: any) => i.deliveryOrderId === order.id)
           .map((i: any) => {
-            const accQty = accMap[`${order.id}-${i.productId}`] || 0;
+            const accQty = accMap[`${order.id}-${i.itemId}`] || 0;
             return {
               ...i,
               accumulatedQuantity: accQty,
@@ -138,6 +138,25 @@ export async function GET(request: Request) {
           order.temporaryWinner = winnerMap.get(order.temporaryWinnerId) || null;
         } else {
           order.temporaryWinner = null;
+        }
+      });
+      
+      const assignments = await tx
+        .select({
+          deliveryOrderId: deliveryAssignments.deliveryOrderId,
+          driverName: deliveryAssignments.driverName,
+          vehicleDetails: deliveryAssignments.vehicleDetails,
+        })
+        .from(deliveryAssignments)
+        .where(inArray(deliveryAssignments.deliveryOrderId, orderIds));
+        
+      const assignmentMap = new Map();
+      assignments.forEach((a: any) => assignmentMap.set(a.deliveryOrderId, a));
+      
+      data.forEach((order: any) => {
+        const assignment = assignmentMap.get(order.id);
+        if (assignment && !order.temporaryWinnerId) {
+          order.internalAssignment = assignment;
         }
       });
     }

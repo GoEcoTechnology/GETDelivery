@@ -16,7 +16,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid delivery ID' }, { status: 400 });
     }
 
-    const { driverId, vehicleId } = await request.json();
+    const { driverId, vehicleId, customFee } = await request.json();
 
     if (!driverId || !vehicleId) {
       return NextResponse.json({ error: 'Driver and Vehicle must be provided' }, { status: 400 });
@@ -74,46 +74,53 @@ export async function POST(
     }
 
     try {
-      await tx.transaction(async (innerTx: any) => {
-        // 0. Deduct Stock (throws if insufficient)
-        await deductOrderStock(innerTx, tenantIdToUse, order.id, claims.userId as number);
+      // 0. Deduct Stock (throws if insufficient)
+      await deductOrderStock(tx, tenantIdToUse, order.id, claims.userId as number);
 
-        // 1. Update order status
-        await innerTx
-          .update(deliveryOrders)
-          .set({ status: 'DISPATCHED' }) // Matching UI "Out for Delivery" / DISPATCHED state
-          .where(eq(deliveryOrders.id, order.id));
+      // 1. Update order status
+      const updateData: any = { status: 'IN_TRANSIT' };
+      if (customFee !== undefined && customFee !== null) {
+        updateData.finalDeliveryPrice = customFee.toString();
+      }
 
-        // 2. Create Assignment (no deliveryPartnerId for internal)
-        await innerTx.insert(deliveryAssignments).values({
+      await tx
+        .update(deliveryOrders)
+        .set(updateData)
+        .where(eq(deliveryOrders.id, order.id));
+
+      // 2. Create Assignment (no deliveryPartnerId for internal)
+      await tx.insert(deliveryAssignments).values({
         tenantId: tenantIdToUse,
         deliveryOrderId: order.id,
         driverName: driver.name,
         vehicleDetails: `${vehicle.plateNumber} - ${vehicle.vehicleType}`,
         status: 'ASSIGNED'
       });
-    });
 
-    // Send email to assigned driver (fire-and-forget)
-    const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/driver/dashboard/${order.id}`;
-    sendDriverAssignmentNotification(
-      tenantIdToUse,
-      driver.id,
-      driver.name,
-      `${vehicle.plateNumber} - ${vehicle.vehicleType}`,
-      order.batchId || 0,
-      1, // For single order dispatch
-      order.pickupAddress,
-      order.deliveryTime,
-      dashboardUrl,
-      order.id
-    ).catch(err => {
-      console.error('Failed to send driver assignment email:', err.message);
-    });
+      // 3. Mark driver and vehicle as NOT AVAILABLE
+      await tx.update(drivers).set({ status: 'NOT AVAILABLE' }).where(eq(drivers.id, parseInt(driverId)));
+      await tx.update(vehicles).set({ status: 'NOT AVAILABLE' }).where(eq(vehicles.id, parseInt(vehicleId)));
 
-    return NextResponse.json({ success: true, message: 'Dispatched internally successfully' });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Failed to dispatch order due to inventory constraints' }, { status: 400 });
-  }
+      // Send email to assigned driver (fire-and-forget)
+      const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/driver/dashboard/${order.id}`;
+      sendDriverAssignmentNotification(
+        tenantIdToUse,
+        driver.id,
+        driver.name,
+        `${vehicle.plateNumber} - ${vehicle.vehicleType}`,
+        order.batchId || 0,
+        1,
+        order.pickupAddress,
+        order.deliveryTime,
+        dashboardUrl,
+        order.id
+      ).catch(err => {
+        console.error('Failed to send driver assignment email:', err.message);
+      });
+
+      return NextResponse.json({ success: true, message: 'Dispatched internally successfully' });
+    } catch (error: any) {
+      return NextResponse.json({ error: error.message || 'Failed to dispatch order due to inventory constraints' }, { status: 400 });
+    }
   });
 }

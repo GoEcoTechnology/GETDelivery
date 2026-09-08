@@ -92,37 +92,13 @@ export default function DeliveryPricingPage() {
 
       <div style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 4px 20px rgba(15,23,42,0.04)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
         
-        {/* Global Settings Section */}
-        <div style={{ padding: '24px 32px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-          <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <DollarSign size={16} /> Global Parameters
-          </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Currency Code</label>
-              <input 
-                style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', background: '#fff', outline: 'none', transition: 'border 0.2s' }} 
-                value={currencyCode} 
-                onChange={e => setCurrencyCode(e.target.value.toUpperCase())} 
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Global Price per KM (Fallback)</label>
-              <input 
-                style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', background: '#fff', outline: 'none', transition: 'border 0.2s' }} 
-                type="number" min="0" step="0.01" 
-                value={pricePerKm} 
-                onChange={e => setPricePerKm(e.target.value)} 
-              />
-            </div>
-          </div>
-        </div>
+
 
         {/* Vehicle Pricing Section */}
         <div style={{ padding: '32px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
             <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Vehicle-Specific Rates</h2>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
               <input 
                 placeholder="New Vehicle Type..." 
                 value={newVehicle}
@@ -139,52 +115,62 @@ export default function DeliveryPricingPage() {
             </div>
           </div>
 
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-            <div className="table-responsive-wrapper">
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ padding: '16px', fontWeight: 600, color: '#64748b', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vehicle Class</th>
-                  <th style={{ padding: '16px', fontWeight: 600, color: '#64748b', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Price</th>
-                  <th style={{ padding: '16px', fontWeight: 600, color: '#64748b', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Price per KM</th>
-                  <th style={{ padding: '16px', fontWeight: 600, color: '#64748b', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mergedRates.map((rate, idx) => (
-                  <tr key={rate.vehicleType} style={{ borderBottom: idx < mergedRates.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                    <td style={{ padding: '16px', fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ background: '#eff6ff', color: '#3b82f6', padding: '6px', borderRadius: '6px' }}><Truck size={14} /></div>
-                      {rate.vehicleType}
-                    </td>
-                    <td style={{ padding: '16px' }}>
-                      <input 
-                        type="number" min="0" step="0.01" 
-                        value={rate.basePrice} 
-                        onChange={e => updateRate(rate.vehicleType, { basePrice: e.target.value })} 
-                        style={{ width: '100px', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }}
-                      />
-                    </td>
-                    <td style={{ padding: '16px' }}>
-                      <input 
-                        type="number" min="0" step="0.01" 
-                        value={rate.pricePerKm} 
-                        onChange={e => updateRate(rate.vehicleType, { pricePerKm: e.target.value })} 
-                        style={{ width: '100px', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }}
-                      />
-                    </td>
-                    <td style={{ padding: '16px' }}>
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: rate.isActive ? '#f0fdf4' : '#f8fafc', border: rate.isActive ? '1px solid #bbf7d0' : '1px solid #e2e8f0', padding: '6px 12px', borderRadius: '20px' }}>
-                        <input type="checkbox" checked={rate.isActive} onChange={e => updateRate(rate.vehicleType, { isActive: e.target.checked })} style={{ accentColor: '#16a34a' }} />
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: rate.isActive ? '#15803d' : '#64748b' }}>
-                          {rate.isActive ? 'Active' : 'Disabled'}
-                        </span>
-                      </label>
-                    </td>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
+            <div className="table-responsive-wrapper" style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px', minWidth: '600px' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={{ padding: '16px', fontWeight: 700, color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vehicle Class</th>
+                    <th style={{ padding: '16px', fontWeight: 700, color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Price</th>
+                    <th style={{ padding: '16px', fontWeight: 700, color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Price per KM</th>
+                    <th style={{ padding: '16px', fontWeight: 700, color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {mergedRates.map((rate, idx) => (
+                    <tr key={rate.vehicleType} style={{ borderBottom: idx < mergedRates.length - 1 ? '1px solid #f1f5f9' : 'none', opacity: rate.isActive ? 1 : 0.7, background: rate.isActive ? '#fff' : '#f8fafc', transition: 'all 0.2s' }}>
+                      <td style={{ padding: '16px', fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ background: rate.isActive ? '#eff6ff' : '#e2e8f0', color: rate.isActive ? '#3b82f6' : '#64748b', padding: '8px', borderRadius: '8px' }}>
+                          <Truck size={16} />
+                        </div>
+                        {rate.vehicleType}
+                      </td>
+                      <td style={{ padding: '16px' }}>
+                        <div style={{ position: 'relative', width: '140px' }}>
+                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '13px', fontWeight: 600 }}>₱</span>
+                          <input 
+                            type="number" min="0" step="0.01" 
+                            value={rate.basePrice} 
+                            onChange={e => updateRate(rate.vehicleType, { basePrice: e.target.value })} 
+                            style={{ width: '100%', padding: '10px 10px 10px 26px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 600, color: '#0f172a', background: rate.isActive ? '#fff' : '#f8fafc', transition: 'all 0.2s', outline: 'none', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)' }}
+                            disabled={!rate.isActive}
+                          />
+                        </div>
+                      </td>
+                      <td style={{ padding: '16px' }}>
+                        <div style={{ position: 'relative', width: '140px' }}>
+                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '13px', fontWeight: 600 }}>₱</span>
+                          <input 
+                            type="number" min="0" step="0.01" 
+                            value={rate.pricePerKm} 
+                            onChange={e => updateRate(rate.vehicleType, { pricePerKm: e.target.value })} 
+                            style={{ width: '100%', padding: '10px 10px 10px 26px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 600, color: '#0f172a', background: rate.isActive ? '#fff' : '#f8fafc', transition: 'all 0.2s', outline: 'none', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)' }}
+                            disabled={!rate.isActive}
+                          />
+                        </div>
+                      </td>
+                      <td style={{ padding: '16px', textAlign: 'right' }}>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: rate.isActive ? '#f0fdf4' : '#f1f5f9', border: rate.isActive ? '1px solid #bbf7d0' : '1px solid #e2e8f0', padding: '6px 12px', borderRadius: '20px', transition: 'all 0.2s' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: rate.isActive ? '#15803d' : '#64748b' }}>
+                            {rate.isActive ? 'Active' : 'Disabled'}
+                          </span>
+                          <input type="checkbox" checked={rate.isActive} onChange={e => updateRate(rate.vehicleType, { isActive: e.target.checked })} style={{ accentColor: '#16a34a', width: '16px', height: '16px', cursor: 'pointer', margin: 0 }} />
+                        </label>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

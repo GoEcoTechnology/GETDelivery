@@ -55,7 +55,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
         routePolyline: '',
         deliveryDate: '',
         instructions: '',
-        preferredVehicle: '',
+        preferredVehicle: 'Motorcycle',
       };
     }
 
@@ -78,7 +78,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
           routePolyline: parsed.formData?.routePolyline || '',
           deliveryDate: parsed.formData?.deliveryDate || '',
           instructions: parsed.formData?.instructions || '',
-          preferredVehicle: parsed.formData?.preferredVehicle || '',
+          preferredVehicle: parsed.formData?.preferredVehicle || 'Motorcycle',
         };
       }
     } catch {}
@@ -256,7 +256,6 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
               <div>
                 <label style={labelStyle}>Preferred Vehicle</label>
                 <select style={inputStyle} value={formData.preferredVehicle} onChange={e => setFormData({ ...formData, preferredVehicle: e.target.value })}>
-                  <option value="">Any Vehicle / Not Specified</option>
                   <option value="Motorcycle">Motorcycle</option>
                   <option value="Sedan / Hatchback">Sedan / Hatchback</option>
                   <option value="SUV / MPV">SUV / MPV</option>

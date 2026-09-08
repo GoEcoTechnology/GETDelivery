@@ -68,7 +68,7 @@ export default function EmployeesPage() {
     <div>
       <div className={styles.card} style={{ padding: '0', overflow: 'hidden' }}>
         {/* Toolbar */}
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '14px', fontWeight: 600 }}>
               <Users size={16} />
@@ -102,7 +102,7 @@ export default function EmployeesPage() {
             <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               <Users size={28} color="#94a3b8" />
             </div>
-            <h3 style={{ margin: '0 0 8px', color: '#1e293b', fontWeight: 700 }}>No employees yet</h3>
+            <h3 style={{ margin: '0 0 8px', color: '#1e293b', fontWeight: 700, justifyContent: 'center' }}>No employees yet</h3>
             <p style={{ margin: '0', color: '#64748b', fontSize: '14px' }}>
               Create up to {MAX_EMPLOYEES} employee accounts. They can log in immediately — no admin approval needed.
             </p>

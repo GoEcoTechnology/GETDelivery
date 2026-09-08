@@ -256,9 +256,16 @@ export default function SettingsPage() {
                 </div>
               )}
               <div className="table-responsive-wrapper">
-                <table className={styles.table}>
+                <table className={styles.table} style={{ tableLayout: 'fixed', width: '100%' }}>
                 <thead>
-                  <tr><th>Name</th><th>Contact</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+                  <tr>
+                    <th style={{ width: '20%', textAlign: 'left' }}>Name</th>
+                    <th style={{ width: '15%', textAlign: 'left' }}>Contact</th>
+                    <th style={{ width: '25%', textAlign: 'left' }}>Email</th>
+                    <th style={{ width: '18%', textAlign: 'center' }}>Role</th>
+                    <th style={{ width: '12%', textAlign: 'center' }}>Status</th>
+                    <th style={{ width: '10%', textAlign: 'right' }}>Actions</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {teamLoading ? (
@@ -267,11 +274,11 @@ export default function SettingsPage() {
                     <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No team members found.</td></tr>
                   ) : team.map(member => (
                     <tr key={member.id}>
-                      <td><div style={{ fontWeight: 600, color: '#1e293b' }}>{member.firstName && member.lastName ? `${member.firstName} ${member.lastName}` : member.name}</div></td>
-                      <td><div style={{ color: '#475569' }}>{member.contactNumber || '-'}</div></td>
-                      <td><div style={{ color: '#475569' }}>{member.email}</div></td>
-                      <td><div style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: '#f1f5f9', color: '#475569', borderRadius: '4px', display: 'inline-block', fontWeight: 600 }}>{member.role.replace('_', ' ')}</div></td>
-                      <td><div style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: member.status === 'ACTIVE' ? '#dcfce7' : '#fef2f2', color: member.status === 'ACTIVE' ? '#16a34a' : '#ef4444', borderRadius: '4px', display: 'inline-block', fontWeight: 600 }}>{member.status}</div></td>
+                      <td style={{ textAlign: 'left' }}><div style={{ fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.firstName && member.lastName ? `${member.firstName} ${member.lastName}` : member.name}</div></td>
+                      <td style={{ textAlign: 'left' }}><div style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.contactNumber || '-'}</div></td>
+                      <td style={{ textAlign: 'left' }}><div style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.email}</div></td>
+                      <td style={{ textAlign: 'center' }}><div style={{ fontSize: '11px', padding: '3px 8px', backgroundColor: '#f1f5f9', color: '#475569', borderRadius: '4px', display: 'inline-block', fontWeight: 700, letterSpacing: '0.03em' }}>{member.role.replace('_', ' ')}</div></td>
+                      <td style={{ textAlign: 'center' }}><div style={{ fontSize: '11px', padding: '3px 8px', backgroundColor: member.status === 'ACTIVE' ? '#dcfce7' : '#fef2f2', color: member.status === 'ACTIVE' ? '#16a34a' : '#ef4444', borderRadius: '4px', display: 'inline-block', fontWeight: 700 }}>{member.status}</div></td>
                       <td style={{ textAlign: 'right' }}>
                         <ActionMenu actions={[{ label: 'Revoke Access', icon: <Trash2 size={14} />, onClick: () => handleDeleteUser(member.id), color: '#ef4444' }]} />
                       </td>

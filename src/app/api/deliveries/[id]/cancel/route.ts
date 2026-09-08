@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryInvitations, deliveryAssignments } from '@/db/schema';
+import { deliveryOrders, deliveryInvitations, deliveryAssignments, drivers, vehicles } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { revertOrderStock } from '@/lib/inventory-helper';
@@ -39,9 +39,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .where(and(eq(deliveryInvitations.deliveryOrderId, id), eq(deliveryInvitations.status, 'PENDING')));
 
     // 4. If assigned, update assignment
-    await tx.update(deliveryAssignments)
+    const [assignment] = await tx.update(deliveryAssignments)
       .set({ status: 'CANCELLED' })
-      .where(and(eq(deliveryAssignments.deliveryOrderId, id)));
+      .where(and(eq(deliveryAssignments.deliveryOrderId, id)))
+      .returning();
+
+    if (assignment && !assignment.deliveryPartnerId && tenantIdToUse) {
+      const driverName = assignment.driverName;
+      const vehicleDetails = assignment.vehicleDetails;
+      const plateNumber = vehicleDetails.split(' - ')[0];
+
+      await tx.update(drivers)
+        .set({ status: 'ACTIVE' })
+        .where(and(eq(drivers.tenantId, tenantIdToUse as number), eq(drivers.name, driverName)));
+
+      await tx.update(vehicles)
+        .set({ status: 'ACTIVE' })
+        .where(and(eq(vehicles.tenantId, tenantIdToUse as number), eq(vehicles.plateNumber, plateNumber)));
+    }
 
     // 5. Revert stock if it was already deducted
     const statesWithStockDeducted = ['DISPATCHED', 'WAITING_APPROVAL', 'ASSIGNED', 'IN_TRANSIT'];

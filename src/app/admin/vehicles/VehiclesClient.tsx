@@ -209,8 +209,10 @@ export default function VehiclesClient() {
                     )}
                   </td>
                   <td>
-                    {vehicle.status === 'ACTIVE' 
+                    {vehicle.status === 'ACTIVE'
                       ? <span className={`${styles.badge} ${styles.badgeActive}`}>Active</span>
+                      : vehicle.status === 'NOT AVAILABLE'
+                      ? <span className={`${styles.badge} ${styles.badgeWarning}`}>On Delivery</span>
                       : <span className={`${styles.badge} ${styles.badgeError}`}>Inactive</span>
                     }
                   </td>

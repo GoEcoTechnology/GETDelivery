@@ -148,6 +148,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
 
   const cancelMutation = makeActionMutation('cancel', id => `/api/deliveries/${id}/cancel`, 'CANCELLED', 'Delivery cancelled.');
   const readyMutation = makeActionMutation('mark ready', id => `/api/deliveries/${id}/ready`, 'READY_FOR_DISPATCH', 'Marked as Ready for Dispatch.');
+  const completeMutation = makeActionMutation('complete', id => `/api/deliveries/${id}/complete`, 'DELIVERED', 'Delivery marked as complete.');
 
   // Delete mutation (row is removed from list, not a status change)
   const deleteMutation = useMutation<any, Error, number>({
@@ -206,17 +207,17 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
     queryClient.invalidateQueries({ queryKey, exact: true });
   }, [optimisticStatusUpdate, queryClient, queryKey]);
 
-  // Add-quota mutation (per product)
-  const addQuotaMutation = useMutation<any, Error, { deliveryId: number; productId: number; quantity: number }>({
-    mutationFn: async ({ deliveryId, productId, quantity }: { deliveryId: number; productId: number; quantity: number }) => {
-      const res = await fetch(`/api/deliveries/${deliveryId}/products/${productId}/add-quota`, {
+  // Add-quota mutation (per item)
+  const addQuotaMutation = useMutation<any, Error, { deliveryId: number; itemId: number; quantity: number }>({
+    mutationFn: async ({ deliveryId, itemId, quantity }: { deliveryId: number; itemId: number; quantity: number }) => {
+      const res = await fetch(`/api/deliveries/${deliveryId}/items/${itemId}/add-quota`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ quantity })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to add quota');
-      return { ...data, deliveryId, productId };
+      return { ...data, deliveryId, itemId };
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey });
@@ -232,7 +233,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
             
             let allReached = true;
             const updatedProducts = d.products.map((p: any) => {
-              if (p.productId === variables.productId) {
+              if (p.itemId === variables.itemId) {
                 const newAccQty = (p.accumulatedQuantity || 0) + variables.quantity;
                 if (newAccQty < (p.targetQuantity || 20)) {
                   allReached = false;
@@ -263,7 +264,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
         
         let allReached = true;
         const updatedProducts = prev.products.map((p: any) => {
-          if (p.productId === variables.productId) {
+          if (p.itemId === variables.itemId) {
             const newAccQty = (p.accumulatedQuantity || 0) + variables.quantity;
             if (newAccQty < (p.targetQuantity || 20)) allReached = false;
             return { ...p, accumulatedQuantity: newAccQty };
@@ -283,8 +284,8 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
 
 
       // Instantly clear the inputs
-      setAddQuotaInputs(prev => ({ ...prev, [`${variables.deliveryId}-${variables.productId}`]: 0 }));
-      setAddQuotaErrors(prev => ({ ...prev, [`${variables.deliveryId}-${variables.productId}`]: '' }));
+      setAddQuotaInputs(prev => ({ ...prev, [`${variables.deliveryId}-${variables.itemId}`]: 0 }));
+      setAddQuotaErrors(prev => ({ ...prev, [`${variables.deliveryId}-${variables.itemId}`]: '' }));
 
       return { previousData };
     },
@@ -297,18 +298,18 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
       if (context?.previousData) {
         queryClient.setQueryData(queryKey, context.previousData);
       }
-      setAddQuotaErrors(prev => ({ ...prev, [`${variables.deliveryId}-${variables.productId}`]: error.message }));
+      setAddQuotaErrors(prev => ({ ...prev, [`${variables.deliveryId}-${variables.itemId}`]: error.message }));
     }
   });
 
-  const handleAddQuota = (deliveryId: number, productId: number, target: number, current: number) => {
-    const key = `${deliveryId}-${productId}`;
+  const handleAddQuota = (deliveryId: number, itemId: number, target: number, current: number) => {
+    const key = `${deliveryId}-${itemId}`;
     const qty = addQuotaInputs[key] || 0;
     const remaining = target - current;
     if (qty <= 0) { setAddQuotaErrors(prev => ({ ...prev, [key]: 'Enter qty > 0' })); return; }
     if (qty > remaining) { setAddQuotaErrors(prev => ({ ...prev, [key]: `Max: ${remaining}` })); return; }
     setAddQuotaErrors(prev => ({ ...prev, [key]: '' }));
-    addQuotaMutation.mutate({ deliveryId, productId, quantity: qty });
+    addQuotaMutation.mutate({ deliveryId, itemId, quantity: qty });
   };
 
   const handleDelete = (id: number, status: string) => {
@@ -354,7 +355,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
         }}
       >
         {/* Toolbar */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', background: 'linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,250,252,0.75))' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'nowrap', background: 'linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,250,252,0.75))' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <div style={{ padding: '8px 12px', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', fontSize: '13px', fontWeight: 700 }}>
               Total: {totalCount} deliveries
@@ -430,6 +431,9 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                           ...(delivery.status === 'READY_FOR_DISPATCH' ? [
                             { label: 'Dispatch', icon: <Truck size={14} />, onClick: () => handleDispatch(delivery.id), color: '#10b981', disabled: rowActing }
                           ] : []),
+                          ...(['DISPATCHED', 'IN_TRANSIT'].includes(delivery.status) ? [
+                            { label: 'Complete Order', icon: <CheckSquare size={14} />, onClick: () => { if (confirm('Mark this delivery as completed?')) completeMutation.mutate(delivery.id); }, color: '#10b981', disabled: isActing(delivery.id, 'complete') }
+                          ] : []),
                           ...(!['DELIVERED', 'CANCELLED'].includes(delivery.status) ? [
                             { label: 'Cancel', icon: <XCircle size={14} />, onClick: () => { if (confirm('Cancel this delivery?')) cancelMutation.mutate(delivery.id); }, color: '#d97706', disabled: isActing(delivery.id, 'cancel') }
                           ] : []),
@@ -481,10 +485,10 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
         addQuotaErrors={addQuotaErrors}
         setAddQuotaErrors={setAddQuotaErrors}
         handleAddQuota={handleAddQuota}
-        isAdding={(deliveryId, productId) => 
+        isAdding={(deliveryId, itemId) => 
           addQuotaMutation.isPending && 
           addQuotaMutation.variables?.deliveryId === deliveryId && 
-          addQuotaMutation.variables?.productId === productId
+          addQuotaMutation.variables?.itemId === itemId
         }
         onDispatch={() => {
           setViewingDelivery(null);

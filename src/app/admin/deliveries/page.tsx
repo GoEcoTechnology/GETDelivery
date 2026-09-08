@@ -69,6 +69,7 @@ export default async function DeliveriesPage() {
 
       const items = await db
         .select({
+          itemId: deliveryItems.id,
           deliveryOrderId: deliveryItems.deliveryOrderId,
           productId: products.id,
           productName: products.name,
@@ -82,7 +83,7 @@ export default async function DeliveriesPage() {
       const accumulations = await db
         .select({
           deliveryOrderId: quotaAccumulations.sourceOrderId,
-          productId: quotaAccumulations.productId,
+          itemId: quotaAccumulations.sourceItemId,
           quantityAdded: quotaAccumulations.quantityAdded,
         })
         .from(quotaAccumulations)
@@ -90,7 +91,7 @@ export default async function DeliveriesPage() {
 
       const accMap: Record<string, number> = {};
       for (const acc of accumulations) {
-        const key = `${acc.deliveryOrderId}-${acc.productId}`;
+        const key = `${acc.deliveryOrderId}-${acc.itemId}`;
         accMap[key] = (accMap[key] || 0) + acc.quantityAdded;
       }
 
@@ -99,7 +100,7 @@ export default async function DeliveriesPage() {
         products: items
           .filter((i) => i.deliveryOrderId === order.id)
           .map((i) => {
-            const accQty = accMap[`${order.id}-${i.productId}`] || 0;
+            const accQty = accMap[`${order.id}-${i.itemId}`] || 0;
             return {
               ...i,
               accumulatedQuantity: accQty,

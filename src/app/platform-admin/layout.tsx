@@ -109,7 +109,7 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
       
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden' }}>
         {/* Top Navbar */}
-        <header className="header-responsive">
+        <header className="header-responsive hide-on-mobile">
           <div>
             <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
               {pathname.includes('/tenants') ? 'Tenant Management' : 
@@ -128,7 +128,7 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
                'Overview of platform activity'}
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{user.name}</span>
               <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'capitalize' }}>{user.role.replace(/_/g, ' ').toLowerCase()}</span>
