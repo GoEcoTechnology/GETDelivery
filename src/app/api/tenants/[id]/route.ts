@@ -3,6 +3,35 @@ import { tenants, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  return withAuth(request, { requiredPermissions: ['platform.manage_tenants'] }, async (tx) => {
+    const { id: idParam } = await params;
+    const id = parseInt(idParam, 10);
+    if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
+
+    const { status } = await request.json();
+    if (!status) return NextResponse.json({ error: 'Status is required' }, { status: 400 });
+
+    // Update tenant status
+    const [updatedTenant] = await tx.update(tenants)
+      .set({ status })
+      .where(eq(tenants.id, id))
+      .returning();
+
+    if (!updatedTenant) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+    }
+
+    // Sync the BUSINESS_OWNER user status: ACTIVE when approved, INACTIVE when declined
+    const userStatus = status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE';
+    await tx.update(users)
+      .set({ status: userStatus })
+      .where(and(eq(users.tenantId, id), eq(users.role, 'BUSINESS_OWNER')));
+
+    return NextResponse.json({ data: updatedTenant });
+  });
+}
+
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(request, { requiredPermissions: ['platform.manage_tenants'] }, async (tx) => {
     const { id: idParam } = await params;
