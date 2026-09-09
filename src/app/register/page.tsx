@@ -142,7 +142,7 @@ export default function RegisterPage() {
             </div>
 
             <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#92400e' }}>
-              ⏳ Your account will be reviewed and activated by the Super Admin before you can log in.
+              ⏳ Your account will be under review. You'll be notified once it's activated and ready to use.
             </div>
 
             <button type="submit" className={`btn btn-primary ${styles.submitBtn}`} disabled={loading}>
@@ -187,7 +187,7 @@ export default function RegisterPage() {
             </div>
 
             <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#92400e' }}>
-              ⏳ Your account will be reviewed and activated by the Super Admin before you can log in.
+              ⏳ Your account will be under review. You'll be notified once it's activated and ready to use.
             </div>
 
             <button type="submit" className={`btn btn-primary ${styles.submitBtn}`} disabled={loading}>
