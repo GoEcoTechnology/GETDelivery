@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryPartners } from '@/db/schema';
-import { eq, like, desc, sql } from 'drizzle-orm';
+import { eq, and, like, desc, sql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
 export async function GET(request: Request) {
@@ -14,14 +14,14 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '7', 10);
     const search = searchParams.get('search') || '';
+    const status = searchParams.get('status') || '';
     const offset = (page - 1) * limit;
 
-    let conditions = [];
-    if (search) {
-      conditions.push(like(deliveryPartners.companyName, `%${search}%`));
-    }
+    let conditions: any[] = [];
+    if (search) conditions.push(like(deliveryPartners.companyName, `%${search}%`));
+    if (status) conditions.push(eq(deliveryPartners.status, status as any));
 
-    const whereClause = conditions.length > 0 ? conditions[0] : undefined;
+    const whereClause = conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : and(...conditions);
 
     const data = await tx
       .select()

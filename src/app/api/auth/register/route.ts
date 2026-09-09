@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       const [newTenant] = await db.insert(tenants).values({
         name: businessName,
         contactPerson: contactPerson || null,
-        status: 'ACTIVE',
+        status: 'PENDING',
       }).returning();
 
       await db.insert(users).values({

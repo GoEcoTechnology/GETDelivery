@@ -21,17 +21,18 @@ export default function ApprovalsPage() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
+      // Fetch only PENDING records server-side for performance
       const [tenantsRes, partnersRes] = await Promise.all([
-        fetch('/api/tenants', { headers }),
-        fetch('/api/partners', { headers })
+        fetch('/api/tenants?status=PENDING&limit=100', { headers }),
+        fetch('/api/partners?status=PENDING&limit=100', { headers })
       ]);
       if (tenantsRes.ok) {
         const { data: tData } = await tenantsRes.json();
-        setPendingTenants((tData || []).filter((t: any) => t.status === 'PENDING'));
+        setPendingTenants(tData || []);
       }
       if (partnersRes.ok) {
         const { data: pData } = await partnersRes.json();
-        setPendingPartners((pData || []).filter((p: any) => p.status === 'PENDING'));
+        setPendingPartners(pData || []);
       }
     } catch (error) {
       console.error('Failed to load approvals data', error);
@@ -45,9 +46,10 @@ export default function ApprovalsPage() {
   const handleUpdateTenant = async (id: number, status: string) => {
     setActing(id);
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`/api/tenants/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status })
       });
       if (res.ok) { await fetchPending(); router.refresh(); }
@@ -58,9 +60,10 @@ export default function ApprovalsPage() {
   const handleUpdatePartner = async (id: number, status: string) => {
     setActing(id);
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`/api/partners/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status })
       });
       if (res.ok) { await fetchPending(); router.refresh(); }
@@ -70,20 +73,24 @@ export default function ApprovalsPage() {
 
   const filteredTenants = pendingTenants.filter(t =>
     t.name?.toLowerCase().includes(search.toLowerCase()) ||
-    t.email?.toLowerCase().includes(search.toLowerCase())
+    t.email?.toLowerCase().includes(search.toLowerCase()) ||
+    t.contactPerson?.toLowerCase().includes(search.toLowerCase())
   );
   const filteredPartners = pendingPartners.filter(p =>
     p.companyName?.toLowerCase().includes(search.toLowerCase()) ||
-    p.email?.toLowerCase().includes(search.toLowerCase())
+    p.email?.toLowerCase().includes(search.toLowerCase()) ||
+    p.contactPerson?.toLowerCase().includes(search.toLowerCase())
   );
 
   const tabStyle = (tab: Tab): React.CSSProperties => ({
     display: 'flex', alignItems: 'center', gap: '8px',
     padding: '10px 20px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600,
-    fontSize: '14px', border: 'none', transition: 'all 0.15s ease',
+    fontSize: '14px', border: 'none', transition: 'all 0.15s ease', fontFamily: 'inherit',
     background: activeTab === tab ? '#3b82f6' : 'transparent',
     color: activeTab === tab ? 'white' : '#64748b',
   });
+
+  const colStyle: React.CSSProperties = { textAlign: 'left', padding: '12px 16px' };
 
   return (
     <div>
@@ -149,58 +156,64 @@ export default function ApprovalsPage() {
         </div>
 
         {/* Table */}
-        <table className={styles.table} style={{ tableLayout: 'fixed', width: '100%' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: '25%' }} />
+            <col style={{ width: '22%' }} />
+            <col style={{ width: '27%' }} />
+            <col style={{ width: '12%' }} />
+            <col style={{ width: '14%' }} />
+          </colgroup>
           <thead>
-            <tr>
-              <th style={{ width: '28%', textAlign: 'left' }}>{activeTab === 'tenants' ? 'Business Name' : 'Company Name'}</th>
-              <th style={{ width: '25%', textAlign: 'left' }}>Contact Person</th>
-              <th style={{ width: '25%', textAlign: 'left' }}>Email / Phone</th>
-              <th style={{ width: '12%', textAlign: 'center' }}>Status</th>
-              <th style={{ width: '10%', textAlign: 'center' }}>Actions</th>
+            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              <th style={{ ...colStyle, fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                {activeTab === 'tenants' ? 'Business Name' : 'Company Name'}
+              </th>
+              <th style={{ ...colStyle, fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contact Person</th>
+              <th style={{ ...colStyle, fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email / Phone</th>
+              <th style={{ ...colStyle, fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Status</th>
+              <th style={{ ...colStyle, fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>Loading approvals...</td></tr>
+              <tr><td colSpan={5} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>Loading approvals...</td></tr>
             ) : activeTab === 'tenants' ? (
               filteredTenants.length === 0 ? (
                 <tr><td colSpan={5} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                     <Clock size={32} style={{ opacity: 0.3 }} />
-                    <span>{search ? 'No results found.' : 'No pending business tenant registrations.'}</span>
+                    <span style={{ fontSize: '14px' }}>{search ? 'No results found.' : 'No pending business tenant registrations.'}</span>
                   </div>
                 </td></tr>
               ) : (
                 filteredTenants.map((tenant) => (
-                  <tr key={tenant.id} style={{ opacity: acting === tenant.id ? 0.5 : 1 }}>
-                    <td style={{ textAlign: 'left' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ background: '#dbeafe', borderRadius: '8px', padding: '6px', flexShrink: 0 }}><Building2 size={14} color="#3b82f6" /></div>
-                        <span style={{ fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tenant.name}</span>
-                      </div>
+                  <tr key={tenant.id} style={{ borderBottom: '1px solid #f1f5f9', opacity: acting === tenant.id ? 0.5 : 1 }}>
+                    <td style={{ ...colStyle, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {tenant.name}
                     </td>
-                    <td style={{ textAlign: 'left', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td style={{ ...colStyle, color: '#475569', fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {tenant.contactPerson || '—'}
                     </td>
-                    <td style={{ textAlign: 'left', color: '#475569', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {tenant.email || tenant.mobileNumber || '—'}
+                    <td style={{ ...colStyle, color: '#475569', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {tenant.email || '—'}
                     </td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ ...colStyle, textAlign: 'center' }}>
                       <span style={{ background: '#fef3c7', color: '#d97706', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700 }}>PENDING</span>
                     </td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ ...colStyle, textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                         <button
                           onClick={() => handleUpdateTenant(tenant.id, 'ACTIVE')}
                           disabled={acting === tenant.id}
-                          style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', borderRadius: '7px', border: 'none', background: '#dcfce7', color: '#16a34a', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '7px', border: 'none', background: '#dcfce7', color: '#16a34a', fontWeight: 700, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
                         >
                           <Check size={12} /> Approve
                         </button>
                         <button
                           onClick={() => handleUpdateTenant(tenant.id, 'INACTIVE')}
                           disabled={acting === tenant.id}
-                          style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', borderRadius: '7px', border: 'none', background: '#fee2e2', color: '#dc2626', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '7px', border: 'none', background: '#fee2e2', color: '#dc2626', fontWeight: 700, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
                         >
                           <X size={12} /> Decline
                         </button>
@@ -214,40 +227,37 @@ export default function ApprovalsPage() {
                 <tr><td colSpan={5} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                     <Clock size={32} style={{ opacity: 0.3 }} />
-                    <span>{search ? 'No results found.' : 'No pending delivery partner registrations.'}</span>
+                    <span style={{ fontSize: '14px' }}>{search ? 'No results found.' : 'No pending delivery partner registrations.'}</span>
                   </div>
                 </td></tr>
               ) : (
                 filteredPartners.map((partner) => (
-                  <tr key={partner.id} style={{ opacity: acting === partner.id ? 0.5 : 1 }}>
-                    <td style={{ textAlign: 'left' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ background: '#d1fae5', borderRadius: '8px', padding: '6px', flexShrink: 0 }}><Briefcase size={14} color="#10b981" /></div>
-                        <span style={{ fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{partner.companyName}</span>
-                      </div>
+                  <tr key={partner.id} style={{ borderBottom: '1px solid #f1f5f9', opacity: acting === partner.id ? 0.5 : 1 }}>
+                    <td style={{ ...colStyle, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {partner.companyName}
                     </td>
-                    <td style={{ textAlign: 'left', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td style={{ ...colStyle, color: '#475569', fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {partner.contactPerson || '—'}
                     </td>
-                    <td style={{ textAlign: 'left', color: '#475569', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td style={{ ...colStyle, color: '#475569', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {partner.email || partner.mobileNumber || '—'}
                     </td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ ...colStyle, textAlign: 'center' }}>
                       <span style={{ background: '#fef3c7', color: '#d97706', padding: '3px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700 }}>PENDING</span>
                     </td>
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ ...colStyle, textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                         <button
                           onClick={() => handleUpdatePartner(partner.id, 'ACTIVE')}
                           disabled={acting === partner.id}
-                          style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', borderRadius: '7px', border: 'none', background: '#dcfce7', color: '#16a34a', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '7px', border: 'none', background: '#dcfce7', color: '#16a34a', fontWeight: 700, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
                         >
                           <Check size={12} /> Approve
                         </button>
                         <button
                           onClick={() => handleUpdatePartner(partner.id, 'INACTIVE')}
                           disabled={acting === partner.id}
-                          style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', borderRadius: '7px', border: 'none', background: '#fee2e2', color: '#dc2626', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '7px', border: 'none', background: '#fee2e2', color: '#dc2626', fontWeight: 700, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
                         >
                           <X size={12} /> Decline
                         </button>

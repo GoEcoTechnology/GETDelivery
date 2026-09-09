@@ -9,10 +9,16 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '7', 10);
     const search = searchParams.get('search') || '';
+    const status = searchParams.get('status') || '';
 
     const offset = (page - 1) * limit;
-    
-    const conditions = search ? ilike(tenants.name, `%${search}%`) : undefined;
+
+    const conditions = [
+      search ? ilike(tenants.name, `%${search}%`) : undefined,
+      status ? eq(tenants.status, status as any) : undefined,
+    ].filter(Boolean);
+
+    const whereClause = conditions.length === 1 ? conditions[0] : conditions.length > 1 ? and(...(conditions as any[])) : undefined;
 
     const data = await tx
       .select({
@@ -25,7 +31,7 @@ export async function GET(request: Request) {
       })
       .from(tenants)
       .leftJoin(users, and(eq(users.tenantId, tenants.id), eq(users.role, 'BUSINESS_OWNER')))
-      .where(conditions)
+      .where(whereClause)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(tenants.createdAt));
@@ -33,7 +39,7 @@ export async function GET(request: Request) {
     const countResult = await tx
       .select({ count: sql`count(*)` })
       .from(tenants)
-      .where(conditions);
+      .where(whereClause);
       
     const totalCount = Number(countResult[0]?.count || 0);
 
