@@ -36,6 +36,7 @@ export default async function PartnerDeliveriesPage() {
       },
       order: {
         id: deliveryOrders.id,
+        status: deliveryOrders.status,
         dropoffAddress: deliveryOrders.dropoffAddress,
         instructions: deliveryOrders.instructions,
         preferredVehicle: deliveryOrders.preferredVehicle,
@@ -69,7 +70,7 @@ export default async function PartnerDeliveriesPage() {
 
   const invitationsWithItems = invitations as Array<{
     invitation: { id: number; createdAt: Date | string; status: string };
-    order: { id: number; dropoffAddress: string; instructions?: string; preferredVehicle?: string; finalDeliveryPrice?: string | number; requiredVehicleType?: string; distanceKm?: string | number; vehicleBasePrice?: string | number; pricePerKm?: string | number; pickupAddress?: string };
+    order: { id: number; status?: string; dropoffAddress: string; instructions?: string; preferredVehicle?: string; finalDeliveryPrice?: string | number; requiredVehicleType?: string; distanceKm?: string | number; vehicleBasePrice?: string | number; pricePerKm?: string | number; pickupAddress?: string };
     tenant: { name: string };
     customer?: { name: string; mobileNumber?: string | null } | null;
   }>;

@@ -71,11 +71,19 @@ export async function GET(request: Request) {
       const [platformStats] = await tx.execute(sql`
         SELECT 
           (SELECT COUNT(*) FROM ${tenants}) as total_tenants,
-          (SELECT COUNT(*) FROM ${deliveryPartners}) as total_partners
+          (SELECT COUNT(*) FROM ${tenants} WHERE status = 'PENDING') as pending_tenants,
+          (SELECT COUNT(*) FROM ${tenants} WHERE status = 'ACTIVE') as active_tenants,
+          (SELECT COUNT(*) FROM ${deliveryPartners}) as total_partners,
+          (SELECT COUNT(*) FROM ${deliveryPartners} WHERE status = 'PENDING') as pending_partners,
+          (SELECT COUNT(*) FROM ${deliveryPartners} WHERE status = 'ACTIVE') as active_partners
       `);
       (response as any).platform = {
         totalTenants: parseInt((platformStats as any).total_tenants) || 0,
-        totalPartners: parseInt((platformStats as any).total_partners) || 0
+        pendingTenants: parseInt((platformStats as any).pending_tenants) || 0,
+        activeTenants: parseInt((platformStats as any).active_tenants) || 0,
+        totalPartners: parseInt((platformStats as any).total_partners) || 0,
+        pendingPartners: parseInt((platformStats as any).pending_partners) || 0,
+        activePartners: parseInt((platformStats as any).active_partners) || 0,
       };
     }
 

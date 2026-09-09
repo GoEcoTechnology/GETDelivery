@@ -7,7 +7,7 @@ import styles from '../partner.module.css';
 
 type OrderInvitationItem = {
   invitation: { id: number; createdAt: string | Date; status: string };
-  order: { id: number; dropoffAddress: string; instructions?: string; preferredVehicle?: string; finalDeliveryPrice?: string | number; requiredVehicleType?: string; distanceKm?: string | number; vehicleBasePrice?: string | number; pricePerKm?: string | number; pickupAddress?: string };
+  order: { id: number; status?: string; dropoffAddress: string; instructions?: string; preferredVehicle?: string; finalDeliveryPrice?: string | number; requiredVehicleType?: string; distanceKm?: string | number; vehicleBasePrice?: string | number; pricePerKm?: string | number; pickupAddress?: string };
   tenant: { name: string };
   customer?: { name: string; mobileNumber?: string | null } | null;
   items?: Array<{ quantity: number; unit: string; productName: string }>;
@@ -74,7 +74,13 @@ export default function OrdersTableClient({ invitations, partnerCompanyName = 'Y
               }}>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
-                {getStatusBadge(item.invitation.status)}
+                {(() => {
+                // If partner accepted the order, use the real order status (e.g. IN_TRANSIT) for the badge
+                const effectiveStatus = ['ACCEPTED', 'TEMPORARY_WINNER'].includes(item.invitation.status) && item.order.status
+                  ? item.order.status
+                  : item.invitation.status;
+                return getStatusBadge(effectiveStatus);
+              })()}
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Delivery for {item.tenant.name}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontWeight: 600, fontSize: '14px' }}>
                   <User size={14} color="#475569" />

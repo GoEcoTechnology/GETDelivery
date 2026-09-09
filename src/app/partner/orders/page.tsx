@@ -36,6 +36,7 @@ export default async function PartnerOrdersPage() {
       },
       order: {
         id: deliveryOrders.id,
+        status: deliveryOrders.status,
         dropoffAddress: deliveryOrders.dropoffAddress,
         instructions: deliveryOrders.instructions,
         preferredVehicle: deliveryOrders.preferredVehicle,

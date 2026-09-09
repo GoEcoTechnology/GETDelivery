@@ -1761,3 +1761,233 @@
   "code": "ENOTFOUND"
 }
 
+2026-09-09T00:10:55.064Z
+{
+  "message": "Cannot convert undefined or null to object",
+  "cause": null
+}
+
+2026-09-09T00:20:55.430Z
+{
+  "message": "write CONNECTION_CLOSED aws-0-ap-northeast-2.pooler.supabase.com:6543",
+  "cause": null,
+  "code": "CONNECTION_CLOSED"
+}
+
+2026-09-09T00:21:43.058Z
+{
+  "message": "read ECONNRESET",
+  "cause": null,
+  "code": "ECONNRESET"
+}
+
+2026-09-09T00:22:32.773Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:23:32.739Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:24:32.878Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:25:32.744Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:26:32.833Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:27:32.730Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:28:32.756Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:29:32.739Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:30:32.751Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:31:32.760Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:32:32.722Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:33:32.808Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:34:32.796Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:35:32.726Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:36:32.726Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:37:32.726Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:38:32.725Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:39:32.717Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:40:32.741Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:41:32.725Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:42:32.793Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:43:32.774Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T00:44:32.742Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T01:10:51.525Z
+{
+  "message": "read ECONNRESET",
+  "cause": null,
+  "code": "ECONNRESET"
+}
+
+2026-09-09T01:11:32.754Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T01:12:32.744Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T01:13:32.826Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T01:14:32.799Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T01:15:32.738Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-09-09T01:16:32.722Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+

@@ -101,9 +101,8 @@ export async function POST(
 
       // At this point, the order is safely DISPATCHED and stock is deducted.
       // We can immediately return a success response to the client to meet the < 1s requirement.
-      // All heavy operations (argon2 hashing for tokens, bulk DB inserts, emails) will run in the background.
-
-      Promise.resolve().then(async () => {
+      // All heavy operations (argon2 hashing for tokens, bulk DB inserts, emails) must be awaited.
+      await (async () => {
         try {
           // 2. Generate Tokens and Hash
           const tokens = eligiblePartners.map(() => crypto.randomBytes(32).toString('hex'));
@@ -197,7 +196,7 @@ export async function POST(
         } catch (err) {
           console.error('Error in background dispatch tasks:', err);
         }
-      });
+      })();
 
     // The broadcast emails and tokens are processed in the background.
 

@@ -73,7 +73,7 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
               let textColor = '#3730a3';
               
               if (d.status === 'IN_TRANSIT') {
-                bg = '#fef3c7'; border = '#fde68a'; textColor = '#92400e'; // Yellow for IN_TRANSIT
+                bg = '#ede9fe'; border = '#c4b5fd'; textColor = '#5b21b6'; // Violet for IN_TRANSIT
               } else if (d.status === 'COMPLETED' || d.status === 'DELIVERED') {
                 bg = '#dcfce7'; border = '#bbf7d0'; textColor = '#166534'; // Green for COMPLETED
               } else if (d.status === 'PENDING') {
@@ -136,14 +136,12 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
       </div>
       
       <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-          <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: '#f1f5f9', border: '1px solid #e2e8f0' }}></div> Pending
-        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
           <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: '#e0e7ff', border: '1px solid #c7d2fe' }}></div> Accepted/Assigned
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-          <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: '#fef3c7', border: '1px solid #fde68a' }}></div> In Transit
+          <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: '#ede9fe', border: '1px solid #c4b5fd' }}></div> In Transit
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
           <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: '#dcfce7', border: '1px solid #bbf7d0' }}></div> Completed
@@ -177,7 +175,7 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
                 let textColor = '#3730a3';
                 
                 if (d.status === 'IN_TRANSIT') {
-                  bg = '#fef3c7'; border = '#fde68a'; textColor = '#92400e';
+                  bg = '#ede9fe'; border = '#c4b5fd'; textColor = '#5b21b6';
                 } else if (d.status === 'COMPLETED' || d.status === 'DELIVERED') {
                   bg = '#dcfce7'; border = '#bbf7d0'; textColor = '#166534';
                 } else if (d.status === 'PENDING') {

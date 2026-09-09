@@ -1,178 +1,178 @@
 'use client';
 import { useEffect, useState } from 'react';
 import styles from '../../admin/admin.module.css';
-import { Building2, Briefcase, Truck, Activity } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b'];
+import { Building2, Briefcase, Clock, CheckCircle2, AlertCircle, Users, TrendingUp, Activity } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import Link from 'next/link';
 
 export default function PlatformDashboard() {
-  const [stats, setStats] = useState({
-    totalTenants: 0,
-    totalPartners: 0,
-    totalDeliveries: 0,
-  });
-
-  const [chartData, setChartData] = useState({
-    statusDistribution: [],
-    deliveriesPerDay: [],
-  });
-
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [chartsLoading, setChartsLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState('month');
+  const [platform, setPlatform] = useState<any>(null);
+  const [pendingTenants, setPendingTenants] = useState<any[]>([]);
+  const [pendingPartners, setPendingPartners] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchDashboardData = () => {
-      setStatsLoading(true);
-      setChartsLoading(true);
+    const token = localStorage.getItem('token');
+    const headers = { Authorization: `Bearer ${token}` };
 
-      // Fetch Stats
-      fetch('/api/reports/dashboard')
-        .then(async (res) => {
-          if (res.ok) {
-            const statsData = await res.json();
-            setStats({
-              totalTenants: statsData.platform?.totalTenants || 0,
-              totalPartners: statsData.platform?.totalPartners || 0,
-              totalDeliveries: statsData.deliveries?.total || 0,
-            });
-          }
-          setStatsLoading(false);
-        })
-        .catch(err => {
-          console.error('Failed to fetch stats', err);
-          setStatsLoading(false);
-        });
+    // Fetch platform stats
+    fetch('/api/reports/dashboard', { headers })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.platform) setPlatform(data.platform); })
+      .catch(console.error);
 
-      // Fetch Charts
-      fetch(`/api/reports/charts?range=${timeRange}`)
-        .then(async (res) => {
-          if (res.ok) {
-            const chartsJson = await res.json();
-            const formattedPie = chartsJson.data.statusDistribution.map((s: any) => ({
-              name: s.status,
-              value: s.value
-            }));
-            setChartData({
-              statusDistribution: formattedPie,
-              deliveriesPerDay: chartsJson.data.deliveriesPerDay,
-            });
-          }
-          setChartsLoading(false);
-        })
-        .catch(err => {
-          console.error('Failed to fetch charts', err);
-          setChartsLoading(false);
-        });
-    };
+    // Fetch pending lists for quick-action
+    Promise.all([
+      fetch('/api/tenants', { headers }).then(r => r.ok ? r.json() : { data: [] }),
+      fetch('/api/partners', { headers }).then(r => r.ok ? r.json() : { data: [] })
+    ]).then(([tRes, pRes]) => {
+      setPendingTenants((tRes.data || []).filter((t: any) => t.status === 'PENDING').slice(0, 5));
+      setPendingPartners((pRes.data || []).filter((p: any) => p.status === 'PENDING').slice(0, 5));
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
 
-    fetchDashboardData();
-  }, [timeRange]);
+  const totalPending = (platform?.pendingTenants || 0) + (platform?.pendingPartners || 0);
+
+  const barData = platform ? [
+    { name: 'Active\nTenants', value: platform.activeTenants, color: '#3b82f6' },
+    { name: 'Pending\nTenants', value: platform.pendingTenants, color: '#f59e0b' },
+    { name: 'Active\nPartners', value: platform.activePartners, color: '#10b981' },
+    { name: 'Pending\nPartners', value: platform.pendingPartners, color: '#ef4444' },
+  ] : [];
 
   return (
     <div>
-        {/* High-Level Stats Cards */}
-        <div className={styles.grid}>
-          <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '14px', color: '#64748b', fontWeight: 600, margin: 0 }}>Registered Businesses</h3>
-              <Building2 size={20} color="#94a3b8" />
-            </div>
-            <div>
-              <p style={{ color: '#0f172a', fontSize: '32px', fontWeight: 700, margin: 0, lineHeight: 1 }}>{statsLoading ? '-' : stats.totalTenants}</p>
-            </div>
-          </div>
+      {/* Stat Cards Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
 
-          <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '14px', color: '#64748b', fontWeight: 600, margin: 0 }}>Delivery Partners</h3>
-              <Briefcase size={20} color="#94a3b8" />
-            </div>
-            <div>
-              <p style={{ color: '#0f172a', fontSize: '32px', fontWeight: 700, margin: 0, lineHeight: 1 }}>{statsLoading ? '-' : stats.totalPartners}</p>
-            </div>
+        {/* Total Tenants */}
+        <div className={styles.card} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Registered Businesses</span>
+            <div style={{ background: '#dbeafe', borderRadius: '8px', padding: '6px' }}><Building2 size={16} color="#3b82f6" /></div>
           </div>
-
-          <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '14px', color: '#64748b', fontWeight: 600, margin: 0 }}>Total Deliveries</h3>
-              <Truck size={20} color="#94a3b8" />
-            </div>
-            <div>
-              <p style={{ color: '#0f172a', fontSize: '32px', fontWeight: 700, margin: 0, lineHeight: 1 }}>{statsLoading ? '-' : stats.totalDeliveries}</p>
-            </div>
+          <div style={{ fontSize: '32px', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{loading ? '–' : platform?.totalTenants ?? 0}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '999px', fontWeight: 600 }}>
+              {loading ? '–' : platform?.activeTenants ?? 0} Active
+            </span>
+            {platform?.pendingTenants > 0 && (
+              <span style={{ fontSize: '12px', background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '999px', fontWeight: 600 }}>
+                {platform.pendingTenants} Pending
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Dynamic Charts Section */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginTop: '24px' }}>
-
-          {/* Main Chart: Global Platform Activity */}
-          <div className={styles.card}>
-            <h3 style={{ marginBottom: '24px' }}>Global Platform Activity</h3>
-            <div style={{ height: '300px' }}>
-              {chartData.deliveriesPerDay.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData.deliveriesPerDay} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                    <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="4 4" />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                    />
-                    <Area type="monotone" dataKey="count" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
-                  <Activity size={48} style={{ opacity: 0.5, marginBottom: '12px' }} />
-                  <p>No platform activity data for this period.</p>
-                </div>
-              )}
-            </div>
+        {/* Total Partners */}
+        <div className={styles.card} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Delivery Partners</span>
+            <div style={{ background: '#d1fae5', borderRadius: '8px', padding: '6px' }}><Briefcase size={16} color="#10b981" /></div>
           </div>
-
-          {/* Secondary Chart: Status Distribution */}
-          <div className={styles.card}>
-            <h3 style={{ marginBottom: '24px' }}>Global Delivery Status</h3>
-            <div style={{ height: '300px' }}>
-              {chartData.statusDistribution.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={chartData.statusDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {chartData.statusDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
-                  <Activity size={48} style={{ opacity: 0.5, marginBottom: '12px' }} />
-                  <p>No status data available.</p>
-                </div>
-              )}
-            </div>
+          <div style={{ fontSize: '32px', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>{loading ? '–' : platform?.totalPartners ?? 0}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '999px', fontWeight: 600 }}>
+              {loading ? '–' : platform?.activePartners ?? 0} Active
+            </span>
+            {platform?.pendingPartners > 0 && (
+              <span style={{ fontSize: '12px', background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '999px', fontWeight: 600 }}>
+                {platform.pendingPartners} Pending
+              </span>
+            )}
           </div>
+        </div>
+
+        {/* Pending Approvals */}
+        <div className={styles.card} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', border: totalPending > 0 ? '1px solid #fde68a' : undefined, background: totalPending > 0 ? '#fffbeb' : undefined }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Pending Approvals</span>
+            <div style={{ background: '#fef3c7', borderRadius: '8px', padding: '6px' }}><Clock size={16} color="#d97706" /></div>
+          </div>
+          <div style={{ fontSize: '32px', fontWeight: 800, color: totalPending > 0 ? '#d97706' : '#0f172a', lineHeight: 1 }}>{loading ? '–' : totalPending}</div>
+          <Link href="/platform-admin/approvals" style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 600, textDecoration: 'none' }}>
+            {totalPending > 0 ? '→ Review Now' : '→ View Approvals'}
+          </Link>
         </div>
 
       </div>
-      );
+
+      {/* Main content: Bar chart + Pending quick list */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '24px' }}>
+
+        {/* Bar Chart: Platform Overview */}
+        <div className={styles.card} style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
+            <TrendingUp size={18} color="#3b82f6" />
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>Platform Overview</h3>
+          </div>
+          {barData.length > 0 ? (
+            <div style={{ height: '260px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }} barSize={40}>
+                  <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="4 4" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    {barData.map((entry, index) => (
+                      <Cell key={index} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+              <Activity size={40} style={{ opacity: 0.4 }} />
+            </div>
+          )}
+        </div>
+
+        {/* Pending Approvals Quick Panel */}
+        <div className={styles.card} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertCircle size={18} color="#d97706" />
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>Needs Approval</h3>
+            </div>
+            <Link href="/platform-admin/approvals" style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 600, textDecoration: 'none' }}>View all →</Link>
+          </div>
+
+          {loading ? (
+            <div style={{ color: '#94a3b8', fontSize: '14px' }}>Loading...</div>
+          ) : (pendingTenants.length === 0 && pendingPartners.length === 0) ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: '#94a3b8', textAlign: 'center', padding: '24px' }}>
+              <CheckCircle2 size={36} color="#16a34a" style={{ opacity: 0.6 }} />
+              <p style={{ margin: 0, fontSize: '14px' }}>All caught up! No pending approvals.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' }}>
+              {pendingTenants.map((t: any) => (
+                <div key={`t-${t.id}`} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ background: '#dbeafe', borderRadius: '6px', padding: '4px' }}><Building2 size={13} color="#3b82f6" /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>Business Tenant</div>
+                  </div>
+                  <span style={{ fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 6px', borderRadius: '999px', fontWeight: 700, whiteSpace: 'nowrap' }}>PENDING</span>
+                </div>
+              ))}
+              {pendingPartners.map((p: any) => (
+                <div key={`p-${p.id}`} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ background: '#d1fae5', borderRadius: '6px', padding: '4px' }}><Briefcase size={13} color="#10b981" /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.companyName}</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>Delivery Partner</div>
+                  </div>
+                  <span style={{ fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 6px', borderRadius: '999px', fontWeight: 700, whiteSpace: 'nowrap' }}>PENDING</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

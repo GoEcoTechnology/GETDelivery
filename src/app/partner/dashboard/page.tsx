@@ -87,13 +87,23 @@ export default async function PartnerDashboard() {
   const recentActivity = [...invitations].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime()).slice(0, 5);
 
   const calendarDeliveries = invitations
-    .filter(inv => inv.status === 'ACCEPTED')
+    .filter(inv => {
+      if (['ASSIGNED', 'IN_TRANSIT'].includes(inv.status)) return true;
+      if (['DELIVERED', 'COMPLETED'].includes(inv.status)) {
+        const completedDate = new Date(inv.updatedAt || inv.createdAt || 0);
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+        return completedDate >= oneDayAgo;
+      }
+      return false;
+    })
     .map(inv => ({
       id: inv.order.id,
       deliveryDate: inv.order.deliveryDate,
       tenantName: inv.tenantName,
       pickupAddress: inv.order.pickupAddress,
-      dropoffAddress: inv.order.dropoffAddress
+      dropoffAddress: inv.order.dropoffAddress,
+      status: inv.status
     }));
 
   return (

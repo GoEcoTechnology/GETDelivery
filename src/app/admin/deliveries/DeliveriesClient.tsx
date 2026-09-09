@@ -431,7 +431,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                           ...(delivery.status === 'READY_FOR_DISPATCH' ? [
                             { label: 'Dispatch', icon: <Truck size={14} />, onClick: () => handleDispatch(delivery.id), color: '#10b981', disabled: rowActing }
                           ] : []),
-                          ...(['DISPATCHED', 'IN_TRANSIT'].includes(delivery.status) ? [
+                          ...(['IN_TRANSIT'].includes(delivery.status) ? [
                             { label: 'Complete Order', icon: <CheckSquare size={14} />, onClick: () => { if (confirm('Mark this delivery as completed?')) completeMutation.mutate(delivery.id); }, color: '#10b981', disabled: isActing(delivery.id, 'complete') }
                           ] : []),
                           ...(!['DELIVERED', 'CANCELLED'].includes(delivery.status) ? [
