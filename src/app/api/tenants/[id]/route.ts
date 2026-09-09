@@ -79,6 +79,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const id = parseInt(idParam, 10);
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 
+    // Delete associated users first to avoid FK constraint errors
+    await tx.delete(users).where(eq(users.tenantId, id));
+
     const [deleted] = await tx.delete(tenants).where(eq(tenants.id, id)).returning();
 
     if (!deleted) {

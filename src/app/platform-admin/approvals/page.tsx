@@ -43,28 +43,54 @@ export default function ApprovalsPage() {
 
   useEffect(() => { fetchPending(); }, []);
 
-  const handleUpdateTenant = async (id: number, status: string) => {
+  const handleApproveTenant = async (id: number) => {
     setActing(id);
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/tenants/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status: 'ACTIVE' })
       });
       if (res.ok) { await fetchPending(); router.refresh(); }
     } catch (e) { console.error(e); }
     setActing(null);
   };
 
-  const handleUpdatePartner = async (id: number, status: string) => {
+  const handleDeclineTenant = async (id: number) => {
+    setActing(id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/tenants/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) { await fetchPending(); router.refresh(); }
+    } catch (e) { console.error(e); }
+    setActing(null);
+  };
+
+  const handleApprovePartner = async (id: number) => {
     setActing(id);
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/partners/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status: 'ACTIVE' })
+      });
+      if (res.ok) { await fetchPending(); router.refresh(); }
+    } catch (e) { console.error(e); }
+    setActing(null);
+  };
+
+  const handleDeclinePartner = async (id: number) => {
+    setActing(id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/partners/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) { await fetchPending(); router.refresh(); }
     } catch (e) { console.error(e); }
@@ -204,14 +230,14 @@ export default function ApprovalsPage() {
                     <td style={{ ...colStyle, textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                         <button
-                          onClick={() => handleUpdateTenant(tenant.id, 'ACTIVE')}
+                          onClick={() => handleApproveTenant(tenant.id)}
                           disabled={acting === tenant.id}
                           style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '7px', border: 'none', background: '#dcfce7', color: '#16a34a', fontWeight: 700, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
                         >
                           <Check size={12} /> Approve
                         </button>
                         <button
-                          onClick={() => handleUpdateTenant(tenant.id, 'INACTIVE')}
+                          onClick={() => handleDeclineTenant(tenant.id)}
                           disabled={acting === tenant.id}
                           style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '7px', border: 'none', background: '#fee2e2', color: '#dc2626', fontWeight: 700, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
                         >
@@ -248,14 +274,14 @@ export default function ApprovalsPage() {
                     <td style={{ ...colStyle, textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                         <button
-                          onClick={() => handleUpdatePartner(partner.id, 'ACTIVE')}
+                          onClick={() => handleApprovePartner(partner.id)}
                           disabled={acting === partner.id}
                           style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '7px', border: 'none', background: '#dcfce7', color: '#16a34a', fontWeight: 700, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
                         >
                           <Check size={12} /> Approve
                         </button>
                         <button
-                          onClick={() => handleUpdatePartner(partner.id, 'INACTIVE')}
+                          onClick={() => handleDeclinePartner(partner.id)}
                           disabled={acting === partner.id}
                           style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '7px', border: 'none', background: '#fee2e2', color: '#dc2626', fontWeight: 700, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
                         >
