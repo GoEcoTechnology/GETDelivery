@@ -2,8 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import styles from '../login/page.module.css';
-import regStyles from './register.module.css';
+import s from './register.module.css';
 
 type RegType = 'tenant' | 'partner' | null;
 
@@ -32,20 +31,21 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const payload = type === 'tenant'
-        ? { type: 'tenant', businessName, email: tenantEmail, password: tenantPassword }
-        : { type: 'partner', companyName, contactPerson, mobileNumber, email: partnerEmail, password: partnerPassword };
+      const payload =
+        type === 'tenant'
+          ? { type: 'tenant', businessName, email: tenantEmail, password: tenantPassword }
+          : { type: 'partner', companyName, contactPerson, mobileNumber, email: partnerEmail, password: partnerPassword };
 
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Registration failed');
 
-      setSuccess(data.message || 'Registration successful! Awaiting Super Admin approval.');
+      setSuccess(data.message || 'Your registration has been submitted successfully.');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -53,153 +53,261 @@ export default function RegisterPage() {
     }
   };
 
+  /* ── Success screen ── */
   if (success) {
     return (
-      <main className={styles.container}>
-        <div className={`${styles.card} glass`} style={{ maxWidth: 480, textAlign: 'center', gap: '24px' }}>
-          <div style={{ fontSize: 56, lineHeight: 1 }}>✅</div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Registration Submitted!</h2>
-          <p style={{ color: '#64748b', margin: 0, lineHeight: 1.6 }}>{success}</p>
-          <Link href="/login" style={{ display: 'inline-block', padding: '12px 24px', background: 'linear-gradient(135deg, #4f46e5, #2563eb)', color: 'white', borderRadius: 10, fontWeight: 600, textDecoration: 'none', fontSize: 14 }}>
-            Back to Login
-          </Link>
+      <main className={s.page}>
+        <div className={s.card}>
+          <div className={s.successCard}>
+            <div className={s.successEmoji}>✅</div>
+            <h2 className={s.successTitle}>Registration Submitted!</h2>
+            <p className={s.successMsg}>{success} Your account is under review. You'll be notified once it's activated and ready to use.</p>
+            <Link href="/login" className={s.backToLogin}>Back to Sign In</Link>
+          </div>
         </div>
       </main>
     );
   }
 
+  /* ── Main page ── */
   return (
-    <main className={styles.container}>
-      <div className={`${styles.card} glass`} style={{ maxWidth: type ? 520 : 460, transition: 'max-width 0.3s ease' }}>
-        <div>
-          <h1 className={styles.title} style={{ fontSize: '1.75rem' }}>Create Account</h1>
-          <p className={styles.label} style={{ textAlign: 'center' }}>
-            Join GETDelivery — choose your account type
-          </p>
+    <main className={s.page}>
+      <div className={s.card}>
+
+        {/* Header */}
+        <div className={s.header}>
+          <div className={s.logo}>
+            <div className={s.logoIcon}>🚛</div>
+            <span className={s.logoText}>GETDelivery</span>
+          </div>
+          <h1 className={s.title}>Create Account</h1>
+          <p className={s.subtitle}>Join GETDelivery — choose your account type below</p>
         </div>
 
-        {/* Type Selector */}
+        {/* Type selector */}
         {!type && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 8 }}>
-            <button
-              onClick={() => setType('tenant')}
-              style={{
-                padding: '28px 20px', border: '2px solid #e2e8f0', borderRadius: 16, background: 'white',
-                cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: 12, fontFamily: 'inherit'
-              }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = '#4f46e5')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = '#e2e8f0')}
-            >
-              <span style={{ fontSize: 36 }}>🏢</span>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Business / Tenant</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Manage deliveries & inventory</div>
-              </div>
+          <div className={s.typeGrid}>
+            <button className={s.typeCard} onClick={() => setType('tenant')}>
+              <span className={s.typeEmoji}>🏢</span>
+              <span className={s.typeLabel}>Business / Tenant</span>
+              <span className={s.typeDesc}>Manage deliveries &amp; inventory</span>
             </button>
-            <button
-              onClick={() => setType('partner')}
-              style={{
-                padding: '28px 20px', border: '2px solid #e2e8f0', borderRadius: 16, background: 'white',
-                cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: 12, fontFamily: 'inherit'
-              }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = '#4f46e5')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = '#e2e8f0')}
-            >
-              <span style={{ fontSize: 36 }}>🚚</span>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Delivery Partner</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Accept & fulfill deliveries</div>
-              </div>
+            <button className={s.typeCard} onClick={() => setType('partner')}>
+              <span className={s.typeEmoji}>🚚</span>
+              <span className={s.typeLabel}>Delivery Partner</span>
+              <span className={s.typeDesc}>Accept &amp; fulfill deliveries</span>
             </button>
           </div>
         )}
 
-        {/* Tenant Form */}
+        {/* ── Tenant Form ── */}
         {type === 'tenant' && (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <button type="button" onClick={() => { setType(null); setError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 13, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <form className={s.form} onSubmit={handleSubmit}>
+            <div className={s.backRow}>
+              <button type="button" className={s.backBtn} onClick={() => { setType(null); setError(''); }}>
                 ← Back
               </button>
-              <span style={{ fontWeight: 700, color: '#0f172a' }}>🏢 Business Registration</span>
+              <span className={s.formTitle}>🏢 Business Registration</span>
             </div>
 
-            {error && <div className={styles.error}>{error}</div>}
+            {error && <div className={s.error}>{error}</div>}
 
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Business Name</label>
-              <input type="text" className={styles.input} value={businessName} onChange={e => setBusinessName(e.target.value)} required placeholder="Your company or business name" />
-            </div>
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Email Address</label>
-              <input type="email" className={styles.input} value={tenantEmail} onChange={e => setTenantEmail(e.target.value)} required placeholder="owner@business.com" />
-            </div>
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Password</label>
-              <input type="password" className={styles.input} value={tenantPassword} onChange={e => setTenantPassword(e.target.value)} required minLength={6} placeholder="Min. 6 characters" />
+            <div className={s.fieldFull}>
+              <div className={s.fieldGroup}>
+                <label className={s.label}>Business Name</label>
+                <div className={s.inputWrap}>
+                  <span className={s.inputIcon}>🏢</span>
+                  <input
+                    id="tenant-business-name"
+                    type="text"
+                    className={s.input}
+                    value={businessName}
+                    onChange={e => setBusinessName(e.target.value)}
+                    required
+                    placeholder="Your company or business name"
+                    autoComplete="organization"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#92400e' }}>
-              ⏳ Your account will be under review. You'll be notified once it's activated and ready to use.
+            <div className={s.fieldFull}>
+              <div className={s.fieldGroup}>
+                <label className={s.label}>Email Address</label>
+                <div className={s.inputWrap}>
+                  <span className={s.inputIcon}>✉️</span>
+                  <input
+                    id="tenant-email"
+                    type="email"
+                    className={s.input}
+                    value={tenantEmail}
+                    onChange={e => setTenantEmail(e.target.value)}
+                    required
+                    placeholder="owner@business.com"
+                    autoComplete="email"
+                  />
+                </div>
+              </div>
             </div>
 
-            <button type="submit" className={`btn btn-primary ${styles.submitBtn}`} disabled={loading}>
-              {loading ? 'Submitting...' : 'Submit Registration'}
+            <div className={s.fieldFull}>
+              <div className={s.fieldGroup}>
+                <label className={s.label}>Password</label>
+                <div className={s.inputWrap}>
+                  <span className={s.inputIcon}>🔒</span>
+                  <input
+                    id="tenant-password"
+                    type="password"
+                    className={s.input}
+                    value={tenantPassword}
+                    onChange={e => setTenantPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    placeholder="Minimum 6 characters"
+                    autoComplete="new-password"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className={s.notice}>
+              <span className={s.noticeIcon}>⏳</span>
+              <span>Your account will be under review. You'll be notified once it's activated and ready to use.</span>
+            </div>
+
+            <button id="tenant-submit" type="submit" className={s.submitBtn} disabled={loading}>
+              {loading ? 'Submitting…' : 'Submit Registration'}
             </button>
+
+            <div className={s.footerLink}>
+              Already have an account? <Link href="/login">Sign In</Link>
+            </div>
           </form>
         )}
 
-        {/* Partner Form */}
+        {/* ── Partner Form ── */}
         {type === 'partner' && (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <button type="button" onClick={() => { setType(null); setError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 13, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <form className={s.form} onSubmit={handleSubmit}>
+            <div className={s.backRow}>
+              <button type="button" className={s.backBtn} onClick={() => { setType(null); setError(''); }}>
                 ← Back
               </button>
-              <span style={{ fontWeight: 700, color: '#0f172a' }}>🚚 Delivery Partner Registration</span>
+              <span className={s.formTitle}>🚚 Delivery Partner Registration</span>
             </div>
 
-            {error && <div className={styles.error}>{error}</div>}
+            {error && <div className={s.error}>{error}</div>}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Company Name</label>
-                <input type="text" className={styles.input} value={companyName} onChange={e => setCompanyName(e.target.value)} required placeholder="Logistics Co." />
+            <div className={s.fieldsGrid}>
+              <div className={s.fieldGroup}>
+                <label className={s.label}>Company Name</label>
+                <div className={s.inputWrap}>
+                  <span className={s.inputIcon}>🏭</span>
+                  <input
+                    id="partner-company-name"
+                    type="text"
+                    className={s.input}
+                    value={companyName}
+                    onChange={e => setCompanyName(e.target.value)}
+                    required
+                    placeholder="Company name"
+                    autoComplete="organization"
+                  />
+                </div>
               </div>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Contact Person</label>
-                <input type="text" className={styles.input} value={contactPerson} onChange={e => setContactPerson(e.target.value)} required placeholder="Full name" />
+
+              <div className={s.fieldGroup}>
+                <label className={s.label}>Contact Person</label>
+                <div className={s.inputWrap}>
+                  <span className={s.inputIcon}>👤</span>
+                  <input
+                    id="partner-contact-person"
+                    type="text"
+                    className={s.input}
+                    value={contactPerson}
+                    onChange={e => setContactPerson(e.target.value)}
+                    required
+                    placeholder="Full name"
+                    autoComplete="name"
+                  />
+                </div>
               </div>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Mobile Number</label>
-                <input type="text" className={styles.input} value={mobileNumber} onChange={e => setMobileNumber(e.target.value)} required placeholder="09XXXXXXXXX" />
+
+              <div className={s.fieldGroup}>
+                <label className={s.label}>Mobile Number</label>
+                <div className={s.inputWrap}>
+                  <span className={s.inputIcon}>📱</span>
+                  <input
+                    id="partner-mobile"
+                    type="tel"
+                    className={s.input}
+                    value={mobileNumber}
+                    onChange={e => setMobileNumber(e.target.value)}
+                    required
+                    placeholder="09XXXXXXXXX"
+                    autoComplete="tel"
+                  />
+                </div>
               </div>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Email Address</label>
-                <input type="email" className={styles.input} value={partnerEmail} onChange={e => setPartnerEmail(e.target.value)} required placeholder="partner@logistics.com" />
+
+              <div className={s.fieldGroup}>
+                <label className={s.label}>Email Address</label>
+                <div className={s.inputWrap}>
+                  <span className={s.inputIcon}>✉️</span>
+                  <input
+                    id="partner-email"
+                    type="email"
+                    className={s.input}
+                    value={partnerEmail}
+                    onChange={e => setPartnerEmail(e.target.value)}
+                    required
+                    placeholder="partner@company.com"
+                    autoComplete="email"
+                  />
+                </div>
               </div>
             </div>
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Password</label>
-              <input type="password" className={styles.input} value={partnerPassword} onChange={e => setPartnerPassword(e.target.value)} required minLength={6} placeholder="Min. 6 characters" />
+
+            <div className={s.fieldFull}>
+              <div className={s.fieldGroup}>
+                <label className={s.label}>Password</label>
+                <div className={s.inputWrap}>
+                  <span className={s.inputIcon}>🔒</span>
+                  <input
+                    id="partner-password"
+                    type="password"
+                    className={s.input}
+                    value={partnerPassword}
+                    onChange={e => setPartnerPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    placeholder="Minimum 6 characters"
+                    autoComplete="new-password"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#92400e' }}>
-              ⏳ Your account will be under review. You'll be notified once it's activated and ready to use.
+            <div className={s.notice}>
+              <span className={s.noticeIcon}>⏳</span>
+              <span>Your account will be under review. You'll be notified once it's activated and ready to use.</span>
             </div>
 
-            <button type="submit" className={`btn btn-primary ${styles.submitBtn}`} disabled={loading}>
-              {loading ? 'Submitting...' : 'Submit Registration'}
+            <button id="partner-submit" type="submit" className={s.submitBtn} disabled={loading}>
+              {loading ? 'Submitting…' : 'Submit Registration'}
             </button>
+
+            <div className={s.footerLink}>
+              Already have an account? <Link href="/login">Sign In</Link>
+            </div>
           </form>
         )}
 
-        <div style={{ textAlign: 'center', fontSize: 14, color: '#64748b' }}>
-          Already have an account?{' '}
-          <Link href="/login" style={{ color: '#4f46e5', fontWeight: 600, textDecoration: 'none' }}>Sign In</Link>
-        </div>
+        {/* Footer (type selector screen only) */}
+        {!type && (
+          <div className={s.footerLink} style={{ marginTop: '1.5rem' }}>
+            Already have an account? <Link href="/login">Sign In</Link>
+          </div>
+        )}
       </div>
     </main>
   );
