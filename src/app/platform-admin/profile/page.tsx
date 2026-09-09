@@ -98,6 +98,12 @@ export default function PlatformAdminProfilePage() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        // Update local storage so the nav bar reflects the change immediately
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        userData.name = profileData.name;
+        localStorage.setItem('user', JSON.stringify(userData));
+        window.dispatchEvent(new Event('userUpdated'));
+
         alert('Profile saved successfully!');
         setPasswordData({ password: '', confirmPassword: '' });
       } else {

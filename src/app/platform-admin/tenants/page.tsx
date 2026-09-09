@@ -61,7 +61,17 @@ export default function TenantsPage() {
       const res = await fetch(`/api/tenants/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${getToken()}` } });
       if (!res.ok) throw new Error('Failed to delete');
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenants'] })
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['tenants'] });
+      const previousTenants = queryClient.getQueryData(['tenants', page, limit, search]);
+      queryClient.setQueryData(['tenants', page, limit, search], (old: any) => ({
+        ...old,
+        data: old?.data?.filter((t: any) => t.id !== id) || []
+      }));
+      return { previousTenants };
+    },
+    onError: (err, id, context) => queryClient.setQueryData(['tenants', page, limit, search], context?.previousTenants),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tenants'] })
   });
 
   const updateStatusMutation = useMutation({
@@ -73,7 +83,17 @@ export default function TenantsPage() {
       });
       if (!res.ok) throw new Error('Failed to update');
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenants'] })
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['tenants'] });
+      const previousTenants = queryClient.getQueryData(['tenants', page, limit, search]);
+      queryClient.setQueryData(['tenants', page, limit, search], (old: any) => ({
+        ...old,
+        data: old?.data?.map((t: any) => t.id === id ? { ...t, status } : t) || []
+      }));
+      return { previousTenants };
+    },
+    onError: (err, variables, context) => queryClient.setQueryData(['tenants', page, limit, search], context?.previousTenants),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tenants'] })
   });
 
   const updateMutation = useMutation({
@@ -85,7 +105,18 @@ export default function TenantsPage() {
       });
       if (!res.ok) throw new Error('Failed to update tenant');
     },
-    onSuccess: () => { setEditModal(null); queryClient.invalidateQueries({ queryKey: ['tenants'] }); }
+    onMutate: async (tenantData) => {
+      setEditModal(null); // Close modal instantly
+      await queryClient.cancelQueries({ queryKey: ['tenants'] });
+      const previousTenants = queryClient.getQueryData(['tenants', page, limit, search]);
+      queryClient.setQueryData(['tenants', page, limit, search], (old: any) => ({
+        ...old,
+        data: old?.data?.map((t: any) => t.id === tenantData.id ? { ...t, ...tenantData } : t) || []
+      }));
+      return { previousTenants };
+    },
+    onError: (err, variables, context) => queryClient.setQueryData(['tenants', page, limit, search], context?.previousTenants),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tenants'] })
   });
 
   const addMutation = useMutation({
@@ -97,11 +128,16 @@ export default function TenantsPage() {
       });
       if (!res.ok) throw new Error('Failed to add tenant');
     },
-    onSuccess: () => {
-      setAddModal(false);
+    onMutate: async (tenantData) => {
+      setAddModal(false); // Close modal instantly
       setNewName(''); setNewContactPerson(''); setNewEmail(''); setNewPassword('');
-      queryClient.invalidateQueries({ queryKey: ['tenants'] });
-    }
+      // We don't optimistically add here because we don't have the generated ID yet
+    },
+    onError: (err: any) => {
+      setAddModal(true); // Re-open modal if there was an error
+      alert(err.message); // Simple alert since we don't have an inline error state here
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tenants'] })
   });
 
   const statusColor = (status: string) => {

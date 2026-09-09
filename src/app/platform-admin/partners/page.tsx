@@ -45,7 +45,17 @@ export default function PartnersPage() {
       const res = await fetch(`/api/partners/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${getToken()}` } });
       if (!res.ok) throw new Error('Failed to delete');
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['partners'] })
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['partners'] });
+      const previousPartners = queryClient.getQueryData(['partners', page, limit, search]);
+      queryClient.setQueryData(['partners', page, limit, search], (old: any) => ({
+        ...old,
+        data: old?.data?.filter((p: any) => p.id !== id) || []
+      }));
+      return { previousPartners };
+    },
+    onError: (err, id, context) => queryClient.setQueryData(['partners', page, limit, search], context?.previousPartners),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['partners'] })
   });
 
   const updateStatusMutation = useMutation({
@@ -57,7 +67,17 @@ export default function PartnersPage() {
       });
       if (!res.ok) throw new Error('Failed to update');
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['partners'] })
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['partners'] });
+      const previousPartners = queryClient.getQueryData(['partners', page, limit, search]);
+      queryClient.setQueryData(['partners', page, limit, search], (old: any) => ({
+        ...old,
+        data: old?.data?.map((p: any) => p.id === id ? { ...p, status } : p) || []
+      }));
+      return { previousPartners };
+    },
+    onError: (err, variables, context) => queryClient.setQueryData(['partners', page, limit, search], context?.previousPartners),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['partners'] })
   });
 
   const updateMutation = useMutation({
@@ -69,7 +89,18 @@ export default function PartnersPage() {
       });
       if (!res.ok) throw new Error('Failed to update partner');
     },
-    onSuccess: () => { setEditModal(null); queryClient.invalidateQueries({ queryKey: ['partners'] }); }
+    onMutate: async (partnerData) => {
+      setEditModal(null); // Close modal instantly
+      await queryClient.cancelQueries({ queryKey: ['partners'] });
+      const previousPartners = queryClient.getQueryData(['partners', page, limit, search]);
+      queryClient.setQueryData(['partners', page, limit, search], (old: any) => ({
+        ...old,
+        data: old?.data?.map((p: any) => p.id === partnerData.id ? { ...p, ...partnerData } : p) || []
+      }));
+      return { previousPartners };
+    },
+    onError: (err, variables, context) => queryClient.setQueryData(['partners', page, limit, search], context?.previousPartners),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['partners'] })
   });
 
   const addMutation = useMutation({
@@ -82,12 +113,15 @@ export default function PartnersPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to add partner');
     },
-    onSuccess: () => {
-      setAddModal(false);
+    onMutate: async (partnerData) => {
+      setAddModal(false); // Close modal instantly
       setNewCompany(''); setNewContact(''); setNewMobile(''); setNewEmail(''); setNewPassword(''); setAddError('');
-      queryClient.invalidateQueries({ queryKey: ['partners'] });
     },
-    onError: (err: any) => setAddError(err.message)
+    onError: (err: any) => {
+      setAddError(err.message);
+      setAddModal(true); // Re-open modal if there was an error like duplicate email
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['partners'] })
   });
 
   const statusColor = (status: string) => {

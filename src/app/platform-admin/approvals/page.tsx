@@ -45,6 +45,7 @@ export default function ApprovalsPage() {
 
   const handleApproveTenant = async (id: number) => {
     setActing(id);
+    setPendingTenants(prev => prev.filter(t => t.id !== id)); // Optimistic UI
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/tenants/${id}`, {
@@ -53,12 +54,13 @@ export default function ApprovalsPage() {
         body: JSON.stringify({ status: 'ACTIVE' })
       });
       if (res.ok) { await fetchPending(); router.refresh(); }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); await fetchPending(); } // Revert on error
     setActing(null);
   };
 
   const handleDeclineTenant = async (id: number) => {
     setActing(id);
+    setPendingTenants(prev => prev.filter(t => t.id !== id)); // Optimistic UI
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/tenants/${id}`, {
@@ -66,12 +68,13 @@ export default function ApprovalsPage() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) { await fetchPending(); router.refresh(); }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); await fetchPending(); } // Revert on error
     setActing(null);
   };
 
   const handleApprovePartner = async (id: number) => {
     setActing(id);
+    setPendingPartners(prev => prev.filter(p => p.id !== id)); // Optimistic UI
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/partners/${id}`, {
@@ -80,12 +83,13 @@ export default function ApprovalsPage() {
         body: JSON.stringify({ status: 'ACTIVE' })
       });
       if (res.ok) { await fetchPending(); router.refresh(); }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); await fetchPending(); } // Revert on error
     setActing(null);
   };
 
   const handleDeclinePartner = async (id: number) => {
     setActing(id);
+    setPendingPartners(prev => prev.filter(p => p.id !== id)); // Optimistic UI
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/partners/${id}`, {
@@ -93,7 +97,7 @@ export default function ApprovalsPage() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) { await fetchPending(); router.refresh(); }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); await fetchPending(); } // Revert on error
     setActing(null);
   };
 

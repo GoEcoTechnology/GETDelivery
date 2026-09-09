@@ -20,17 +20,23 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (!userData) {
-      router.push('/login');
-      return;
-    }
-    const parsedUser = JSON.parse(userData);
-    if (parsedUser.role !== 'PLATFORM_OWNER') {
-      router.push('/login');
-      return;
-    }
-    setUser(parsedUser);
+    const loadUser = () => {
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        router.push('/login');
+        return;
+      }
+      const parsedUser = JSON.parse(userData);
+      if (parsedUser.role !== 'PLATFORM_OWNER') {
+        router.push('/login');
+        return;
+      }
+      setUser(parsedUser);
+    };
+
+    loadUser();
+    window.addEventListener('userUpdated', loadUser);
+    return () => window.removeEventListener('userUpdated', loadUser);
   }, [router]);
 
   const handleLogout = async () => {
