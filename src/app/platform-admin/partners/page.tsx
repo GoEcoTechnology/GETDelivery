@@ -27,7 +27,7 @@ export default function PartnersPage() {
   const { data, isPending } = useQuery({
     queryKey: ['partners', page, limit, search],
     queryFn: async () => {
-      const res = await fetch(`/api/partners?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`, {
+      const res = await fetch(`/api/partners?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&excludeStatus=PENDING`, {
         headers: { 'Authorization': `Bearer ${getToken()}` }
       });
       if (!res.ok) throw new Error('Failed to fetch partners');

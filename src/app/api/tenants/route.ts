@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { tenants, users } from '@/db/schema';
-import { desc, ilike, sql, eq, and } from 'drizzle-orm';
+import { desc, ilike, sql, eq, and, ne } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
 export async function GET(request: Request) {
@@ -10,12 +10,14 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '7', 10);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || '';
+    const excludeStatus = searchParams.get('excludeStatus') || '';
 
     const offset = (page - 1) * limit;
 
     const conditions = [
       search ? ilike(tenants.name, `%${search}%`) : undefined,
       status ? eq(tenants.status, status as any) : undefined,
+      excludeStatus ? ne(tenants.status, excludeStatus as any) : undefined,
     ].filter(Boolean);
 
     const whereClause = conditions.length === 1 ? conditions[0] : conditions.length > 1 ? and(...(conditions as any[])) : undefined;

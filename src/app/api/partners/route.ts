@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryPartners } from '@/db/schema';
-import { eq, and, like, desc, sql } from 'drizzle-orm';
+import { eq, and, like, desc, sql, ne } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
 export async function GET(request: Request) {
@@ -15,11 +15,13 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '7', 10);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || '';
+    const excludeStatus = searchParams.get('excludeStatus') || '';
     const offset = (page - 1) * limit;
 
     let conditions: any[] = [];
     if (search) conditions.push(like(deliveryPartners.companyName, `%${search}%`));
     if (status) conditions.push(eq(deliveryPartners.status, status as any));
+    if (excludeStatus) conditions.push(ne(deliveryPartners.status, excludeStatus as any));
 
     const whereClause = conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : and(...conditions);
 

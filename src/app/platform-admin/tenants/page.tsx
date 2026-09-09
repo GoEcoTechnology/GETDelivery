@@ -42,7 +42,7 @@ export default function TenantsPage() {
   const { data } = useQuery({
     queryKey: ['tenants', page, limit, search],
     queryFn: async () => {
-      const res = await fetch(`/api/tenants?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`, {
+      const res = await fetch(`/api/tenants?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&excludeStatus=PENDING`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
       });
       if (!res.ok) throw new Error('Failed to fetch tenants');
