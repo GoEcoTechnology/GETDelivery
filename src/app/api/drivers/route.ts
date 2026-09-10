@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return withAuth(request, { requiredPermissions: ['delivery.manage'] }, async (tx, claims) => {
-    const { name, mobile, deliveryPartnerId } = await request.json();
+    const { name, mobile, deliveryPartnerId, licenseNumber, licenseType, licenseExpiry } = await request.json();
 
     if (!name || !mobile) {
       return NextResponse.json({ error: 'Name and Mobile Number are required' }, { status: 400 });
@@ -69,9 +69,13 @@ export async function POST(request: Request) {
       deliveryPartnerId: deliveryPartnerId || null,
       name,
       mobile,
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      licenseNumber: licenseNumber ? String(licenseNumber).trim() : null,
+      licenseType: licenseType ? String(licenseType).trim() : null,
+      licenseExpiry: licenseExpiry ? new Date(licenseExpiry) : null,
     }).returning();
 
     return NextResponse.json({ data: newDriver }, { status: 201 });
   });
 }
+

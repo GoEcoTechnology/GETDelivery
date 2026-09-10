@@ -193,10 +193,29 @@ export function DeliveryDetailsModal({
               </div>
               
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between' }}>
-                {!delivery.internalAssignment && (
+                {!delivery.internalAssignment && delivery.requiredVehicleType && (
+                  <div style={{ flex: '1 1 100%' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>VEHICLE REQUIRED</div>
+                    <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px', marginBottom: '6px' }}>{delivery.requiredVehicleType}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '13px', color: '#475569' }}>
+                        {delivery.vehicleBasePrice != null && (
+                          <span>Base Price: <strong style={{ color: '#16a34a' }}>{formatCurrency(delivery.vehicleBasePrice)}</strong></span>
+                        )}
+                        {delivery.pricePerKm != null && (
+                          <span>Per KM: <strong style={{ color: '#16a34a' }}>₱{Number(delivery.pricePerKm).toFixed(2)}/km</strong></span>
+                        )}
+                        {delivery.distanceKm != null && (
+                          <span>Distance: <strong style={{ color: '#3b82f6' }}>{Number(delivery.distanceKm).toFixed(2)} km</strong></span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {!delivery.internalAssignment && !delivery.requiredVehicleType && (
                   <div>
                     <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>VEHICLE REQUIRED</div>
-                    <div style={{ fontWeight: 600, color: '#0f172a' }}>{delivery.requiredVehicleType || 'Any'}</div>
+                    <div style={{ fontWeight: 600, color: '#0f172a' }}>Any</div>
                   </div>
                 )}
                 {delivery.internalAssignment && (
@@ -211,11 +230,20 @@ export function DeliveryDetailsModal({
                     </div>
                   </>
                 )}
-                <div>
+                <div style={{ flex: '1 1 100%' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>DELIVERY FEE</div>
-                  <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1.125rem' }}>
-                    {delivery.finalDeliveryPrice != null ? formatCurrency(delivery.finalDeliveryPrice) : 'TBD'}
-                  </div>
+                  {delivery.finalDeliveryPrice != null ? (
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1.25rem' }}>{formatCurrency(delivery.finalDeliveryPrice)}</div>
+                      {delivery.vehicleBasePrice != null && delivery.pricePerKm != null && delivery.distanceKm != null && (
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                          {formatCurrency(delivery.vehicleBasePrice)} base + ({Number(delivery.distanceKm).toFixed(2)} km × ₱{Number(delivery.pricePerKm).toFixed(2)}/km)
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1.125rem' }}>TBD</div>
+                  )}
                 </div>
               </div>
             </div>

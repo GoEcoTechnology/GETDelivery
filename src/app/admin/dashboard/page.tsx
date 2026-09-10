@@ -26,7 +26,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const isPlatformOwner = claims.role === 'PLATFORM_OWNER';
   const tenantId = claims.tenantId as number;
 
-  const baseWhere = inArray(deliveryOrders.status, ['PENDING', 'DISPATCHED', 'ACCEPTED', 'ASSIGNED', 'TEMPORARY_WINNER', 'IN_TRANSIT']);
+  // Calendar shows all deliveries regardless of status — it's a scheduling tool
+  const baseWhere = inArray(deliveryOrders.status, [
+    'DRAFT',
+    'READY_FOR_DISPATCH',
+    'PENDING',
+    'DISPATCHED',
+    'ACCEPTED',
+    'ASSIGNED',
+    'TEMPORARY_WINNER',
+    'IN_TRANSIT',
+    'DELIVERED',
+    'COMPLETED',
+    'CANCELLED',
+  ]);
   const finalWhere = isPlatformOwner 
     ? baseWhere 
     : and(baseWhere, eq(deliveryOrders.tenantId, tenantId));

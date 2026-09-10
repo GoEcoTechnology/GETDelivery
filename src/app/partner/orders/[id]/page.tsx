@@ -28,6 +28,8 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
       pickupAddress: deliveryOrders.pickupAddress,
       dropoffAddress: deliveryOrders.dropoffAddress,
       requiredVehicleType: deliveryOrders.requiredVehicleType,
+      vehicleBasePrice: deliveryOrders.vehicleBasePrice,
+      pricePerKm: deliveryOrders.pricePerKm,
       distanceKm: deliveryOrders.distanceKm,
       finalDeliveryPrice: deliveryOrders.finalDeliveryPrice,
       partnerDriverName: deliveryOrders.partnerDriverName,
@@ -114,10 +116,30 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
                 return <DetailRow label="Status" value={displayStatus} chip />;
               })()}
               <DetailRow label="Dropoff" value={order.dropoffAddress} />
-              {order.requiredVehicleType && <DetailRow label="Required Vehicle" value={order.requiredVehicleType} chip />}
-              {order.distanceKm && <DetailRow label="Distance" value={`${order.distanceKm} km`} />}
+              {order.requiredVehicleType && (
+                <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px' }}>Vehicle Required</div>
+                  <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px', marginBottom: '4px' }}>{order.requiredVehicleType}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '13px', color: '#475569' }}>
+                    {order.vehicleBasePrice && <span>Base Price: <strong style={{ color: '#16a34a' }}>{formatCurrency(order.vehicleBasePrice)}</strong></span>}
+                    {order.pricePerKm && <span>Per KM: <strong style={{ color: '#16a34a' }}>₱{Number(order.pricePerKm).toFixed(2)}/km</strong></span>}
+                    {order.distanceKm && <span>Distance: <strong style={{ color: '#3b82f6' }}>{Number(order.distanceKm).toFixed(2)} km</strong></span>}
+                  </div>
+                </div>
+              )}
+              {order.distanceKm && !order.requiredVehicleType && <DetailRow label="Distance" value={`${order.distanceKm} km`} />}
               {order.deliveryDate && <DetailRow label="Delivery Date" value={new Date(order.deliveryDate).toLocaleDateString()} />}
-              {order.finalDeliveryPrice && <DetailRow label="Delivery Fee" value={formatCurrency(order.finalDeliveryPrice)} chip />}
+              {order.finalDeliveryPrice && (
+                <div style={{ background: '#ecfdf5', padding: '12px 16px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
+                  <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Total Delivery Fee</div>
+                  <div style={{ fontWeight: 800, color: '#15803d', fontSize: '20px' }}>{formatCurrency(order.finalDeliveryPrice)}</div>
+                  {order.vehicleBasePrice && order.pricePerKm && order.distanceKm && (
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                      {formatCurrency(order.vehicleBasePrice)} base + ({Number(order.distanceKm).toFixed(2)} km × ₱{Number(order.pricePerKm).toFixed(2)}/km)
+                    </div>
+                  )}
+                </div>
+              )}
               {order.instructions && <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}><div style={{ fontSize: '12px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px' }}>Instructions</div><div style={{ color: '#334155' }}>{order.instructions}</div></div>}
             </div>
           </section>
@@ -170,5 +192,5 @@ function DetailRow({ label, value, chip = false }: { label: string; value: strin
 function formatCurrency(value: string | number) {
   const num = typeof value === 'number' ? value : Number.parseFloat(String(value));
   if (!Number.isFinite(num)) return '-';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PHP', maximumFractionDigits: 2 }).format(num);
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 2 }).format(num);
 }

@@ -8,6 +8,16 @@ import styles from '../../../admin.module.css';
 const LocationAutocomplete = dynamic(() => import('@/components/LocationAutocomplete'), { ssr: false });
 const RouteMapPreview = dynamic(() => import('@/components/RouteMapPreview'), { ssr: false });
 
+interface VehicleRate {
+  vehicleType: string;
+  basePrice: string;
+  pricePerKm: string;
+}
+
+function formatPHP(amount: number): string {
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
+}
+
 export default function EditDeliveryPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -17,6 +27,8 @@ export default function EditDeliveryPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [products, setProducts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [vehicleRates, setVehicleRates] = useState<VehicleRate[]>([]);
+  const [selectedRate, setSelectedRate] = useState<VehicleRate | null>(null);
 
   const [formData, setFormData] = useState({
     customerId: '',
@@ -42,13 +54,17 @@ export default function EditDeliveryPage() {
     Promise.all([
       fetch('/api/products?limit=100').then(res => res.json()),
       fetch('/api/customers?limit=100').then(res => res.json()),
-      fetch(`/api/deliveries/${id}`).then(res => res.json())
-    ]).then(([productsData, customersData, orderData]) => {
+      fetch(`/api/deliveries/${id}`).then(res => res.json()),
+      fetch('/api/vehicle-rates').then(res => res.ok ? res.json() : { data: [] }),
+    ]).then(([productsData, customersData, orderData, vehicleData]) => {
       setProducts(productsData.data || []);
       setCustomers(customersData.data || []);
+      const rates: VehicleRate[] = vehicleData.data || [];
+      setVehicleRates(rates);
 
       const order = orderData.data;
       if (order) {
+        const pv = order.preferredVehicle || '';
         setFormData({
           customerId: order.customerId?.toString() || '',
           customerName: order.customerName || '',
@@ -64,8 +80,13 @@ export default function EditDeliveryPage() {
           routePolyline: order.routePolyline || '',
           deliveryDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().slice(0, 16) : '',
           instructions: order.instructions || '',
-          preferredVehicle: order.preferredVehicle || '',
+          preferredVehicle: pv,
         });
+        // Restore selected rate
+        if (pv && rates.length > 0) {
+          const match = rates.find(r => r.vehicleType === pv);
+          if (match) setSelectedRate(match);
+        }
 
         if (order.items && order.items.length > 0) {
           setItems(order.items.map((i: any) => ({
@@ -150,6 +171,28 @@ export default function EditDeliveryPage() {
     setItems(newItems);
   };
 
+  // Compute delivery fee based on selected rate + route distance
+  const distanceKm = (() => {
+    if (!formData.routeDistance) return null;
+    const str = formData.routeDistance.toLowerCase().trim();
+    const numMatch = str.match(/[\d.]+/);
+    if (!numMatch) return null;
+    const num = parseFloat(numMatch[0]);
+    if (str.includes('km')) return num;
+    if (str.includes('m')) return num / 1000;
+    return num;
+  })();
+
+  const deliveryFeeEstimate = selectedRate && distanceKm !== null
+    ? Number(selectedRate.basePrice) + distanceKm * Number(selectedRate.pricePerKm)
+    : null;
+
+  const handleVehicleChange = (vehicleType: string) => {
+    setFormData(prev => ({ ...prev, preferredVehicle: vehicleType }));
+    const rate = vehicleRates.find(r => r.vehicleType === vehicleType) || null;
+    setSelectedRate(rate);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) {
@@ -174,6 +217,11 @@ export default function EditDeliveryPage() {
         body: JSON.stringify({
           ...formData,
           items,
+          requiredVehicleType: selectedRate?.vehicleType || formData.preferredVehicle || null,
+          vehicleBasePrice: selectedRate ? Number(selectedRate.basePrice) : null,
+          pricePerKm: selectedRate ? Number(selectedRate.pricePerKm) : null,
+          distanceKm: distanceKm,
+          finalDeliveryPrice: deliveryFeeEstimate,
         })
       });
       const data = await res.json();
@@ -229,18 +277,51 @@ export default function EditDeliveryPage() {
                 <input type="datetime-local" required style={inputStyle} value={formData.deliveryDate} onChange={e => setFormData({ ...formData, deliveryDate: e.target.value })} />
               </div>
 
+              {/* Vehicle Required — loaded from Platform Owner vehicle rates */}
               <div>
-                <label style={labelStyle}>Preferred Vehicle</label>
-                <select style={inputStyle} value={formData.preferredVehicle} onChange={e => setFormData({ ...formData, preferredVehicle: e.target.value })}>
-                  <option value="">Any Vehicle / Not Specified</option>
-                  <option value="Motorcycle">Motorcycle</option>
-                  <option value="Sedan / Hatchback">Sedan / Hatchback</option>
-                  <option value="SUV / MPV">SUV / MPV</option>
-                  <option value="L300 / Van">L300 / Van</option>
-                  <option value="Small Truck">Small Truck</option>
-                  <option value="Large Truck">Large Truck</option>
-                </select>
+                <label style={labelStyle}>Vehicle Required</label>
+                {vehicleRates.length === 0 ? (
+                  <div style={{ ...inputStyle, color: '#94a3b8', fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>
+                    No vehicles configured by Platform Owner yet
+                  </div>
+                ) : (
+                  <select
+                    style={inputStyle}
+                    value={formData.preferredVehicle}
+                    onChange={e => handleVehicleChange(e.target.value)}
+                  >
+                    <option value="">— Select vehicle type —</option>
+                    {vehicleRates.map(r => (
+                      <option key={r.vehicleType} value={r.vehicleType}>
+                        {r.vehicleType} — Base: ₱{Number(r.basePrice).toFixed(0)} · ₱{Number(r.pricePerKm).toFixed(0)}/km
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
+
+              {/* Delivery Fee Estimate */}
+              {selectedRate && (
+                <div style={{ background: '#ecfdf5', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '12px 14px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Delivery Fee Estimate</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px', color: '#374151' }}>
+                    <span>Base Price:</span>
+                    <strong style={{ color: '#15803d' }}>{formatPHP(Number(selectedRate.basePrice))}</strong>
+                    <span>Per KM Rate:</span>
+                    <strong style={{ color: '#15803d' }}>₱{Number(selectedRate.pricePerKm).toFixed(2)}/km</strong>
+                    {distanceKm !== null ? (
+                      <>
+                        <span>Distance:</span>
+                        <strong style={{ color: '#1d4ed8' }}>{distanceKm.toFixed(2)} km</strong>
+                        <span>Total Fee:</span>
+                        <strong style={{ color: '#15803d', fontSize: '15px' }}>{deliveryFeeEstimate !== null ? formatPHP(deliveryFeeEstimate) : 'TBD'}</strong>
+                      </>
+                    ) : (
+                      <span style={{ gridColumn: '1 / -1', color: '#94a3b8', fontStyle: 'italic' }}>Set route to see total fee</span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label style={labelStyle}>Delivery Instructions</label>
@@ -286,7 +367,7 @@ export default function EditDeliveryPage() {
               )}
 
               <div style={{ marginTop: 'auto', paddingTop: '8px', textAlign: 'right', fontWeight: 800, fontSize: '18px', color: '#0f172a' }}>
-                Order Total: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(items.reduce((sum, it) => {
+                Order Total: {formatPHP(items.reduce((sum, it) => {
                   const p = products.find(pp => pp.id.toString() === it.productId);
                   const price = p ? Number(p.price ?? 0) : 0;
                   return sum + (price * (it.quantity || 0));

@@ -81,6 +81,13 @@ export async function PUT(
     const instructions = String(body.instructions || '').trim();
     const preferredVehicle = body.preferredVehicle !== undefined && body.preferredVehicle !== null && body.preferredVehicle !== '' ? String(body.preferredVehicle).trim() : null;
 
+    // Vehicle pricing fields from Platform Owner rates
+    const requiredVehicleType = body.requiredVehicleType !== undefined && body.requiredVehicleType !== null && body.requiredVehicleType !== '' ? String(body.requiredVehicleType).trim() : null;
+    const vehicleBasePrice = body.vehicleBasePrice !== undefined && body.vehicleBasePrice !== null && body.vehicleBasePrice !== '' ? String(Number(body.vehicleBasePrice)) : null;
+    const vehiclePricePerKm = body.pricePerKm !== undefined && body.pricePerKm !== null && body.pricePerKm !== '' ? String(Number(body.pricePerKm)) : null;
+    const distanceKm = body.distanceKm !== undefined && body.distanceKm !== null && body.distanceKm !== '' ? String(Number(body.distanceKm)) : null;
+    const finalDeliveryPrice = body.finalDeliveryPrice !== undefined && body.finalDeliveryPrice !== null && body.finalDeliveryPrice !== '' ? String(Number(body.finalDeliveryPrice)) : null;
+
     if (!customerName || !pickupAddress || !dropoffAddress) {
       return NextResponse.json({ error: 'Missing required delivery information' }, { status: 400 });
     }
@@ -102,6 +109,12 @@ export async function PUT(
         deliveryDate,
         instructions: instructions || null,
         preferredVehicle,
+        requiredVehicleType,
+        vehicleBasePrice: vehicleBasePrice ?? undefined,
+        pricePerKm: vehiclePricePerKm ?? undefined,
+        distanceKm: distanceKm ?? undefined,
+        finalDeliveryPrice: finalDeliveryPrice ?? undefined,
+        pricingFrozenAt: requiredVehicleType ? new Date() : undefined,
       })
       .where(eq(deliveryOrders.id, order.id));
 

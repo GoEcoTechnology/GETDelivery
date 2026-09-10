@@ -191,6 +191,15 @@ export async function POST(request: Request) {
     const instructions = String(body.instructions || '').trim();
     const preferredVehicle = body.preferredVehicle !== undefined && body.preferredVehicle !== null && body.preferredVehicle !== '' ? String(body.preferredVehicle).trim() : null;
 
+    // Vehicle pricing fields — set at creation from Platform Owner rates
+    const requiredVehicleType = body.requiredVehicleType !== undefined && body.requiredVehicleType !== null && body.requiredVehicleType !== '' ? String(body.requiredVehicleType).trim() : null;
+    const vehicleBasePrice = body.vehicleBasePrice !== undefined && body.vehicleBasePrice !== null && body.vehicleBasePrice !== '' ? String(Number(body.vehicleBasePrice)) : null;
+    const vehiclePricePerKm = body.pricePerKm !== undefined && body.pricePerKm !== null && body.pricePerKm !== '' ? String(Number(body.pricePerKm)) : null;
+    const distanceKm = body.distanceKm !== undefined && body.distanceKm !== null && body.distanceKm !== '' ? String(Number(body.distanceKm)) : null;
+    const finalDeliveryPrice = (vehicleBasePrice && vehiclePricePerKm && distanceKm)
+      ? String(Number(vehicleBasePrice) + Number(distanceKm) * Number(vehiclePricePerKm))
+      : null;
+
     if (!customerName || !pickupAddress || !dropoffAddress || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'Missing required delivery information' }, { status: 400 });
     }
@@ -240,6 +249,12 @@ export async function POST(request: Request) {
       deliveryDate,
       instructions: instructions || null,
       preferredVehicle,
+      requiredVehicleType,
+      vehicleBasePrice: vehicleBasePrice ?? undefined,
+      pricePerKm: vehiclePricePerKm ?? undefined,
+      distanceKm: distanceKm ?? undefined,
+      finalDeliveryPrice: finalDeliveryPrice ?? undefined,
+      pricingFrozenAt: requiredVehicleType ? new Date() : undefined,
       status: 'DRAFT',
       currentOrdersCount: totalQuantity,
     }).returning();

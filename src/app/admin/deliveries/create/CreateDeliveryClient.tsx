@@ -27,15 +27,28 @@ interface Product {
   price?: number;
 }
 
+interface VehicleRate {
+  vehicleType: string;
+  basePrice: string;
+  pricePerKm: string;
+}
+
 interface Props {
   customers: Customer[];
   products: Product[];
+}
+
+/** Format a number as Philippine Peso */
+function formatPHP(amount: number): string {
+  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
 }
 
 export default function CreateDeliveryClient({ customers, products }: Props) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
+  const [vehicleRates, setVehicleRates] = useState<VehicleRate[]>([]);
+  const [selectedRate, setSelectedRate] = useState<VehicleRate | null>(null);
   const draftKey = 'create-delivery-form-draft';
 
   const [formData, setFormData] = useState(() => {
@@ -55,7 +68,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
         routePolyline: '',
         deliveryDate: '',
         instructions: '',
-        preferredVehicle: 'Motorcycle',
+        preferredVehicle: '',
       };
     }
 
@@ -78,7 +91,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
           routePolyline: parsed.formData?.routePolyline || '',
           deliveryDate: parsed.formData?.deliveryDate || '',
           instructions: parsed.formData?.instructions || '',
-          preferredVehicle: parsed.formData?.preferredVehicle || 'Motorcycle',
+          preferredVehicle: parsed.formData?.preferredVehicle || '',
         };
       }
     } catch {}
@@ -116,11 +129,57 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
     return [];
   });
 
+  // Load Platform Owner vehicle rates on mount
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
+    fetch('/api/vehicle-rates', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.ok ? res.json() : { data: [] })
+      .then(json => {
+        const rates: VehicleRate[] = json.data || [];
+        setVehicleRates(rates);
+        // Restore selected rate from draft
+        if (formData.preferredVehicle && rates.length > 0) {
+          const match = rates.find(r => r.vehicleType === formData.preferredVehicle);
+          if (match) setSelectedRate(match);
+        }
+      })
+      .catch(() => setVehicleRates([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(draftKey, JSON.stringify({ formData, items }));
     }
   }, [formData, items, draftKey]);
+
+  // Compute distance in km from routeDistance string (e.g. "12.5 km" or "12500 m")
+  const distanceKm = (() => {
+    if (!formData.routeDistance) return null;
+    const str = formData.routeDistance.toLowerCase().trim();
+    const numMatch = str.match(/[\d.]+/);
+    if (!numMatch) return null;
+    const num = parseFloat(numMatch[0]);
+    if (str.includes('km')) return num;
+    if (str.includes('m')) return num / 1000;
+    return num; // assume km
+  })();
+
+  // Compute delivery fee estimate
+  const deliveryFeeEstimate = (() => {
+    if (!selectedRate || distanceKm === null) return null;
+    const base = Number(selectedRate.basePrice);
+    const perKm = Number(selectedRate.pricePerKm);
+    return base + distanceKm * perKm;
+  })();
+
+  const handleVehicleChange = (vehicleType: string) => {
+    setFormData(prev => ({ ...prev, preferredVehicle: vehicleType }));
+    const rate = vehicleRates.find(r => r.vehicleType === vehicleType) || null;
+    setSelectedRate(rate);
+  };
 
   const handleCustomerSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const customerId = e.target.value;
@@ -199,10 +258,20 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
     setLoading(true);
     try {
       const token = localStorage.getItem('token') || '';
+      const payload = {
+        ...formData,
+        items,
+        // Vehicle pricing fields — persisted at creation time from Platform Owner rates
+        requiredVehicleType: selectedRate?.vehicleType || formData.preferredVehicle || null,
+        vehicleBasePrice: selectedRate ? Number(selectedRate.basePrice) : null,
+        pricePerKm: selectedRate ? Number(selectedRate.pricePerKm) : null,
+        distanceKm: distanceKm,
+        finalDeliveryPrice: deliveryFeeEstimate,
+      };
       const res = await fetch('/api/deliveries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ...formData, items }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (res.ok) {
@@ -253,17 +322,56 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
                 <input type="datetime-local" required style={inputStyle} value={formData.deliveryDate} onChange={e => setFormData({ ...formData, deliveryDate: e.target.value })} />
               </div>
 
+              {/* Vehicle Required — loaded from Platform Owner vehicle rates */}
               <div>
-                <label style={labelStyle}>Preferred Vehicle</label>
-                <select style={inputStyle} value={formData.preferredVehicle} onChange={e => setFormData({ ...formData, preferredVehicle: e.target.value })}>
-                  <option value="Motorcycle">Motorcycle</option>
-                  <option value="Sedan / Hatchback">Sedan / Hatchback</option>
-                  <option value="SUV / MPV">SUV / MPV</option>
-                  <option value="L300 / Van">L300 / Van</option>
-                  <option value="Small Truck">Small Truck</option>
-                  <option value="Large Truck">Large Truck</option>
-                </select>
+                <label style={labelStyle}>Vehicle Required</label>
+                {vehicleRates.length === 0 ? (
+                  <div style={{ ...inputStyle, color: '#94a3b8', fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>
+                    No vehicles configured by Platform Owner yet
+                  </div>
+                ) : (
+                  <select
+                    style={inputStyle}
+                    value={formData.preferredVehicle}
+                    onChange={e => handleVehicleChange(e.target.value)}
+                  >
+                    <option value="">— Select vehicle type —</option>
+                    {vehicleRates.map(r => (
+                      <option key={r.vehicleType} value={r.vehicleType}>
+                        {r.vehicleType} — Base: ₱{Number(r.basePrice).toFixed(0)} · ₱{Number(r.pricePerKm).toFixed(0)}/km
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
+
+              {/* Delivery Fee Estimate */}
+              {selectedRate && (
+                <div style={{ background: '#ecfdf5', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '12px 14px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
+                    Delivery Fee Estimate
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px', color: '#374151' }}>
+                    <span>Base Price:</span>
+                    <strong style={{ color: '#15803d' }}>{formatPHP(Number(selectedRate.basePrice))}</strong>
+                    <span>Per KM Rate:</span>
+                    <strong style={{ color: '#15803d' }}>₱{Number(selectedRate.pricePerKm).toFixed(2)}/km</strong>
+                    {distanceKm !== null && (
+                      <>
+                        <span>Distance:</span>
+                        <strong style={{ color: '#1d4ed8' }}>{distanceKm.toFixed(2)} km</strong>
+                        <span>Total Fee:</span>
+                        <strong style={{ color: '#15803d', fontSize: '15px' }}>{deliveryFeeEstimate !== null ? formatPHP(deliveryFeeEstimate) : 'TBD'}</strong>
+                      </>
+                    )}
+                    {distanceKm === null && (
+                      <span style={{ gridColumn: '1 / -1', color: '#94a3b8', fontStyle: 'italic' }}>
+                        Set route to see total fee
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label style={labelStyle}>Delivery Instructions</label>
@@ -281,7 +389,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
 
               {items.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b' }}>
-                  No items added yet.<br />Click “+ Add Item” to assign inventory.
+                  No items added yet.<br />Click "+ Add Item" to assign inventory.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -292,7 +400,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
                         <select style={inputStyle} required value={item.productId} onChange={e => handleItemChange(index, 'productId', e.target.value)}>
                           <option value="" disabled>Select Product</option>
                           {products.map(p => (
-                            <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock}){p.price ? ` — ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(p.price)}` : ''}</option>
+                            <option key={p.id} value={p.id}>{p.name} (Stock: {p.stock}){p.price ? ` — ${formatPHP(p.price)}` : ''}</option>
                           ))}
                         </select>
                       </div>
@@ -309,7 +417,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
               )}
 
               <div style={{ marginTop: 'auto', paddingTop: '8px', textAlign: 'right', fontWeight: 800, fontSize: '18px', color: '#0f172a' }}>
-                Order Total: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(items.reduce((sum, it) => {
+                Order Total: {formatPHP(items.reduce((sum, it) => {
                   const p = products.find(pp => pp.id.toString() === it.productId);
                   const price = p ? Number(p.price ?? 0) : 0;
                   return sum + (price * (it.quantity || 0));

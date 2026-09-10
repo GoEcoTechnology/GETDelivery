@@ -19,7 +19,7 @@ export default function VehiclesClient() {
   const [addModal, setAddModal] = useState(false);
   
   const [newPlate, setNewPlate] = useState('');
-  const [newType, setNewType] = useState('Motorcycle');
+  const [newType, setNewType] = useState('');
   const [newRegistrationExpiry, setNewRegistrationExpiry] = useState('');
   const [newOrNumber, setNewOrNumber] = useState('');
   const [newCrNumber, setNewCrNumber] = useState('');
@@ -127,7 +127,7 @@ export default function VehiclesClient() {
       if (res.ok) {
         setAddModal(false);
         setNewPlate('');
-        setNewType('Motorcycle');
+        setNewType('');
         setNewRegistrationExpiry('');
         setNewOrNumber('');
         setNewCrNumber('');
@@ -265,12 +265,7 @@ export default function VehiclesClient() {
                 </div>
                 <div>
                   <label className={styles.label}>Vehicle Type</label>
-                  <select className={styles.inputField} value={newType} onChange={e => setNewType(e.target.value)}>
-                    <option value="Motorcycle">Motorcycle</option>
-                    <option value="Sedan">Sedan</option>
-                    <option value="Van">Van</option>
-                    <option value="Truck">Truck</option>
-                  </select>
+                  <input required className={styles.inputField} type="text" value={newType} onChange={e => setNewType(e.target.value)} placeholder="e.g. Motorcycle, Van, Truck" />
                 </div>
               </div>
               
@@ -316,12 +311,7 @@ export default function VehiclesClient() {
                 </div>
                 <div>
                   <label className={styles.label}>Vehicle Type</label>
-                  <select className={styles.inputField} value={editModal.vehicleType} onChange={e => setEditModal({...editModal, vehicleType: e.target.value})}>
-                    <option value="Motorcycle">Motorcycle</option>
-                    <option value="Sedan">Sedan</option>
-                    <option value="Van">Van</option>
-                    <option value="Truck">Truck</option>
-                  </select>
+                  <input required className={styles.inputField} type="text" value={editModal.vehicleType} onChange={e => setEditModal({...editModal, vehicleType: e.target.value})} placeholder="e.g. Motorcycle, Van, Truck" />
                 </div>
               </div>
 

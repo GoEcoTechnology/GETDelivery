@@ -156,7 +156,7 @@ export default function InventoryClient() {
                         {product.category || 'General'}
                       </span>
                     </td>
-                    <td style={{ fontWeight: 700 }}>{product.price ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(product.price) : '-'}</td>
+                    <td style={{ fontWeight: 700 }}>{product.price ? new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(product.price) : '-'}</td>
                     <td>
                       <span style={{ color: product.stock <= (product.lowStockThreshold || 0) ? '#dc2626' : '#16a34a', fontWeight: 700, fontSize: '15px' }}>
                         {product.stock} <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{product.unit}</span>
