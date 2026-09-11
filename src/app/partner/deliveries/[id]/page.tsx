@@ -72,9 +72,11 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
   const { order, customer, invitation: invite, tenant } = invitation;
   const items = await db.select({ 
     id: deliveryItems.id, 
-    quantity: sql<number>`COALESCE((SELECT SUM(quantity_added)::int FROM quota_accumulations WHERE source_order_id = ${order.id} AND product_id = ${deliveryItems.productId}), 0)`.mapWith(Number),
+    quantity: deliveryItems.quantity,
+    accumulated: sql<number>`COALESCE((SELECT SUM(quantity_added)::int FROM quota_accumulations WHERE source_order_id = ${order.id} AND product_id = ${deliveryItems.productId}), 0)`.mapWith(Number),
     unit: deliveryItems.unit, 
-    productName: products.name 
+    productName: products.name,
+    price: products.price
   })
   .from(deliveryItems)
   .innerJoin(products, eq(deliveryItems.productId, products.id))
@@ -84,6 +86,10 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     .from(users)
     .where(and(eq(users.tenantId, tenant.id), eq(users.role, 'BUSINESS_OWNER')))
     .limit(1);
+
+  const productTotal = items.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+  const deliveryFee = Number(order.finalDeliveryPrice || 0);
+  const totalOrderAmount = productTotal + deliveryFee;
 
   return (
     <div style={{ display: 'grid', gap: '8px', minHeight: 'calc(100vh - 140px)' }}>
@@ -118,12 +124,17 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
                   </div>
                 );
               })()}
+              <DetailRow label="Pickup" value={order.pickupAddress} />
               <DetailRow label="Dropoff" value={order.dropoffAddress} />
               {order.requiredVehicleType && <DetailRow label="Required Vehicle" value={order.requiredVehicleType} chip />}
               {order.distanceKm && <DetailRow label="Distance" value={`${order.distanceKm} km`} />}
               {order.deliveryDate && <DetailRow label="Delivery Date" value={new Date(order.deliveryDate).toLocaleDateString()} />}
+              <div style={{ borderTop: '1px solid #e2e8f0', margin: '4px 0' }} />
+              <DetailRow label="Product Total" value={formatCurrency(productTotal)} />
               {order.finalDeliveryPrice && <DetailRow label="Delivery Fee" value={formatCurrency(order.finalDeliveryPrice)} chip />}
-              {order.instructions && <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}><div style={{ fontSize: '12px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px' }}>Instructions</div><div style={{ color: '#334155' }}>{order.instructions}</div></div>}
+              <div style={{ borderTop: '1px solid #e2e8f0', margin: '4px 0' }} />
+              <DetailRow label="Total Order Amount" value={formatCurrency(totalOrderAmount)} />
+              {order.instructions && <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '8px' }}><div style={{ fontSize: '12px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px' }}>Instructions</div><div style={{ color: '#334155' }}>{order.instructions}</div></div>}
             </div>
           </section>
           {order.partnerDriverName && (
