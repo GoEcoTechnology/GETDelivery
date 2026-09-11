@@ -13,7 +13,10 @@ import {
   User,
   Truck,
   MapPinned,
-  CheckSquare
+  CheckSquare,
+  Lightbulb,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import PartnerNotifListener from './PartnerNotifListener';
 import NotificationBell from '../admin/NotificationBell';
@@ -23,6 +26,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const [user, setUser] = useState<{name: string, role: string} | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -129,6 +133,9 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
               <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{user.name}</span>
               <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'capitalize' }}>{user.role.replace(/_/g, ' ').toLowerCase()}</span>
             </div>
+            <button onClick={() => setShowReminderModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', borderRadius: '50%', backgroundColor: '#fef3c7', boxShadow: '0 2px 5px rgba(245,158,11,0.2)', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+              <Lightbulb size={20} color="#d97706" />
+            </button>
             <NotificationBell />
           </div>
         </header>
@@ -137,6 +144,41 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           {children}
         </main>
       </div>
+
+      {/* Reminder Modal */}
+      {showReminderModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '450px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', animation: 'fadeIn 0.2s ease-out' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ backgroundColor: '#fef3c7', padding: '10px', borderRadius: '12px' }}>
+                  <AlertTriangle size={24} color="#d97706" />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>Important Reminder</h2>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b', fontWeight: 500 }}>System Notifications</p>
+                </div>
+              </div>
+              <button onClick={() => setShowReminderModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '16px', backgroundColor: '#ecfdf5', borderRadius: '12px', border: '1px solid #a7f3d0', display: 'flex', gap: '12px' }}>
+              <Lightbulb size={20} color="#059669" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <p style={{ margin: 0, fontSize: '13.5px', color: '#065f46', lineHeight: '1.5', fontWeight: 500 }}>
+                Please check your <strong>Spam folder</strong> for GET DELIVERY messages and do not report them as spam. Ensure that you turn on notifications for your Gmail so that you always receive alerts for new deliveries.
+              </p>
+            </div>
+            
+            <div style={{ marginTop: '28px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowReminderModal(false)} style={{ backgroundColor: '#4f46e5', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '10px', fontWeight: 600, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 14px rgba(79, 70, 229, 0.3)' }}>
+                I Understand
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

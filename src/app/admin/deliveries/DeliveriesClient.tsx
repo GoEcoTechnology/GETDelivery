@@ -2,8 +2,9 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import styles from '../admin.module.css';
-import { Truck, XCircle, Clock, CheckCircle2, ChevronRight, ChevronLeft, Edit, CheckSquare, Trash2, Plus, Mail, Phone } from 'lucide-react';
+import { Truck, XCircle, Clock, CheckCircle2, ChevronRight, ChevronLeft, Edit, CheckSquare, Trash2, Plus, Mail, Phone, Download } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
+import ExcelJS from 'exceljs';
 import dynamic from 'next/dynamic';
 
 const DispatchModal = dynamic(() => import('./DispatchModal').then(m => m.DispatchModal), {
@@ -57,6 +58,100 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
   const [addQuotaErrors, setAddQuotaErrors] = useState<Record<string, string>>({});
 
   const { toasts, show: showToast, dismiss } = useToast();
+  const [exporting, setExporting] = useState(false);
+
+  const exportCompletedDeliveries = async () => {
+    try {
+      setExporting(true);
+      const res = await fetch(`/api/deliveries?page=1&limit=100000`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch deliveries for export');
+      const json = await res.json();
+      const allData = json.data || [];
+      
+      const completedData = allData.filter((d: any) => d.status === 'COMPLETED' || d.status === 'DELIVERED');
+      
+      if (completedData.length === 0) {
+        showToast('No completed deliveries found to export.', 'error');
+        setExporting(false);
+        return;
+      }
+      
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('Completed Deliveries');
+      
+      sheet.columns = [
+        { header: 'Customer Name', key: 'customerName', width: 25 },
+        { header: 'Customer Contact', key: 'customerContact', width: 20 },
+        { header: 'Pickup Address', key: 'pickupAddress', width: 40 },
+        { header: 'Drop-off Address', key: 'dropoffAddress', width: 40 },
+        { header: 'Required Vehicle', key: 'requiredVehicle', width: 20 },
+        { header: 'Distance (km)', key: 'distanceKm', width: 15 },
+        { header: 'Product Amount', key: 'productAmount', width: 22 },
+        { header: 'Delivery Fee', key: 'deliveryFee', width: 20 },
+        { header: 'Total Order Amount', key: 'totalAmount', width: 25 },
+        { header: 'Driver Name', key: 'driverName', width: 25 },
+        { header: 'Driver Contact', key: 'driverContact', width: 20 },
+        { header: 'Delivery Date', key: 'deliveryDate', width: 18 },
+        { header: 'Status', key: 'status', width: 15 },
+        { header: 'Created At', key: 'createdAt', width: 22 },
+      ];
+
+      // Style header row
+      sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+      sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+      
+      for (const item of completedData) {
+        const productAmount = parseFloat(item.offeredAmount || '0');
+        const deliveryFee = parseFloat(item.finalDeliveryPrice || '0');
+        const totalAmount = productAmount + deliveryFee;
+
+        const row = sheet.addRow({
+          customerName: item.customerName || '',
+          customerContact: item.customerContact || '',
+          pickupAddress: item.pickupAddress || '',
+          dropoffAddress: item.dropoffAddress || '',
+          requiredVehicle: item.requiredVehicleType || item.preferredVehicle || '',
+          distanceKm: item.distanceKm || 0,
+          productAmount: productAmount,
+          deliveryFee: deliveryFee,
+          totalAmount: totalAmount,
+          driverName: item.partnerDriverName || '',
+          driverContact: item.partnerDriverContact || '',
+          deliveryDate: item.deliveryDate ? new Date(item.deliveryDate).toLocaleDateString() : '',
+          status: item.status,
+          createdAt: new Date(item.createdAt).toLocaleString()
+        });
+
+        // Add highlight for customer name
+        row.getCell('customerName').font = { bold: true, color: { argb: 'FF0F172A' } };
+        row.getCell('customerName').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+        
+        row.alignment = { vertical: 'middle' };
+      }
+
+      // Format currencies
+      ['productAmount', 'deliveryFee', 'totalAmount'].forEach(key => {
+        sheet.getColumn(key).numFmt = '"₱"#,##0.00';
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('href', url);
+      a.setAttribute('download', `Completed_Deliveries_${new Date().toISOString().split('T')[0]}.xlsx`);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to export completed deliveries.', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const queryKey = ['deliveries', page, LIMIT];
 
@@ -362,9 +457,14 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
             </div>
 
           </div>
-          <button onClick={() => window.location.href = '/admin/deliveries/create'} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 700, borderRadius: '14px', boxShadow: '0 10px 24px rgba(79, 70, 229, 0.25)' }}>
-            <Plus size={16} /> Create Delivery
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button onClick={exportCompletedDeliveries} disabled={exporting} className={styles.btnSecondary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 700, borderRadius: '14px', color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#e0e7ff' }}>
+              <Download size={16} /> {exporting ? 'Exporting...' : 'Export Completed'}
+            </button>
+            <button onClick={() => window.location.href = '/admin/deliveries/create'} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 700, borderRadius: '14px', boxShadow: '0 10px 24px rgba(79, 70, 229, 0.25)' }}>
+              <Plus size={16} /> Create Delivery
+            </button>
+          </div>
         </div>
 
         <div className={styles.tableContainer} style={{ padding: '0 12px 12px' }}>

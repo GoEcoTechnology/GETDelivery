@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import styles from '../admin.module.css';
-import { Search, Edit2, Trash2, PackagePlus, ArrowDownToLine, ChevronLeft, ChevronRight, X, History, ArrowUpRight, BarChart3 } from 'lucide-react';
+import { Search, Edit2, Trash2, PackagePlus, ArrowDownToLine, ChevronLeft, ChevronRight, X, History, ArrowUpRight, BarChart3, Download } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
 
 export default function InventoryClient() {
@@ -16,6 +16,9 @@ export default function InventoryClient() {
 
   // Modals
   const [editModal, setEditModal] = useState<any>(null);
+
+  const [exporting, setExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Add Product State
 
@@ -80,6 +83,93 @@ export default function InventoryClient() {
 
   const totalPages = Math.ceil(totalCount / limit);
 
+  const exportCurrentStock = async () => {
+    try {
+      setExporting(true);
+      setShowExportMenu(false);
+      const res = await fetch(`/api/products?page=1&limit=100000`);
+      if (!res.ok) throw new Error('Failed to fetch stock for export');
+      const json = await res.json();
+      const data = json.data || [];
+      
+      const headers = ['Product Name', 'SKU', 'Category', 'Price', 'Stock', 'Unit', 'Status', 'Created At'];
+      const csvRows = [headers.join(',')];
+      
+      for (const item of data) {
+        csvRows.push([
+          `"${(item.name || '').replace(/"/g, '""')}"`,
+          `"${(item.sku || '').replace(/"/g, '""')}"`,
+          `"${(item.category || '').replace(/"/g, '""')}"`,
+          item.price || 0,
+          item.stock || 0,
+          `"${(item.unit || '').replace(/"/g, '""')}"`,
+          `"${item.status || ''}"`,
+          `"${new Date(item.createdAt).toLocaleString()}"`
+        ].join(','));
+      }
+      
+      const csvString = csvRows.join('\n');
+      const blob = new Blob([csvString], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('href', url);
+      a.setAttribute('download', `Current_Stock_${new Date().toISOString().split('T')[0]}.csv`);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to export current stock.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportStockHistory = async () => {
+    try {
+      setExporting(true);
+      setShowExportMenu(false);
+      const res = await fetch(`/api/inventory/history?page=1&limit=100000`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch stock history for export');
+      const json = await res.json();
+      const data = json.data || [];
+      
+      const headers = ['Date', 'Time', 'Product Name', 'SKU', 'Movement Type', 'Quantity Change', 'Previous Stock', 'New Stock', 'Reference', 'Performed By'];
+      const csvRows = [headers.join(',')];
+      
+      for (const item of data) {
+        const date = new Date(item.createdAt);
+        csvRows.push([
+          `"${date.toLocaleDateString()}"`,
+          `"${date.toLocaleTimeString()}"`,
+          `"${(item.productName || '').replace(/"/g, '""')}"`,
+          `"${(item.sku || '').replace(/"/g, '""')}"`,
+          `"${item.transactionType === 'IN' ? 'STOCK IN' : 'STOCK OUT'}"`,
+          item.transactionType === 'IN' ? item.quantity : -item.quantity,
+          item.previousStock,
+          item.newStock,
+          `"${(item.reference || '').replace(/"/g, '""')}"`,
+          `"${(item.performedByName || '').replace(/"/g, '""')}"`
+        ].join(','));
+      }
+      
+      const csvString = csvRows.join('\n');
+      const blob = new Blob([csvString], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('href', url);
+      a.setAttribute('download', `Stock_History_${new Date().toISOString().split('T')[0]}.csv`);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to export stock history.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div>
       <div className={styles.card} style={{ padding: '0', overflow: 'hidden' }}>
@@ -97,6 +187,26 @@ export default function InventoryClient() {
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'nowrap', overflowX: 'auto', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+            <div style={{ position: 'relative' }}>
+              <button 
+                onClick={() => setShowExportMenu(!showExportMenu)} 
+                className={`${styles.btnSecondary} ${styles.toolbarBtn}`}
+                style={{ color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#e0e7ff', position: 'relative' }}
+                disabled={exporting}
+              >
+                <Download size={14} style={{ marginRight: '6px' }} /> {exporting ? 'Exporting...' : 'Export'}
+              </button>
+              {showExportMenu && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', zIndex: 50, overflow: 'hidden', width: '160px' }}>
+                  <button onClick={exportCurrentStock} style={{ display: 'block', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#334155', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    Current Stock
+                  </button>
+                  <button onClick={exportStockHistory} style={{ display: 'block', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#334155' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    Stock History
+                  </button>
+                </div>
+              )}
+            </div>
 
             <button 
               onClick={() => window.location.href = '/admin/inventory/history'} 
