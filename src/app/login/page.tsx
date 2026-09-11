@@ -84,7 +84,7 @@ export default function LoginPage() {
     } else if (user.role === "BUSINESS_OWNER" || user.role === "ADMIN" || user.role === "EMPLOYEE") {
       window.location.href = "/admin/dashboard";
     } else if (user.role === "DELIVERY_PARTNER") {
-      window.location.href = "/partner/orders";
+      window.location.href = "/partner/dashboard";
     } else if (user.role === "DRIVER") {
       window.location.href = "/driver";
     } else {

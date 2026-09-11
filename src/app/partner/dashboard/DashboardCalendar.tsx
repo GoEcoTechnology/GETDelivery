@@ -83,7 +83,10 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
               return (
               <div 
                 key={d.id} 
-                onClick={() => router.push(`/partner/orders/${d.id}`)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedDayDeliveries({ date: format(cloneDay, 'MMMM d, yyyy'), deliveries: dayDeliveries });
+                }}
                 className="calendar-item"
                 style={{ 
                   background: bg, 
@@ -183,7 +186,7 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
                 }
 
                 return (
-                  <div key={d.id} onClick={() => router.push(`/partner/orders/${d.id}`)} style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: `1px solid ${border}`, background: bg }}>
+                  <div key={d.id} style={{ padding: '16px', borderRadius: '12px', border: `1px solid ${border}`, background: bg }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <strong style={{ color: textColor }}>{d.tenantName}</strong>
                       <span style={{ fontSize: '11px', fontWeight: 700, color: textColor, padding: '4px 8px', borderRadius: '12px', background: 'rgba(255,255,255,0.6)' }}>
