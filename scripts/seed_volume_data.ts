@@ -139,11 +139,16 @@ async function seed() {
       const [prod] = await db.insert(schema.products).values({
         tenantId: tenant.id,
         name: p.name,
+        status: 'ACTIVE'
+      }).returning();
+      await db.insert(schema.productVariants).values({
+        tenantId: tenant.id,
+        productId: prod.id,
+        name: 'Regular',
         price: p.price.toString(),
         stock: p.stock,
         lowStockThreshold: 10,
-        status: 'ACTIVE'
-      }).returning();
+      });
       insertedProducts.push(prod);
     }
 

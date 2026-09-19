@@ -27,6 +27,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return NextResponse.json({ error: 'Partner not found' }, { status: 404 });
     }
 
+    if (status === 'ACTIVE' || status === 'AVAILABLE') {
+      const { invitePartnerToActiveDeliveries } = await import('@/lib/partnerInvitationHelper');
+      await invitePartnerToActiveDeliveries(partner.id);
+    }
+
     return NextResponse.json({ data: partner });
   });
 }
@@ -59,6 +64,11 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     if (!partner) {
       return NextResponse.json({ error: 'Partner not found' }, { status: 404 });
+    }
+
+    if (partner.status === 'ACTIVE' || partner.status === 'AVAILABLE') {
+      const { invitePartnerToActiveDeliveries } = await import('@/lib/partnerInvitationHelper');
+      await invitePartnerToActiveDeliveries(partner.id);
     }
 
     return NextResponse.json({ data: partner });

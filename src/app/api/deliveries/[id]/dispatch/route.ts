@@ -87,7 +87,7 @@ export async function POST(
         await innerTx
           .update(deliveryOrders)
           .set({
-            status: 'DISPATCHED',
+            status: 'WAITING_FOR_PARTNER',
             requiredVehicleType: vehicleType,
             vehicleBasePrice: basePrice.toString(),
             pricePerKm: pricePerKm.toString(),
@@ -184,13 +184,13 @@ export async function POST(
               order.pickupAddress,
               order.dropoffAddress,
               deliveryDate,
-              order.customerContact,
+              order.customerContact || undefined,
               order.instructions || undefined,
               partnerEmailList,
               acceptUrl,
               order.id
-            ).catch(err => {
-              console.error('Failed to send broadcast email:', err.message);
+            ).catch((err: any) => {
+              console.error('Failed to send unified broadcast email:', err.message);
             });
           }
         } catch (err) {

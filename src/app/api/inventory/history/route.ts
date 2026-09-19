@@ -22,7 +22,6 @@ export async function GET(request: Request) {
       .select({
         id: inventoryTransactions.id,
         productName: products.name,
-        sku: products.sku,
         quantity: inventoryTransactions.quantity,
         previousStock: inventoryTransactions.previousStock,
         newStock: inventoryTransactions.newStock,

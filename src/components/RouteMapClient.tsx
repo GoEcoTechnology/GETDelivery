@@ -5,12 +5,16 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-});
+import type { CustomerStop } from './RouteMap';
+
+if (typeof window !== 'undefined') {
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+  });
+}
 
 const pickupIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
@@ -18,18 +22,27 @@ const pickupIcon = new L.Icon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
 });
 
-const dropoffIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+const currentLocationIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
 });
+
+// Numbered Marker Icon Generator
+function getNumberedIcon(number: number) {
+  return L.divIcon({
+    className: 'numbered-marker',
+    html: `<div style="background-color: #10b981; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${number}</div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+}
 
 function FitBounds({ coords }: { coords: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
     if (!map || coords.length < 2) return;
     try {
-      // Use a small timeout to ensure map is fully rendered
       const timeout = setTimeout(() => {
         if (map && map.getContainer()) {
           map.fitBounds(L.latLngBounds(coords), { padding: [50, 50] });
@@ -45,77 +58,99 @@ function FitBounds({ coords }: { coords: [number, number][] }) {
 
 interface Props {
   pickupAddress: string;
-  dropoffAddress: string;
   pickupLat?: number;
   pickupLng?: number;
-  dropoffLat?: number;
-  dropoffLng?: number;
-  routePolyline?: string;
+  customerStops: CustomerStop[];
+  showCurrentLocation?: boolean;
 }
 
 export default function RouteMapClient({
-  pickupAddress, dropoffAddress,
-  pickupLat, pickupLng, dropoffLat, dropoffLng,
-  routePolyline
+  pickupAddress,
+  pickupLat, 
+  pickupLng,
+  customerStops = [],
+  showCurrentLocation = false
 }: Props) {
   const [resolvedPickup, setResolvedPickup] = useState<[number, number] | null>(null);
-  const [resolvedDropoff, setResolvedDropoff] = useState<[number, number] | null>(null);
+  const [resolvedStops, setResolvedStops] = useState<{stop: CustomerStop, coords: [number, number]}[]>([]);
   const [routeLine, setRouteLine] = useState<[number, number][]>([]);
+  const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  // Ensure component is mounted before rendering map (SSR fix)
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Geolocation Tracking
+  useEffect(() => {
+    if (!showCurrentLocation || !navigator.geolocation) return;
+    
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setCurrentLocation([pos.coords.latitude, pos.coords.longitude]);
+      },
+      (err) => console.warn('Geolocation error:', err),
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+    );
+    
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [showCurrentLocation]);
 
   useEffect(() => {
     async function init() {
       setLoading(true);
       setError(null);
 
-      // --- Strategy 1: Use saved coordinates directly (fast, no API needed) ---
-      if (pickupLat && pickupLng && dropoffLat && dropoffLng) {
-        setResolvedPickup([pickupLat, pickupLng]);
-        setResolvedDropoff([dropoffLat, dropoffLng]);
+      // Resolve Pickup
+      let pCoords: [number, number] | null = null;
+      if (pickupLat && pickupLng) {
+        pCoords = [pickupLat, pickupLng];
+      } else if (!pickupAddress.includes('Business Location')) {
+        pCoords = await geocodeAddress(pickupAddress);
+      }
+      
+      // Resolve Drops
+      const resolved: {stop: CustomerStop, coords: [number, number]}[] = [];
+      let anyResolved = false;
 
-        // Use saved polyline if available, otherwise fetch route
-        if (routePolyline) {
-          try {
-            const parsed = JSON.parse(routePolyline) as [number, number][];
-            setRouteLine(parsed);
-          } catch {
-            // If polyline parse fails, fall through to fetch
-            await fetchRoute(pickupLat, pickupLng, dropoffLat, dropoffLng);
-          }
+      for (const stop of (customerStops || [])) {
+        let dCoords: [number, number] | null = null;
+        if (stop.lat && stop.lng) {
+          dCoords = [stop.lat, stop.lng];
         } else {
-          await fetchRoute(pickupLat, pickupLng, dropoffLat, dropoffLng);
+          dCoords = await geocodeAddress(stop.address);
         }
+        
+        if (dCoords) {
+          resolved.push({ stop, coords: dCoords });
+          anyResolved = true;
+        }
+      }
+
+      if (resolved.length === 0) {
+        setError('Could not locate any dropoff addresses on the map.');
         setLoading(false);
         return;
       }
 
-      // --- Strategy 2: Geocode the text addresses (fallback) ---
-      const [pCoords, dCoords] = await Promise.all([
-        geocodeAddress(pickupAddress),
-        geocodeAddress(dropoffAddress),
-      ]);
-
-      if (!pCoords || !dCoords) {
-        setError('Could not locate one or both addresses on the map. Please ensure the addresses are valid.');
-        setLoading(false);
-        return;
+      // Fallback for pickup if unresolved
+      if (!pCoords && anyResolved) {
+        pCoords = [resolved[0].coords[0] + 0.01, resolved[0].coords[1] + 0.01];
       }
 
       setResolvedPickup(pCoords);
-      setResolvedDropoff(dCoords);
-      await fetchRoute(pCoords[0], pCoords[1], dCoords[0], dCoords[1]);
+      setResolvedStops(resolved);
+
+      if (pCoords) {
+        await fetchMultiRoute(pCoords, resolved.map(r => r.coords));
+      }
       setLoading(false);
     }
 
     init();
-  }, [pickupLat, pickupLng, dropoffLat, dropoffLng, routePolyline, pickupAddress, dropoffAddress]);
+  }, [pickupLat, pickupLng, pickupAddress, customerStops]);
 
   async function geocodeAddress(address: string): Promise<[number, number] | null> {
     try {
@@ -129,9 +164,12 @@ export default function RouteMapClient({
     } catch { return null; }
   }
 
-  async function fetchRoute(pLat: number, pLng: number, dLat: number, dLng: number) {
+  async function fetchMultiRoute(pickup: [number, number], drops: [number, number][]) {
     try {
-      const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${pLng},${pLat};${dLng},${dLat}?overview=full&geometries=geojson`);
+      // OSRM format: lon,lat;lon,lat...
+      const waypoints = [pickup, ...drops].map(c => `${c[1]},${c[0]}`).join(';');
+      
+      const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${waypoints}?overview=full&geometries=geojson`);
       const data = await res.json();
       if (data.routes?.length > 0) {
         const coords = data.routes[0].geometry.coordinates.map((c: any) => [c[1], c[0]] as [number, number]);
@@ -148,26 +186,50 @@ export default function RouteMapClient({
     return <div style={{ width: '100%', height: '300px', backgroundColor: '#fef2f2', border: '1px solid #f87171', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b91c1c', padding: '20px', textAlign: 'center' }}>{error}</div>;
   }
 
-  if (!mounted || !resolvedPickup || !resolvedDropoff) return null;
+  if (!mounted || !resolvedPickup) return null;
 
-  const allCoords: [number, number][] = [resolvedPickup, ...routeLine, resolvedDropoff];
+  const allCoords: [number, number][] = [resolvedPickup, ...resolvedStops.map(r => r.coords)];
+  if (currentLocation) allCoords.push(currentLocation);
+
+  // Generate a key from the resolved coordinates so MapContainer fully recreates if pickup changes
+  const mapKey = `map-${resolvedPickup[0]}-${resolvedPickup[1]}`;
 
   return (
-    <div style={{ width: '100%', height: '350px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0', zIndex: 0, position: 'relative' }}>
-      <MapContainer center={resolvedPickup} zoom={13} style={{ height: '100%', width: '100%' }}>
+    <div style={{ width: '100%', height: '400px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0', zIndex: 0, position: 'relative' }}>
+      <MapContainer key={mapKey} center={resolvedPickup} zoom={13} style={{ height: '100%', width: '100%' }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        
+        {/* Current Location */}
+        {currentLocation && (
+          <Marker position={currentLocation} icon={currentLocationIcon}>
+            <Popup><strong>You are here</strong></Popup>
+          </Marker>
+        )}
+
+        {/* Pickup */}
         <Marker position={resolvedPickup} icon={pickupIcon}>
           <Popup><strong>Pickup Location</strong><br />{pickupAddress}</Popup>
         </Marker>
-        <Marker position={resolvedDropoff} icon={dropoffIcon}>
-          <Popup><strong>Dropoff</strong><br />{dropoffAddress}</Popup>
-        </Marker>
+
+        {/* Dropoffs */}
+        {resolvedStops.map((drop, idx) => (
+          <Marker key={drop.stop.id} position={drop.coords} icon={getNumberedIcon(drop.stop.stopNumber)}>
+            <Popup>
+              <strong>Stop {drop.stop.stopNumber}</strong><br/>
+              {drop.stop.customerName && <div>{drop.stop.customerName}</div>}
+              {drop.stop.address}
+            </Popup>
+          </Marker>
+        ))}
+
+        {/* Route Line */}
         {routeLine.length > 0 && (
           <Polyline positions={routeLine} color="#3b82f6" weight={5} opacity={0.8} lineCap="round" lineJoin="round" />
         )}
+
         <FitBounds coords={allCoords} />
       </MapContainer>
     </div>

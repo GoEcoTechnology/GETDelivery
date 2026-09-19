@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { deliveryOrders, deliveryItems, products, productQuotas, quotaAccumulations, deliveryInvitations, deliveryAssignments, notifications, auditLogs } from '@/db/schema';
+import { deliveryOrders, deliveryItems, products, productVariants, productQuotas, quotaAccumulations, deliveryInvitations, deliveryAssignments, notifications, auditLogs } from '@/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { revertOrderStock } from '@/lib/inventory-helper';
@@ -125,8 +125,9 @@ export async function PUT(
     let productsStockMap = new Map<number, { name: string, stock: number }>();
     if (productIdsToFetch.length > 0) {
       const fetchedProducts = await tx
-        .select({ id: products.id, name: products.name, stock: products.stock })
+        .select({ id: products.id, name: products.name, stock: productVariants.stock })
         .from(products)
+        .leftJoin(productVariants, eq(products.id, productVariants.productId))
         .where(and(
           inArray(products.id, productIdsToFetch),
           eq(products.tenantId, tenantIdToUse)

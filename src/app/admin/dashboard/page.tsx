@@ -31,9 +31,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     'DRAFT',
     'READY_FOR_DISPATCH',
     'PENDING',
-    'DISPATCHED',
+    'WAITING_FOR_PARTNER',
     'ACCEPTED',
-    'ASSIGNED',
+    'ACCEPTED',
     'TEMPORARY_WINNER',
     'IN_TRANSIT',
     'DELIVERED',
@@ -68,3 +68,4 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return <DashboardClient currentRange={range} calendarDeliveries={calendarDeliveries} />;
 }
+

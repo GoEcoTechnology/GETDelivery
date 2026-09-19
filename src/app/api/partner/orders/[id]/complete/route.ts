@@ -32,8 +32,18 @@ export async function POST(
       }, { status: 400 });
     }
 
+    // If it's part of a batch, get all order IDs
+    let relatedOrderIds = [orderId];
+    if (existingOrder.batchId) {
+      const { deliveryBatchItems } = await import('@/db/schema');
+      const bItems = await db.select().from(deliveryBatchItems).where(eq(deliveryBatchItems.batchId, existingOrder.batchId));
+      if (bItems.length > 0) {
+        relatedOrderIds = bItems.map((item: any) => item.customerOrderId);
+      }
+    }
+
     // Update status to DELIVERED and record completedAt
-    const [updatedOrder] = await db
+    const updatedOrders = await db
       .update(deliveryOrders)
       .set({
         status: 'DELIVERED',
@@ -41,12 +51,21 @@ export async function POST(
       })
       .where(
         and(
-          eq(deliveryOrders.id, orderId),
+          inArray(deliveryOrders.id, relatedOrderIds),
           eq(deliveryOrders.status, 'IN_TRANSIT'),
           eq(deliveryOrders.temporaryWinnerId, partnerId)
         )
       )
       .returning();
+
+    const updatedOrder = updatedOrders.length > 0 ? updatedOrders[0] : null;
+
+    if (existingOrder.batchId && updatedOrder) {
+      const { deliveryBatches } = await import('@/db/schema');
+      await db.update(deliveryBatches)
+        .set({ status: 'DELIVERED' })
+        .where(eq(deliveryBatches.id, existingOrder.batchId));
+    }
 
     if (!updatedOrder) {
       return NextResponse.json({ error: 'Failed to complete delivery.' }, { status: 500 });

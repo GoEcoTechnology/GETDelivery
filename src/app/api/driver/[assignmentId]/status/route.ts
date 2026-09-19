@@ -5,6 +5,7 @@ import {
   deliveryOrders, 
   deliveryItems, 
   products, 
+  productVariants,
   inventoryTransactions,
   deliveryPartners
 } from '@/db/schema';
@@ -98,36 +99,37 @@ export async function POST(
               itemMap.set(i.productId, (itemMap.get(i.productId) || 0) + i.quantity);
             });
 
-            // Fetch products FOR UPDATE to lock the row and prevent race conditions
-            const lockedProducts = await innerTx
-              .select({ id: products.id, stock: products.stock, tenantId: products.tenantId })
-              .from(products)
-              .where(inArray(products.id, productIds))
+            // Fetch productVariants FOR UPDATE to lock the row and prevent race conditions
+            const lockedVariants = await innerTx
+              .select({ id: productVariants.id, productId: productVariants.productId, stock: productVariants.stock, tenantId: productVariants.tenantId })
+              .from(productVariants)
+              .where(inArray(productVariants.productId, productIds))
               .for('update');
             
             const transactionsToInsert = [];
 
-            for (const product of lockedProducts) {
-              const quantityToDeduct = itemMap.get(product.id) || 0;
+            for (const variant of lockedVariants) {
+              const quantityToDeduct = itemMap.get(variant.productId) || 0;
 
-              if (product.stock < quantityToDeduct) {
-                throw new Error(`Insufficient stock for Product ID ${product.id}. Available: ${product.stock}, Required: ${quantityToDeduct}`);
+              if (variant.stock < quantityToDeduct) {
+                throw new Error(`Insufficient stock for Product ID ${variant.productId}. Available: ${variant.stock}, Required: ${quantityToDeduct}`);
               }
 
-              const newStock = product.stock - quantityToDeduct;
+              const newStock = variant.stock - quantityToDeduct;
 
               // Deduct stock
               await innerTx
-                .update(products)
+                .update(productVariants)
                 .set({ stock: newStock })
-                .where(eq(products.id, product.id));
+                .where(eq(productVariants.id, variant.id));
 
               // Record Inventory Transaction
               transactionsToInsert.push({
                 tenantId: order.tenantId,
-                productId: product.id,
+                productId: variant.productId,
+                variantId: variant.id,
                 quantity: quantityToDeduct,
-                previousStock: product.stock,
+                previousStock: variant.stock,
                 newStock,
                 transactionType: 'OUT',
                 reference: `DELIVERY_${order.id}_PICKUP`,

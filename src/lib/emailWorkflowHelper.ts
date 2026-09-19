@@ -348,6 +348,9 @@ export async function sendPartnerAcceptedNotification(
   orderId: number,
   partnerName: string,
   contactNumber: string | undefined,
+  vehicleDetails: string | undefined,
+  numberOfCustomers: number,
+  deliveryFee: number,
   pickupLocation: string,
   estimatedArrival: string | undefined,
   dashboardUrl: string,
@@ -359,7 +362,6 @@ export async function sendPartnerAcceptedNotification(
     const [order] = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, orderId));
 
     const businessName = tenant?.name || 'Business Owner';
-    const customerName = order?.customerName || 'Customer';
     const pickupAddress = order?.pickupAddress || pickupLocation;
     const dropoffAddress = order?.dropoffAddress || 'Not specified';
     
@@ -380,12 +382,15 @@ export async function sendPartnerAcceptedNotification(
     // Generate email template
     const emailTemplate = emailTemplatesV2.orderAcceptedTemplate({
       businessName,
-      customerName,
       orderId,
       deliveryDate,
       pickupAddress,
       dropoffAddress,
       partnerName,
+      contactNumber,
+      vehicleDetails,
+      numberOfCustomers,
+      deliveryFee,
       acceptanceTime,
       dashboardUrl,
     });

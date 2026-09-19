@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { deliveryOrders, deliveryItems, products, productQuotas, quotaAccumulations, deliveryPartners, users, deliveryAssignments } from '@/db/schema';
+import { deliveryOrders, deliveryItems, products, productVariants, productQuotas, quotaAccumulations, deliveryPartners, users, deliveryAssignments } from '@/db/schema';
 import { eq, desc, and, inArray, sql as drizzleSql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
@@ -24,7 +24,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    let whereClause = eq(deliveryOrders.tenantId, tenantIdToUse as number);
+    let whereClause = and(
+      eq(deliveryOrders.tenantId, tenantIdToUse as number),
+      eq(deliveryOrders.orderSource, 'CREATED')
+    ) as any;
     if (statusFilter) {
       whereClause = and(whereClause, eq(deliveryOrders.status, statusFilter)) as any;
     }
@@ -100,10 +103,11 @@ export async function GET(request: Request) {
           productId: products.id,
           productName: products.name,
           quantity: deliveryItems.quantity,
-          unitPrice: products.price
+          unitPrice: productVariants.price
         })
         .from(deliveryItems)
         .innerJoin(products, eq(deliveryItems.productId, products.id))
+        .leftJoin(productVariants, eq(products.id, productVariants.productId))
         .where(inArray(deliveryItems.deliveryOrderId, orderIds));
 
       const accumulations = await tx
@@ -263,8 +267,9 @@ export async function POST(request: Request) {
     const productsStockMap = new Map<number, { name: string; stock: number; price: number }>();
     if (productIdsToFetch.length > 0) {
       const fetchedProducts = await tx
-        .select({ id: products.id, name: products.name, stock: products.stock, price: products.price })
+        .select({ id: products.id, name: products.name, stock: productVariants.stock, price: productVariants.price })
         .from(products)
+        .leftJoin(productVariants, eq(products.id, productVariants.productId))
         .where(inArray(products.id, productIdsToFetch));
 
       fetchedProducts.forEach((p: any) => {

@@ -25,8 +25,22 @@ export async function POST(
       if (body.driverContact) driverContact = body.driverContact;
     } catch (e) {}
 
+    const [existingOrder] = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, orderId));
+    if (!existingOrder) {
+      return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
+    }
+
+    let relatedOrderIds = [orderId];
+    if (existingOrder.batchId) {
+      const { deliveryBatchItems } = await import('@/db/schema');
+      const bItems = await db.select().from(deliveryBatchItems).where(eq(deliveryBatchItems.batchId, existingOrder.batchId));
+      if (bItems.length > 0) {
+        relatedOrderIds = bItems.map((item: any) => item.customerOrderId);
+      }
+    }
+
     // Update status to IN_TRANSIT and record startedAt (this replaces the select and update)
-    const [updatedOrder] = await db
+    const updatedOrders = await db
       .update(deliveryOrders)
       .set({
         status: 'IN_TRANSIT',
@@ -36,12 +50,21 @@ export async function POST(
       })
       .where(
         and(
-          eq(deliveryOrders.id, orderId),
+          inArray(deliveryOrders.id, relatedOrderIds),
           eq(deliveryOrders.temporaryWinnerId, partnerId),
-          inArray(deliveryOrders.status, ['ASSIGNED', 'TEMPORARY_WINNER'])
+          inArray(deliveryOrders.status, ['ACCEPTED', 'TEMPORARY_WINNER'])
         )
       )
       .returning();
+
+    const updatedOrder = updatedOrders.length > 0 ? updatedOrders[0] : null;
+
+    if (existingOrder.batchId && updatedOrder) {
+      const { deliveryBatches } = await import('@/db/schema');
+      await db.update(deliveryBatches)
+        .set({ status: 'IN_TRANSIT' })
+        .where(eq(deliveryBatches.id, existingOrder.batchId));
+    }
 
     if (!updatedOrder) {
       return NextResponse.json({ 

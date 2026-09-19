@@ -8,10 +8,11 @@ interface DispatchModalProps {
   isOpen: boolean;
   onClose: () => void;
   deliveryId: number | null;
+  type?: 'delivery' | 'batch';
   onDispatchComplete: () => void;
 }
 
-export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete }: DispatchModalProps) {
+export function DispatchModal({ isOpen, onClose, deliveryId, type = 'delivery', onDispatchComplete }: DispatchModalProps) {
   const [selectedOption, setSelectedOption] = useState<'internal' | 'partner' | null>(null);
   const [driverId, setDriverId] = useState<string>('');
   const [vehicleId, setVehicleId] = useState<string>('');
@@ -43,7 +44,11 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
 
   const internalDispatchMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/deliveries/${deliveryId}/dispatch-internal`, {
+      const endpoint = type === 'batch' 
+        ? `/api/deliveries/batches/${deliveryId}/dispatch-internal`
+        : `/api/deliveries/${deliveryId}/dispatch-internal`;
+        
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
@@ -66,7 +71,11 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
 
   const partnerDispatchMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/deliveries/${deliveryId}/dispatch`, {
+      const endpoint = type === 'batch'
+        ? `/api/deliveries/batches/${deliveryId}/dispatch`
+        : `/api/deliveries/${deliveryId}/dispatch`;
+        
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
       });
@@ -103,7 +112,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, onDispatchComplete 
     <div className={styles.modalOverlay}>
       <div className={styles.modalContent}>
         <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>Dispatch Delivery #{deliveryId}</h2>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>Dispatch {type === 'batch' ? 'Batch' : 'Delivery'} #{deliveryId}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
             <X size={24} />
           </button>

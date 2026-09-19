@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { notifications } from '@/db/schema';
-import { eq, and, or, desc, inArray } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
 export async function GET(request: Request) {
@@ -18,28 +17,33 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'User ID missing from claims' }, { status: 401 });
       }
 
-      // Fetch notifications matching receiverId or (receiverId = 0 and tenantId matches)
-      const data = await tx
-        .select()
-        .from(notifications)
-        .where(
-          or(
-            and(
-              eq(notifications.receiverId, userId as number),
-              eq(notifications.receiverRole, userRole as any)
-            ),
-            and(
-              eq(notifications.receiverId, 0),
-              eq(notifications.receiverRole, userRole as any),
-              eq(notifications.tenantId, claims.tenantId as number)
-            )
-          )
-        )
-        .orderBy(desc(notifications.createdAt))
-        .limit(limit)
-        .offset(offset);
+      const rows = await tx.execute(sql`
+        SELECT
+          id,
+          tenant_id AS "tenantId",
+          delivery_order_id AS "deliveryOrderId",
+          sender_id AS "senderId",
+          receiver_id AS "receiverId",
+          receiver_role AS "receiverRole",
+          recipient_email AS "recipientEmail",
+          notification_type AS "notificationType",
+          title,
+          body,
+          image,
+          action_url AS "actionUrl",
+          status,
+          error_message AS "errorMessage",
+          created_at AS "createdAt",
+          read_at AS "readAt",
+          clicked_at AS "clickedAt"
+        FROM notifications
+        WHERE ((receiver_id = ${userId} AND receiver_role = ${userRole}) OR (receiver_id = 0 AND receiver_role = ${userRole} AND tenant_id = ${claims.tenantId}))
+        ORDER BY created_at DESC
+        LIMIT ${limit}
+        OFFSET ${offset}
+      `);
 
-      return NextResponse.json({ notifications: data });
+      return NextResponse.json({ notifications: Array.isArray(rows.rows) ? rows.rows : [] });
     } catch (error) {
       console.error('Error fetching notifications:', error);
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -63,38 +67,22 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'User ID missing from claims' }, { status: 401 });
       }
 
-      const updateData: any = {};
-      
-      if (action === 'mark_read') {
-        updateData.status = 'READ';
-        updateData.readAt = new Date();
-      } else if (action === 'mark_clicked') {
-        updateData.status = 'READ';
-        updateData.readAt = new Date();
-        updateData.clickedAt = new Date();
-      } else {
+      const setSegments = action === 'mark_read'
+        ? sql`status = 'READ', read_at = NOW()`
+        : action === 'mark_clicked'
+          ? sql`status = 'READ', read_at = NOW(), clicked_at = NOW()`
+          : null;
+
+      if (!setSegments) {
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
       }
 
-      await tx
-        .update(notifications)
-        .set(updateData)
-        .where(
-          and(
-            inArray(notifications.id, notificationIds),
-            or(
-              and(
-                eq(notifications.receiverId, userId as number),
-                eq(notifications.receiverRole, userRole as any)
-              ),
-              and(
-                eq(notifications.receiverId, 0),
-                eq(notifications.receiverRole, userRole as any),
-                eq(notifications.tenantId, claims.tenantId as number)
-              )
-            )
-          )
-        );
+      await tx.execute(sql`
+        UPDATE notifications
+        SET ${setSegments}
+        WHERE id = ANY(${notificationIds})
+          AND ((receiver_id = ${userId} AND receiver_role = ${userRole}) OR (receiver_id = 0 AND receiver_role = ${userRole} AND tenant_id = ${claims.tenantId}))
+      `);
 
       return NextResponse.json({ success: true });
     } catch (error) {

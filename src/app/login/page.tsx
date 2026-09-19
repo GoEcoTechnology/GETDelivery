@@ -87,6 +87,8 @@ export default function LoginPage() {
       window.location.href = "/partner/dashboard";
     } else if (user.role === "DRIVER") {
       window.location.href = "/driver";
+    } else if (user.role === "CUSTOMER") {
+      window.location.href = "/customer";
     } else {
       window.location.href = "/admin/dashboard";
     }

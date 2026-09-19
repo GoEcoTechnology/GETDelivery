@@ -86,10 +86,11 @@ export default function PartnerProfilePage() {
       }
     }
     try {
-      const payload: { name: string; businessName: string; contactNumber: string; password?: string } = { 
+      const payload: { name: string; businessName: string; contactNumber: string; password?: string, email?: string } = { 
         name: profileData.name, 
         businessName: profileData.tenantName,
-        contactNumber: profileData.contactNumber
+        contactNumber: profileData.contactNumber,
+        email: profileData.email
       };
       if (passwordEntered) payload.password = passwordData.password;
       const res = await fetch('/api/settings/profile', {

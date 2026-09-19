@@ -1,0 +1,1 @@
+import { db } from '../src/db'; import * as schema from '../src/db/schema'; import { desc } from 'drizzle-orm'; async function run() { const n = await db.select().from(schema.notifications).orderBy(desc(schema.notifications.id)).limit(10); console.log(n.map(x=>x.recipientEmail)); process.exit(0); } run();

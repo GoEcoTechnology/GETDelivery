@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { products, inventoryTransactions } from '@/db/schema';
+import { products, productVariants, inventoryTransactions } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
@@ -51,23 +51,25 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Fetch all products and lock rows
-    const lockedProducts = await tx
+    // 2. Fetch all product variants and lock rows
+    const lockedVariants = await tx
       .select({
-        id: products.id,
+        id: productVariants.id,
+        productId: productVariants.productId,
         name: products.name,
-        stock: products.stock,
+        stock: productVariants.stock,
       })
-      .from(products)
+      .from(productVariants)
+      .innerJoin(products, eq(productVariants.productId, products.id))
       .where(
         and(
-          inArray(products.id, productIds),
-          eq(products.tenantId, tenantIdToUse as number)
+          inArray(productVariants.productId, productIds),
+          eq(productVariants.tenantId, tenantIdToUse as number)
         )
       )
       .for('update');
 
-    if (lockedProducts.length !== itemMap.size) {
+    if (lockedVariants.length === 0) {
       throw new Error('One or more products not found');
     }
 
@@ -82,26 +84,28 @@ export async function POST(request: Request) {
     const transactionDate = date ? new Date(date) : new Date();
 
     // 3. Process logic and perform individual updates
-    for (const product of lockedProducts) {
-      const itemData = itemMap.get(product.id);
+    for (const variant of lockedVariants) {
+      const itemData = itemMap.get(variant.productId);
+      if (!itemData) continue;
       const quantityToDeduct = itemData.quantity;
 
-      if (product.stock < quantityToDeduct) {
-        throw new Error(`Insufficient stock for product ${product.name}`);
+      if (variant.stock < quantityToDeduct) {
+        throw new Error(`Insufficient stock for product ${variant.name}`);
       }
 
-      const newStock = product.stock - quantityToDeduct;
+      const newStock = variant.stock - quantityToDeduct;
 
       await tx
-        .update(products)
+        .update(productVariants)
         .set({ stock: newStock, updatedAt: new Date() })
-        .where(eq(products.id, product.id));
+        .where(eq(productVariants.id, variant.id));
 
       transactionsToInsert.push({
         tenantId: tenantIdToUse,
-        productId: product.id,
+        productId: variant.productId,
+        variantId: variant.id,
         quantity: quantityToDeduct,
-        previousStock: product.stock,
+        previousStock: variant.stock,
         newStock: newStock,
         transactionType: 'OUT',
         reference: generatedReference,
@@ -109,9 +113,7 @@ export async function POST(request: Request) {
         createdAt: transactionDate
       });
 
-      // stock-out metadata omitted (no dedicated table in schema)
-
-      results.push({ productId: product.id, newStock, reference: generatedReference });
+      results.push({ productId: variant.productId, newStock, reference: generatedReference });
     }
 
     // 4. Bulk insert transaction logs

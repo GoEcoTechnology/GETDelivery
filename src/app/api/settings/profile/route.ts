@@ -43,7 +43,14 @@ export async function GET(request: Request) {
     // 2. Get Tenant Profile if applicable
     let tenant = null;
     if (user.tenantId) {
-      const [t] = await tx.select().from(tenants).where(eq(tenants.id, user.tenantId));
+      const [t] = await tx.select({
+        id: tenants.id,
+        name: tenants.name,
+        contactPerson: tenants.contactPerson,
+        address: tenants.address,
+        lat: tenants.lat,
+        lng: tenants.lng
+      }).from(tenants).where(eq(tenants.id, user.tenantId));
       tenant = t;
     }
 
@@ -59,6 +66,7 @@ export async function PUT(request: Request) {
     const updates: any = {};
     if (body.name) updates.name = String(body.name).trim();
     if (body.contactNumber) updates.contactNumber = String(body.contactNumber).trim();
+    if (body.email) updates.email = String(body.email).trim().toLowerCase();
     if (body.password) updates.passwordHash = await hashPassword(body.password);
 
     if (Object.keys(updates).length > 0 || body.businessName) {
@@ -66,6 +74,7 @@ export async function PUT(request: Request) {
         const partnerUpdates: any = {};
         if (updates.name) partnerUpdates.contactPerson = updates.name;
         if (updates.contactNumber) partnerUpdates.mobileNumber = updates.contactNumber;
+        if (updates.email) partnerUpdates.email = updates.email;
         if (updates.passwordHash) partnerUpdates.passwordHash = updates.passwordHash;
         if (body.businessName) partnerUpdates.companyName = String(body.businessName).trim();
         
@@ -82,6 +91,9 @@ export async function PUT(request: Request) {
       const tenantUpdates: any = {};
       if (body.businessName) tenantUpdates.name = String(body.businessName).trim();
       if (body.name) tenantUpdates.contactPerson = String(body.name).trim();
+      if (body.address) tenantUpdates.address = String(body.address).trim();
+      if (body.lat) tenantUpdates.lat = String(body.lat).trim();
+      if (body.lng) tenantUpdates.lng = String(body.lng).trim();
       
       if (Object.keys(tenantUpdates).length > 0) {
         await tx.update(tenants)

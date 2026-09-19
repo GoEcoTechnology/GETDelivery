@@ -487,15 +487,17 @@ ${options.actionUrl ? `\nView and manage this order:\n${options.actionUrl}` : ''
  * Partner Acceptance Template
  * Notification when a delivery partner accepts an order
  * Sent to: Business Owner + Employees
- */
-export function orderAcceptedTemplate(options: {
+ */export function orderAcceptedTemplate(options: {
   businessName: string;
-  customerName: string;
   orderId: number;
   deliveryDate: string;
   pickupAddress: string;
   dropoffAddress: string;
   partnerName: string;
+  contactNumber?: string;
+  vehicleDetails?: string;
+  numberOfCustomers: number;
+  deliveryFee: number;
   acceptanceTime: string;
   dashboardUrl: string;
 }): EmailTemplate {
@@ -518,8 +520,8 @@ export function orderAcceptedTemplate(options: {
           <td style="padding:12px 0;color:${COLORS.text};font-weight:600;vertical-align:top;">${escapeHtml(options.businessName)}</td>
         </tr>
         <tr>
-          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;width:35%;vertical-align:top;">Customer Name</td>
-          <td style="padding:12px 0;color:${COLORS.text};font-weight:600;vertical-align:top;">${escapeHtml(options.customerName)}</td>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;width:35%;vertical-align:top;">Customers Included</td>
+          <td style="padding:12px 0;color:${COLORS.text};font-weight:600;vertical-align:top;">${options.numberOfCustomers} Drop-off${options.numberOfCustomers > 1 ? 's' : ''}</td>
         </tr>
         <tr>
           <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Delivery Date</td>
@@ -541,6 +543,10 @@ export function orderAcceptedTemplate(options: {
           <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Acceptance Time</td>
           <td style="padding:12px 0;color:${COLORS.text};vertical-align:top;">${escapeHtml(options.acceptanceTime)}</td>
         </tr>
+        <tr>
+          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Estimated Fee</td>
+          <td style="padding:12px 0;color:${COLORS.text};font-weight:600;vertical-align:top;">PHP ${options.deliveryFee.toFixed(2)}</td>
+        </tr>
       </table>
     </div>
 
@@ -548,10 +554,10 @@ export function orderAcceptedTemplate(options: {
     <div style="background:${COLORS.background};border:1px solid ${COLORS.border};border-radius:12px;padding:24px;margin-bottom:28px;">
       <h3 style="font-size:14px;font-weight:700;color:${COLORS.text};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid ${COLORS.border};">Assigned Partner</h3>
       
-      <div style="display:flex;align-items:center;gap:12px;padding:16px;background:white;border-radius:8px;border:1px solid ${COLORS.border};">
-        <div>
-          <div style="font-size:15px;font-weight:600;color:${COLORS.text};">${escapeHtml(options.partnerName)}</div>
-        </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:16px;background:white;border-radius:8px;border:1px solid ${COLORS.border};">
+        <div style="font-size:15px;font-weight:600;color:${COLORS.text};">${escapeHtml(options.partnerName)}</div>
+        ${options.contactNumber ? `<div style="font-size:14px;color:${COLORS.muted};">Contact: ${escapeHtml(options.contactNumber)}</div>` : ''}
+        ${options.vehicleDetails ? `<div style="font-size:14px;color:${COLORS.muted};">Vehicle: ${escapeHtml(options.vehicleDetails)}</div>` : ''}
       </div>
     </div>
 
@@ -576,18 +582,24 @@ DELIVERY INFORMATION
 ====================
 
 Business Name: ${escapeHtml(options.businessName)}
-Customer Name: ${escapeHtml(options.customerName)}
+Customers Included: ${options.numberOfCustomers} Drop-off${options.numberOfCustomers > 1 ? 's' : ''}
 Order ID: ${orderRef}
 Delivery Date: ${escapeHtml(options.deliveryDate)}
 Pickup Address: ${escapeHtml(options.pickupAddress)}
 Delivery Address: ${escapeHtml(options.dropoffAddress)}
 Current Status: Accepted
 Acceptance Time: ${escapeHtml(options.acceptanceTime)}
+Estimated Fee: PHP ${options.deliveryFee.toFixed(2)}
 
 ASSIGNED PARTNER
 ================
 
-Company: ${escapeHtml(options.partnerName)}
+Partner Name: ${escapeHtml(options.partnerName)}
+Contact: ${options.contactNumber ? escapeHtml(options.contactNumber) : 'Not specified'}
+Vehicle: ${options.vehicleDetails ? escapeHtml(options.vehicleDetails) : 'Not specified'}
+
+VIEW MORE DETAILS
+=================
 
 To view the delivery in dashboard:
 ${options.dashboardUrl}

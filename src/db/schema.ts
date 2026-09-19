@@ -8,12 +8,16 @@ import {
   text,
   index,
   boolean,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const tenants = pgTable("tenants", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   contactPerson: varchar("contact_person", { length: 255 }),
+  address: varchar("address", { length: 255 }),
+  lat: decimal("lat", { precision: 10, scale: 7 }),
+  lng: decimal("lng", { precision: 10, scale: 7 }),
   status: varchar("status", { length: 50 }).default("ACTIVE").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -80,6 +84,7 @@ export const vehicles = pgTable("vehicles", {
   registrationStatus: varchar("registration_status", { length: 50 }).default("ACTIVE"),
   orNumber: varchar("or_number", { length: 100 }),
   crNumber: varchar("cr_number", { length: 100 }),
+  capacityKg: integer("capacity_kg").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("vehicles_tenant_idx").on(table.tenantId),
@@ -91,33 +96,73 @@ export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
-  sku: varchar("sku", { length: 100 }),
-  barcode: varchar("barcode", { length: 100 }),
   category: varchar("category", { length: 100 }),
-  unit: varchar("unit", { length: 50 }),
-  price: decimal("price", { precision: 10, scale: 2 }),
-  stock: integer("stock").default(0).notNull(),
-  lowStockThreshold: integer("low_stock_threshold").default(0),
-  productType: varchar("product_type", { length: 50 }),
-  status: varchar("status", { length: 50 }).default("ACTIVE").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  description: text("description"),
+  lowStockThreshold: integer('low_stock_threshold').default(10).notNull(),
+  status: varchar('status', { length: 50 }).default('ACTIVE').notNull(),
+  isMarketplace: boolean('is_marketplace').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   index("products_tenant_idx").on(table.tenantId),
-  index("products_sku_idx").on(table.sku),
   index("products_tenant_status_idx").on(table.tenantId, table.status),
   index("products_tenant_category_idx").on(table.tenantId, table.category),
+]);
+
+export const productVariants = pgTable("product_variants", {
+  id: serial("id").primaryKey(),
+  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  productId: integer("product_id").references(() => products.id, { onDelete: 'cascade' }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  quantity: integer('quantity').notNull().default(1),
+  unit: varchar('unit', { length: 50 }),
+  price: decimal('price', { precision: 10, scale: 2 }),
+  stock: integer('stock').default(0).notNull(),
+  lowStockThreshold: integer('low_stock_threshold').default(10).notNull(),
+  productType: varchar('product_type', { length: 50 }),
+  weight: varchar('weight', { length: 50 }),
+  quota: integer('quota').default(50).notNull(),
+  weightPerPieceKg: decimal('weight_per_piece_kg', { precision: 10, scale: 2 }).default('0').notNull(),
+  status: varchar('status', { length: 50 }).default('ACTIVE').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("product_variants_tenant_idx").on(table.tenantId),
+  index("product_variants_product_idx").on(table.productId),
+]);
+
+export const productSellingUnits = pgTable("product_selling_units", {
+  id: serial("id").primaryKey(),
+  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  productId: integer("product_id").references(() => products.id, { onDelete: 'cascade' }).notNull(),
+  variantId: integer("variant_id").references(() => productVariants.id, { onDelete: 'cascade' }),
+  unitName: varchar("unit_name", { length: 255 }).notNull(),
+  description: text("description").notNull().default(''),
+  equivalentQty: decimal("equivalent_qty", { precision: 10, scale: 2 }).notNull(),
+  weight: varchar("weight", { length: 50 }),
+  price: decimal('price', { precision: 10, scale: 2 }),
+  status: varchar('status', { length: 50 }).default('ACTIVE').notNull(),
+  quota: integer('quota'),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("selling_units_tenant_idx").on(table.tenantId),
+  index("selling_units_product_idx").on(table.productId),
+  index("selling_units_variant_idx").on(table.variantId),
 ]);
 
 export const inventoryTransactions = pgTable("inventory_transactions", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
   productId: integer("product_id").references(() => products.id).notNull(),
+  variantId: integer("variant_id").references(() => productVariants.id),
   quantity: integer("quantity").notNull(),
   previousStock: integer("previous_stock").notNull(),
   newStock: integer("new_stock").notNull(),
   transactionType: varchar("transaction_type", { length: 20 }).notNull(), // IN, OUT
   reference: varchar("reference", { length: 255 }),
+  supplier: varchar('supplier', { length: 255 }),
+  unitCost: varchar('unit_cost', { length: 50 }),
+  notes: text('notes'),
   performedBy: integer("performed_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
@@ -147,6 +192,7 @@ export const stockIns = pgTable('stock_ins', {
 export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }),
   customerCode: varchar("customer_code", { length: 50 }),
   name: varchar("name", { length: 255 }).notNull(),
   contactPerson: varchar("contact_person", { length: 255 }),
@@ -156,6 +202,7 @@ export const customers = pgTable("customers", {
   municipality: varchar("municipality", { length: 100 }),
   barangay: varchar("barangay", { length: 100 }),
   status: varchar("status", { length: 50 }).default("ACTIVE").notNull(),
+  savedLocations: jsonb("saved_locations").default([]).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
@@ -182,13 +229,34 @@ export const stockOuts = pgTable('stock_outs', {
 export const deliveryBatches = pgTable('delivery_batches', {
   id: serial('id').primaryKey(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
-  status: varchar('status', { length: 50 }).default('ACTIVE').notNull(),
-  maxOrders: integer('max_orders').default(10).notNull(),
+  batchNumber: varchar('batch_number', { length: 50 }).notNull().unique(),
+  variantId: integer('variant_id').references(() => productVariants.id).notNull(),
+  totalQuantity: integer('total_quantity').default(0).notNull(),
+  quotaQuantity: integer('quota_quantity').default(0).notNull(),
+  totalWeight: decimal('total_weight', { precision: 10, scale: 2 }).default('0').notNull(),
+  pickupLocation: varchar('pickup_location', { length: 255 }).notNull(),
+  suggestedVehicleId: integer('suggested_vehicle_id').references(() => vehicles.id),
+  status: varchar('status', { length: 50 }).default('READY_FOR_DELIVERY').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => [
   index('batches_tenant_idx').on(table.tenantId),
   index('batches_status_idx').on(table.status),
 ]);
+
+export const deliveryBatchItems = pgTable('delivery_batch_items', {
+  id: serial('id').primaryKey(),
+  batchId: integer('batch_id').references(() => deliveryBatches.id, { onDelete: 'cascade' }).notNull(),
+  customerOrderId: integer('customer_order_id').references(() => deliveryOrders.id, { onDelete: 'cascade' }).notNull(),
+  customerId: integer('customer_id').references(() => customers.id).notNull(),
+  quantity: integer('quantity').notNull(),
+  customerWeight: decimal('customer_weight', { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('batch_items_batch_idx').on(table.batchId),
+  index('batch_items_order_idx').on(table.customerOrderId),
+]);
+
+
 
 export const deliveryOrders = pgTable('delivery_orders', {
   id: serial('id').primaryKey(),
@@ -222,6 +290,11 @@ export const deliveryOrders = pgTable('delivery_orders', {
   approvedAt: timestamp('approved_at'),
   preferredVehicle: varchar('preferred_vehicle', { length: 100 }),
   status: varchar('status', { length: 50 }).default('DRAFT').notNull(),
+  orderSource: varchar('order_source', { length: 50 }).default('CREATED').notNull(),
+  deliveryPriority: varchar('delivery_priority', { length: 50 }).default('STANDARD').notNull(),
+  urgentReason: varchar('urgent_reason', { length: 255 }),
+  normalDeliveryFee: decimal('normal_delivery_fee', { precision: 10, scale: 2 }),
+  urgentAdditionalFee: decimal('urgent_additional_fee', { precision: 10, scale: 2 }),
   quota: integer('quota').default(10).notNull(),
   currentOrdersCount: integer('current_orders_count').default(0).notNull(),
   acceptedAt: timestamp('accepted_at'),
@@ -263,7 +336,10 @@ export const deliveryItems = pgTable('delivery_items', {
   id: serial('id').primaryKey(),
   deliveryOrderId: integer('delivery_order_id').references(() => deliveryOrders.id, { onDelete: 'cascade' }).notNull(),
   productId: integer('product_id').references(() => products.id).notNull(),
+  variantId: integer('variant_id').references(() => productVariants.id),
+  productName: varchar('product_name', { length: 255 }),
   quantity: integer('quantity').notNull(),
+  unitPrice: decimal('unit_price', { precision: 10, scale: 2 }),
   unit: varchar('unit', { length: 50 }),
 }, (table) => [
   index('items_order_idx').on(table.deliveryOrderId),
@@ -369,4 +445,20 @@ export const quotaAccumulations = pgTable('quota_accumulations', {
   index('quota_accum_product_idx').on(table.productId),
   index('quota_accum_order_idx').on(table.sourceOrderId),
   index('quota_accum_item_idx').on(table.sourceItemId),
+]);
+
+export const cartItems = pgTable('cart_items', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  customerId: integer('customer_id').references(() => customers.id, { onDelete: 'cascade' }).notNull(),
+  productId: integer('product_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
+  variantId: integer('variant_id').references(() => productVariants.id, { onDelete: 'cascade' }).notNull(),
+  sellingUnitId: integer('selling_unit_id').references(() => productSellingUnits.id, { onDelete: 'set null' }),
+  quantity: integer('quantity').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('cart_items_tenant_idx').on(table.tenantId),
+  index('cart_items_customer_idx').on(table.customerId),
+  index('cart_items_product_idx').on(table.productId),
 ]);

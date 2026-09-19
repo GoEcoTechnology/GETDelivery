@@ -2,7 +2,7 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import styles from '../admin.module.css';
-import { Truck, XCircle, Clock, CheckCircle2, ChevronRight, ChevronLeft, Edit, CheckSquare, Trash2, Plus, Mail, Phone, Download } from 'lucide-react';
+import { Truck, XCircle, Clock, CheckCircle2, ChevronRight, ChevronLeft, Edit, CheckSquare, Trash2, Plus, Mail, Phone, Download, Package, MapPin } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
 import ExcelJS from 'exceljs';
 import dynamic from 'next/dynamic';
@@ -48,10 +48,18 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
   const [page, setPage] = useState(1);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<number | null>(null);
+  const [dispatchModalType, setDispatchModalType] = useState<'delivery' | 'batch'>('delivery');
   const [loadingAction, setLoadingAction] = useState<LoadingAction | null>(null);
   
+  // Tabs: 'CREATED' vs 'MARKETPLACE'
+  const [activeTab, setActiveTab] = useState<'CREATED' | 'MARKETPLACE'>('CREATED');
+  const batches = initialData?.batches || [];
+
   // State for the Delivery Details Modal
   const [viewingDelivery, setViewingDelivery] = useState<any>(null);
+  
+  // State for Batch Customers Modal
+  const [selectedBatchForModal, setSelectedBatchForModal] = useState<any>(null);
 
   // State for per-product manual quota addition
   const [addQuotaInputs, setAddQuotaInputs] = useState<Record<string, number>>({});
@@ -289,6 +297,13 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
   // Dispatch — goes through modal (which handles stock deduction)
   const handleDispatch = (id: number) => {
     setSelectedDeliveryId(id);
+    setDispatchModalType('delivery');
+    setIsDispatchModalOpen(true);
+  };
+
+  const handleBatchDispatch = (id: number) => {
+    setSelectedDeliveryId(id);
+    setDispatchModalType('batch');
     setIsDispatchModalOpen(true);
   };
 
@@ -296,7 +311,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
   const handleDispatchComplete = useCallback((deliveryId?: number) => {
     if (deliveryId) {
       // Immediately update just that row
-      optimisticStatusUpdate(deliveryId, 'DISPATCHED');
+      optimisticStatusUpdate(deliveryId, 'WAITING_FOR_PARTNER');
     }
     // Refetch only this page to sync with DB (don't refetch everything)
     queryClient.invalidateQueries({ queryKey, exact: true });
@@ -449,26 +464,161 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
           boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)'
         }}
       >
-        {/* Toolbar */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'nowrap', background: 'linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,250,252,0.75))' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ padding: '8px 12px', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', fontSize: '13px', fontWeight: 700 }}>
-              Total: {totalCount} deliveries
+            
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setActiveTab('CREATED')}
+                style={{ padding: '8px 16px', borderRadius: '999px', border: '1.5px solid', borderColor: activeTab === 'CREATED' ? '#4f46e5' : '#e2e8f0', background: activeTab === 'CREATED' ? '#4f46e5' : 'white', color: activeTab === 'CREATED' ? 'white' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Package size={16} /> Created Deliveries
+              </button>
+              <button
+                onClick={() => setActiveTab('MARKETPLACE')}
+                style={{ padding: '8px 16px', borderRadius: '999px', border: '1.5px solid', borderColor: activeTab === 'MARKETPLACE' ? '#4f46e5' : '#e2e8f0', background: activeTab === 'MARKETPLACE' ? '#4f46e5' : 'white', color: activeTab === 'MARKETPLACE' ? 'white' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Truck size={16} /> Marketplace Deliveries
+              </button>
             </div>
 
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button onClick={exportCompletedDeliveries} disabled={exporting} className={styles.btnSecondary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 700, borderRadius: '14px', color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#e0e7ff' }}>
-              <Download size={16} /> {exporting ? 'Exporting...' : 'Export Completed'}
-            </button>
-            <button onClick={() => window.location.href = '/admin/deliveries/create'} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 700, borderRadius: '14px', boxShadow: '0 10px 24px rgba(79, 70, 229, 0.25)' }}>
-              <Plus size={16} /> Create Delivery
-            </button>
+            {activeTab === 'CREATED' && (
+              <>
+                <button onClick={exportCompletedDeliveries} disabled={exporting} className={styles.btnSecondary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 700, borderRadius: '14px', color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#e0e7ff' }}>
+                  <Download size={16} /> {exporting ? 'Exporting...' : 'Export Completed'}
+                </button>
+                <button onClick={() => window.location.href = '/admin/deliveries/create'} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 700, borderRadius: '14px', boxShadow: '0 10px 24px rgba(79, 70, 229, 0.25)' }}>
+                  <Plus size={16} /> Create Delivery
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        <div className={styles.tableContainer} style={{ padding: '0 12px 12px' }}>
-          <div className="table-responsive-wrapper">
+        {activeTab === 'MARKETPLACE' && (
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', background: '#f8fafc' }}>
+            {batches.length === 0 ? (
+              <div style={{ 
+                textAlign: 'center', 
+                padding: '64px 32px', 
+                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.02) 0%, rgba(147, 51, 234, 0.04) 100%)', 
+                borderRadius: '24px', 
+                border: '1px solid rgba(79, 70, 229, 0.1)',
+                boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 20px 25px -5px rgba(0, 0, 0, 0.02)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <style>{`
+                  @keyframes floating {
+                    0% { transform: translateY(0px) rotate(0deg); }
+                    50% { transform: translateY(-10px) rotate(2deg); }
+                    100% { transform: translateY(0px) rotate(0deg); }
+                  }
+                  @keyframes pulse-glow {
+                    0% { box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.3), inset 0 2px 4px rgba(255,255,255,0.3); }
+                    50% { box-shadow: 0 15px 35px -5px rgba(79, 70, 229, 0.5), inset 0 2px 4px rgba(255,255,255,0.4); }
+                    100% { box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.3), inset 0 2px 4px rgba(255,255,255,0.3); }
+                  }
+                `}</style>
+                <div style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '24px',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 24px',
+                  animation: 'floating 4s ease-in-out infinite, pulse-glow 4s ease-in-out infinite'
+                }}>
+                  <Package size={36} color="white" strokeWidth={1.5} />
+                </div>
+                <h3 style={{ margin: '0 0 12px 0', color: '#0f172a', fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                  No Marketplace Batches Yet
+                </h3>
+                <p style={{ color: '#475569', margin: '0 auto', maxWidth: '420px', fontSize: '15px', lineHeight: 1.6, fontWeight: 500 }}>
+                  Batches are intelligently and automatically generated the moment a product variant hits its target quota.
+                </p>
+              </div>
+            ) : (
+              batches.map((batch: any) => (
+                <div key={batch.id} className={styles.card} style={{ padding: 0, overflow: 'hidden', border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+                  <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Truck size={24} color="#4f46e5" />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{batch.productName}</h3>
+                        <div style={{ fontSize: '14px', color: '#64748b', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 600, color: '#4f46e5' }}>{batch.variantName}</span>
+                          <span>•</span>
+                          <span>Created {new Date(batch.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        {(batch.partnerDriverName || batch.partnerDriverContact) && (
+                          <div style={{ fontSize: '13px', color: '#334155', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' }}>
+                              <Truck size={12} color="#64748b" />
+                              <span style={{ fontWeight: 600 }}>Driver: {batch.partnerDriverName || 'Not specified'}</span>
+                            </div>
+                            {batch.partnerDriverContact && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' }}>
+                                <Phone size={12} color="#64748b" />
+                                <span>{batch.partnerDriverContact}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <StatusBadge status={batch.status} />
+                      <div style={{ fontSize: '14px', color: '#475569', fontWeight: 600, marginTop: '8px' }}>
+                        Total: {batch.totalWeight} kg
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '20px', background: '#f8fafc' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
+                      <span style={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customers in this Batch ({batch.items.length})</span>
+                      <span style={{ color: '#4f46e5', fontWeight: 700 }}>{batch.totalQuantity} / {batch.quotaQuantity} Quota Reached</span>
+                    </div>
+                  </div>
+                  
+                  {/* Actions for Batch */}
+                  <div style={{ padding: '16px 20px', background: 'white', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <button 
+                      onClick={() => setSelectedBatchForModal(batch)}
+                      style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', cursor: 'pointer', transition: 'all 0.2s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
+                    >
+                      Show Customers
+                    </button>
+                    
+                    {batch.status === 'READY_FOR_DELIVERY' && (
+                      <button 
+                        onClick={() => handleBatchDispatch(batch.id)}
+                        className={styles.btnPrimary} 
+                        style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}
+                      >
+                        Dispatch Delivery
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'CREATED' && (
+          <>
+            <div className={styles.tableContainer} style={{ padding: '0 12px 12px' }}>
+            <div className="table-responsive-wrapper">
             <table className={styles.table}>
             <thead>
               <tr>
@@ -559,20 +709,23 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
             <ChevronLeft size={16} /> Prev
           </button>
           <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', padding: '8px 12px', borderRadius: '999px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>Page {page} of {totalPages || 1}</span>
-          <button
-            disabled={page >= totalPages}
-            onClick={() => setPage(p => p + 1)}
-            style={{ padding: '10px 16px', border: '1px solid #cbd5e1', borderRadius: '12px', background: 'white', cursor: page >= totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontWeight: 700, opacity: page >= totalPages ? 0.5 : 1 }}
-          >
-            Next <ChevronRight size={16} />
-          </button>
-        </div>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+              style={{ padding: '10px 16px', border: '1px solid #cbd5e1', borderRadius: '12px', background: 'white', cursor: page >= totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontWeight: 700, opacity: page >= totalPages ? 0.5 : 1 }}
+            >
+              Next <ChevronRight size={16} />
+            </button>
+          </div>
+          </>
+        )}
       </div>
 
       <DispatchModal
         isOpen={isDispatchModalOpen}
         onClose={() => { setIsDispatchModalOpen(false); setSelectedDeliveryId(null); }}
         deliveryId={selectedDeliveryId}
+        type={dispatchModalType}
         onDispatchComplete={() => handleDispatchComplete(selectedDeliveryId ?? undefined)}
       />
 
@@ -595,6 +748,58 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
           handleDispatch(viewingDelivery.id);
         }}
       />
+      
+      {/* Batch Customers Modal */}
+      {selectedBatchForModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)' }} onClick={() => setSelectedBatchForModal(null)}></div>
+          <div style={{ position: 'relative', width: '100%', maxWidth: '800px', maxHeight: '85vh', overflow: 'hidden', background: '#f8fafc', borderRadius: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', margin: '20px' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 32px', borderBottom: '1px solid #e2e8f0', background: 'white' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>Customers in {selectedBatchForModal.productName}</h2>
+                <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '14px', fontWeight: 600 }}>{selectedBatchForModal.variantName} • {selectedBatchForModal.items.length} Customers</p>
+              </div>
+              <button onClick={() => setSelectedBatchForModal(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: 'all 0.2s' }}>
+                <XCircle size={20} />
+              </button>
+            </div>
+
+            <div style={{ padding: '24px 32px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {selectedBatchForModal.items.map((item: any) => (
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <MapPin size={20} color="#64748b" />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '16px', marginBottom: '4px' }}>{item.customerName}</div>
+                      <div style={{ fontSize: '14px', color: '#475569', marginBottom: '8px', lineHeight: 1.5, maxWidth: '450px' }}>{item.dropoffAddress}</div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                        {item.customerContact && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748b', fontWeight: 600, background: '#f8fafc', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                            <Phone size={14} /> {item.customerContact}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#4f46e5', fontWeight: 600, background: '#eef2ff', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e0e7ff' }}>
+                          <Package size={14} /> {item.quantity} units
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Total Price</div>
+                    <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '18px' }}>
+                      ₱{Number(item.quantity * (selectedBatchForModal.variantPrice || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -606,9 +811,8 @@ function StatusBadge({ status }: { status: string }) {
 
   if (status === 'READY_FOR_DISPATCH') { color = '#d97706'; bg = '#fef3c7'; Icon = Clock; displayStatus = 'READY FOR DISPATCH'; }
   else if (status === 'DRAFT') { color = '#64748b'; bg = '#f1f5f9'; Icon = Edit; }
-  else if (status === 'WAITING_APPROVAL') { color = '#0284c7'; bg = '#e0f2fe'; Icon = Clock; displayStatus = 'WAITING APPROVAL'; }
-  else if (status === 'DISPATCHED') { color = '#2563eb'; bg = '#dbeafe'; Icon = Truck; displayStatus = 'AVAILABLE'; }
-  else if (status === 'ASSIGNED') { color = '#2563eb'; bg = '#dbeafe'; Icon = Truck; displayStatus = 'ACCEPTED'; }
+  else if (status === 'WAITING_FOR_PARTNER') { color = '#d97706'; bg = '#fef3c7'; Icon = Clock; displayStatus = 'WAITING FOR PARTNER'; }
+  else if (status === 'ACCEPTED') { color = '#2563eb'; bg = '#dbeafe'; Icon = Truck; displayStatus = 'ACCEPTED'; }
   else if (status === 'IN_TRANSIT') { color = '#8b5cf6'; bg = '#ede9fe'; Icon = Truck; displayStatus = 'IN TRANSIT'; }
   else if (status === 'DELIVERED') { color = '#16a34a'; bg = '#dcfce7'; Icon = CheckCircle2; }
   else if (status === 'COMPLETED') { color = '#16a34a'; bg = '#dcfce7'; Icon = CheckCircle2; }
@@ -635,3 +839,4 @@ function formatCurrency(value: string | number) {
   if (!Number.isFinite(amount)) return String(value);
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
 }
+

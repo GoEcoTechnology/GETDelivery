@@ -63,7 +63,7 @@ export default async function PartnerDeliveriesPage() {
       eq(deliveryInvitations.deliveryPartnerId, partnerId),
       ne(deliveryInvitations.status, 'CANCELLED'),
       eq(deliveryOrders.temporaryWinnerId, partnerId),
-      inArray(deliveryOrders.status, ['ASSIGNED', 'IN_TRANSIT'])
+      inArray(deliveryOrders.status, ['ACCEPTED', 'IN_TRANSIT'])
     ))
     .orderBy(desc(deliveryInvitations.createdAt))
     .limit(100);
@@ -82,3 +82,4 @@ export default async function PartnerDeliveriesPage() {
     </div>
   );
 }
+

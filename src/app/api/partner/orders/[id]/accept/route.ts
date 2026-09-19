@@ -22,6 +22,21 @@ export async function POST(
         return NextResponse.json({ error: 'Invalid delivery order ID' }, { status: 400 });
       }
 
+      const [existingOrder] = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, orderId));
+      if (!existingOrder) {
+        return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
+      }
+
+      // If it's part of a batch, get all order IDs
+      let relatedOrderIds = [orderId];
+      if (existingOrder.batchId) {
+        const { deliveryBatchItems } = await import('@/db/schema');
+        const bItems = await db.select().from(deliveryBatchItems).where(eq(deliveryBatchItems.batchId, existingOrder.batchId));
+        if (bItems.length > 0) {
+          relatedOrderIds = bItems.map((item: any) => item.customerOrderId);
+        }
+      }
+
       // Verify invitation first using admin DB connection
       const [invitation] = await db.select().from(deliveryInvitations).where(
         and(
@@ -32,11 +47,6 @@ export async function POST(
       );
 
       if (!invitation) {
-        // Find order to give better error message
-        const [existingOrder] = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, orderId));
-        if (!existingOrder) {
-          return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
-        }
         if (existingOrder.temporaryWinnerId === partnerId) {
           return NextResponse.json({ success: true, message: 'You have already accepted this request.' });
         }
@@ -46,47 +56,54 @@ export async function POST(
       }
 
       // Perform updates using admin connection to bypass RLS restrictions on deliveryOrders for partners
-      const [updatedOrder] = await db
+      const updatedOrders = await db
         .update(deliveryOrders)
         .set({
-          status: 'ASSIGNED',
+          status: 'ACCEPTED',
           temporaryWinnerId: partnerId,
           acceptedAt: new Date()
         })
         .where(
           and(
-            eq(deliveryOrders.id, orderId),
-            eq(deliveryOrders.status, 'DISPATCHED'),
+            inArray(deliveryOrders.id, relatedOrderIds),
+            eq(deliveryOrders.status, 'WAITING_FOR_PARTNER'),
             isNull(deliveryOrders.temporaryWinnerId)
           )
         )
         .returning();
 
-      if (!updatedOrder) {
+      if (updatedOrders.length === 0) {
         return NextResponse.json({ error: 'Failed to accept. Order may no longer be available.' }, { status: 409 });
+      }
+
+      if (existingOrder.batchId) {
+        const { deliveryBatches } = await import('@/db/schema');
+        await db.update(deliveryBatches)
+          .set({ status: 'ACCEPTED' })
+          .where(eq(deliveryBatches.id, existingOrder.batchId));
       }
 
       // Fire and forget all other operations to ensure a lightning fast response to the client
       (async () => {
         try {
-          // Mark the invitation for this partner as ACCEPTED
-          const [updatedInvitation] = await db
+          // Mark the invitation for this partner as ACCEPTED for ALL orders in batch
+          await db
             .update(deliveryInvitations)
             .set({ status: 'ACCEPTED', respondedAt: new Date() })
             .where(
               and(
-                eq(deliveryInvitations.deliveryOrderId, orderId),
+                inArray(deliveryInvitations.deliveryOrderId, relatedOrderIds),
                 eq(deliveryInvitations.deliveryPartnerId, partnerId)
               )
             ).returning();
 
-          // Expire ALL other pending invitations for this order instantly
+          // Expire ALL other pending invitations for these orders instantly
           await db
             .update(deliveryInvitations)
             .set({ status: 'EXPIRED', respondedAt: new Date() })
             .where(
               and(
-                eq(deliveryInvitations.deliveryOrderId, orderId),
+                inArray(deliveryInvitations.deliveryOrderId, relatedOrderIds),
                 eq(deliveryInvitations.status, 'PENDING'),
                 ne(deliveryInvitations.deliveryPartnerId, partnerId) 
               )
@@ -102,9 +119,9 @@ export async function POST(
           });
 
           // Insert Unified Notification
-          if (updatedInvitation?.tenantId) {
+          if (updatedOrders[0]?.tenantId) {
             await db.insert(notifications).values({
-              tenantId: updatedInvitation.tenantId,
+              tenantId: updatedOrders[0].tenantId,
               deliveryOrderId: orderId,
               senderId: partnerId,
               receiverId: 0, 
@@ -117,25 +134,36 @@ export async function POST(
             });
           }
 
-          // Audit log
-          await db.insert(auditLogs).values({
-            tenantId: updatedOrder.tenantId,
-            actorType: 'PARTNER',
-            actorId: partnerId,
-            action: 'DELIVERY_REQUEST_ACCEPTED',
-            entityType: 'DELIVERY_ORDER',
-            entityId: orderId,
-            details: 'Partner accepted the delivery request and was assigned immediately.'
-          });
+          // Audit log for all orders
+          for (const oId of relatedOrderIds) {
+            await db.insert(auditLogs).values({
+              tenantId: updatedOrders[0].tenantId,
+              actorType: 'PARTNER',
+              actorId: partnerId,
+              action: 'DELIVERY_REQUEST_ACCEPTED',
+              entityType: 'DELIVERY_ORDER',
+              entityId: oId,
+              details: 'Partner accepted the delivery request and was assigned immediately.'
+            });
+          }
 
           // Send emails asynchronously (fire-and-forget)
           const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph'}/admin/deliveries/${orderId}`;
+          
+          let totalFee = 0;
+          for (const ord of updatedOrders) {
+            totalFee += Number(ord.finalDeliveryPrice || 0);
+          }
+
           sendPartnerAcceptedNotification(
-            updatedOrder.tenantId,
+            updatedOrders[0].tenantId,
             orderId,
             partnerName,
             partner?.mobileNumber,
-            updatedOrder.pickupAddress,
+            undefined, // vehicleDetails not fetched yet, optional
+            relatedOrderIds.length,
+            totalFee,
+            updatedOrders[0].pickupAddress || existingOrder.pickupAddress,
             undefined,
             dashboardUrl,
             orderId

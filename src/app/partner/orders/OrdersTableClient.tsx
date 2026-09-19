@@ -7,15 +7,15 @@ import styles from '../partner.module.css';
 
 type OrderInvitationItem = {
   invitation: { id: number; createdAt: string | Date; status: string };
-  order: { id: number; status?: string; dropoffAddress: string; instructions?: string; preferredVehicle?: string; finalDeliveryPrice?: string | number; requiredVehicleType?: string; distanceKm?: string | number; vehicleBasePrice?: string | number; pricePerKm?: string | number; pickupAddress?: string };
+  order: { id: number; batchId?: number | null; status?: string; dropoffAddress: string; instructions?: string; preferredVehicle?: string; finalDeliveryPrice?: string | number; requiredVehicleType?: string; distanceKm?: string | number; vehicleBasePrice?: string | number; pricePerKm?: string | number; pickupAddress?: string };
   tenant: { name: string };
   customer?: { name: string; mobileNumber?: string | null } | null;
   items?: Array<{ quantity: number; unit: string; productName: string }>;
 };
 
 function getStatusDisplay(status: string) {
-  if (status === 'TEMPORARY_WINNER' || status === 'ASSIGNED') return 'ACCEPTED';
-  if (status === 'DISPATCHED' || status === 'PENDING') return 'AVAILABLE';
+  if (status === 'TEMPORARY_WINNER' || status === 'ACCEPTED') return 'ACCEPTED';
+  if (status === 'WAITING_FOR_PARTNER' || status === 'PENDING') return 'AVAILABLE';
   if (status === 'IN_TRANSIT') return 'IN TRANSIT';
   return status.replace(/_/g, ' ');
 }
@@ -84,7 +84,7 @@ export default function OrdersTableClient({ invitations, partnerCompanyName = 'Y
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Delivery for {item.tenant.name}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontWeight: 600, fontSize: '14px' }}>
                   <User size={14} color="#475569" />
-                  {item.customer ? item.customer.name : 'Unknown Customer'}
+                  {item.order.batchId ? 'Marketplace Batch' : (item.customer ? item.customer.name : 'Unknown Customer')}
                 </div>
               </div>
 
@@ -92,7 +92,7 @@ export default function OrdersTableClient({ invitations, partnerCompanyName = 'Y
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                   <Navigation size={16} color="#64748b" style={{ flexShrink: 0, marginTop: '2px' }} />
                   <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.4 }}>
-                    <span style={{ fontWeight: 600, color: '#0f172a' }}>To: </span>{item.order.dropoffAddress}
+                    <span style={{ fontWeight: 600, color: '#0f172a' }}>To: </span>{item.order.batchId && (item.order as any).batchCustomerCount > 1 ? 'Multiple Drop-offs' : item.order.dropoffAddress}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>

@@ -1,12 +1,18 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems, products, users } from '@/db/schema';
+import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems, products, productVariants, users } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import PartnerOrderActions from './PartnerOrderActions';
 import RouteMap from '@/components/RouteMap';
 import { MapPin, User, Package, Navigation } from 'lucide-react';
 import styles from '../../partner.module.css';
+
+async function getAddressFromCoords(lat: string, lng: string, fallback: string): Promise<string> {
+  // OpenStreetMap Nominatim often returns incorrect or distant road names (e.g. Sorsogon-Bacon-Manito Road)
+  // for these coordinates. We'll show a friendly fallback instead.
+  return 'Location Pinned on Map';
+}
 
 export default async function PartnerOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const headersList = await headers();
@@ -45,6 +51,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
       contactPerson: tenants.contactPerson,
     },
     customer: {
+      id: customers.id,
       name: customers.name,
       mobileNumber: customers.mobileNumber
     }
@@ -76,10 +83,11 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     accumulated: sql<number>`COALESCE((SELECT SUM(quantity_added)::int FROM quota_accumulations WHERE source_order_id = ${order.id} AND product_id = ${deliveryItems.productId}), 0)`.mapWith(Number),
     unit: deliveryItems.unit, 
     productName: products.name,
-    price: products.price
+    price: productVariants.price
   })
   .from(deliveryItems)
   .innerJoin(products, eq(deliveryItems.productId, products.id))
+  .leftJoin(productVariants, eq(products.id, productVariants.productId))
   .where(eq(deliveryItems.deliveryOrderId, order.id));
 
   const [businessOwner] = await db.select({ name: users.name, contactNumber: users.contactNumber, email: users.email })
@@ -90,6 +98,18 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
   const productTotal = items.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
   const deliveryFee = Number(order.finalDeliveryPrice || 0);
   const totalOrderAmount = productTotal + deliveryFee;
+
+  let pickupAddress = order.pickupAddress || '';
+  if (pickupAddress && /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(pickupAddress.trim())) {
+    const [lat, lng] = pickupAddress.split(',');
+    pickupAddress = await getAddressFromCoords(lat.trim(), lng.trim(), pickupAddress);
+  }
+
+  let dropoffAddress = order.dropoffAddress || '';
+  if (dropoffAddress && /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(dropoffAddress.trim())) {
+    const [lat, lng] = dropoffAddress.split(',');
+    dropoffAddress = await getAddressFromCoords(lat.trim(), lng.trim(), dropoffAddress);
+  }
 
   return (
     <div style={{ display: 'grid', gap: '8px', minHeight: 'calc(100vh - 140px)' }}>
@@ -103,7 +123,20 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
             <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Navigation size={20} color="#4f46e5" /> Route Map</h3></div>
             <div className={styles.cardContent} style={{ padding: 0 }}>
               <div style={{ height: '180px' }}>
-                <RouteMap pickupAddress={order.pickupAddress} dropoffAddress={order.dropoffAddress} pickupLat={order.pickupLat ? parseFloat(order.pickupLat) : undefined} pickupLng={order.pickupLng ? parseFloat(order.pickupLng) : undefined} dropoffLat={order.dropoffLat ? parseFloat(order.dropoffLat) : undefined} dropoffLng={order.dropoffLng ? parseFloat(order.dropoffLng) : undefined} routePolyline={order.routePolyline ?? undefined} />
+                <RouteMap 
+                  pickupAddress={pickupAddress || 'Unknown'} 
+                  pickupLat={order.pickupLat ? parseFloat(order.pickupLat) : undefined} 
+                  pickupLng={order.pickupLng ? parseFloat(order.pickupLng) : undefined} 
+                  customerStops={[{
+                    id: customer?.id || 1,
+                    stopNumber: 1,
+                    address: dropoffAddress || 'Unknown',
+                    lat: order.dropoffLat ? parseFloat(order.dropoffLat) : undefined,
+                    lng: order.dropoffLng ? parseFloat(order.dropoffLng) : undefined,
+                    customerName: customer?.name || 'Customer',
+                    contactNumber: customer?.mobileNumber || ''
+                  }]} 
+                />
               </div>
             </div>
           </section>
@@ -124,8 +157,8 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
                   </div>
                 );
               })()}
-              <DetailRow label="Pickup" value={order.pickupAddress} />
-              <DetailRow label="Dropoff" value={order.dropoffAddress} />
+              <DetailRow label="Pickup" value={pickupAddress} />
+              <DetailRow label="Dropoff" value={dropoffAddress} />
               {order.requiredVehicleType && <DetailRow label="Required Vehicle" value={order.requiredVehicleType} chip />}
               {order.distanceKm && <DetailRow label="Distance" value={`${order.distanceKm} km`} />}
               {order.deliveryDate && <DetailRow label="Delivery Date" value={new Date(order.deliveryDate).toLocaleDateString()} />}
@@ -165,7 +198,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
           <section className={styles.card} style={{ marginBottom: 0 }}>
             <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Package size={20} color="#4f46e5" /> Items ({items.reduce((sum, item) => sum + item.quantity, 0)})</h3></div>
             <div className={styles.cardContent} style={{ display: 'grid', gap: '6px' }}>
-              {items.map((item) => <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}><span>{item.productName}</span><strong>x{item.quantity} {item.unit}</strong></div>)}
+              {items.map((item, idx) => <div key={`${item.id}-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}><span>{item.productName}</span><strong>x{item.quantity} {item.unit}</strong></div>)}
               {items.length === 0 && <div style={{ color: '#64748b' }}>No specific items listed.</div>}
             </div>
           </section>
@@ -189,10 +222,9 @@ function StatusBadge({ status }: { status: string }) {
 
   if (status === 'READY_FOR_DISPATCH') { color = '#d97706'; bg = '#fef3c7'; displayStatus = 'READY FOR DISPATCH'; }
   else if (status === 'DRAFT') { color = '#64748b'; bg = '#f1f5f9'; }
-  else if (status === 'WAITING_APPROVAL') { color = '#0284c7'; bg = '#e0f2fe'; }
-  else if (status === 'DISPATCHED') { color = '#2563eb'; bg = '#dbeafe'; displayStatus = 'AVAILABLE'; }
-  else if (status === 'ASSIGNED') { color = '#2563eb'; bg = '#dbeafe'; displayStatus = 'ACCEPTED'; }
-  else if (status === 'IN_TRANSIT') { color = '#8b5cf6'; bg = '#ede9fe'; }
+  else if (status === 'WAITING_FOR_PARTNER') { color = '#2563eb'; bg = '#dbeafe'; displayStatus = 'WAITING FOR PARTNER'; }
+  else if (status === 'ACCEPTED') { color = '#2563eb'; bg = '#dbeafe'; displayStatus = 'ACCEPTED'; }
+  else if (status === 'IN_TRANSIT') { color = '#8b5cf6'; bg = '#ede9fe'; displayStatus = 'IN TRANSIT'; }
   else if (status === 'DELIVERED') { color = '#16a34a'; bg = '#dcfce7'; }
   else if (status === 'COMPLETED') { color = '#16a34a'; bg = '#dcfce7'; }
   else if (status === 'CANCELLED' || status === 'DECLINED') { color = '#ef4444'; bg = '#fee2e2'; }

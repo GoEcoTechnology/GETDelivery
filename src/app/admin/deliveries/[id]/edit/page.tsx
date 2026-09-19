@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import styles from '../../../admin.module.css';
 
-const LocationAutocomplete = dynamic(() => import('@/components/LocationAutocomplete'), { ssr: false });
+const MapPicker = dynamic(() => import('@/components/MapPicker'), { ssr: false });
 const RouteMapPreview = dynamic(() => import('@/components/RouteMapPreview'), { ssr: false });
 
 interface VehicleRate {
@@ -124,10 +124,10 @@ export default function EditDeliveryPage() {
     }
   };
 
-  const handlePickupSelect = (result: { address: string; lat: number; lng: number }) => {
+  const handlePickupSelect = (result: { address: string; lat: number; lng: number; landmark?: string }) => {
     setFormData(prev => ({
       ...prev,
-      pickupAddress: result.address,
+      pickupAddress: result.address + (result.landmark ? ` (${result.landmark})` : ''),
       pickupLat: result.lat,
       pickupLng: result.lng,
       routeDistance: '',
@@ -136,10 +136,10 @@ export default function EditDeliveryPage() {
     }));
   };
 
-  const handleDropoffSelect = (result: { address: string; lat: number; lng: number }) => {
+  const handleDropoffSelect = (result: { address: string; lat: number; lng: number; landmark?: string }) => {
     setFormData(prev => ({
       ...prev,
-      dropoffAddress: result.address,
+      dropoffAddress: result.address + (result.landmark ? ` (${result.landmark})` : ''),
       dropoffLat: result.lat,
       dropoffLng: result.lng,
       routeDistance: '',
@@ -385,21 +385,25 @@ export default function EditDeliveryPage() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <LocationAutocomplete
-              label="Pickup Location"
-              placeholder="Search business, address, landmark..."
-              value={formData.pickupAddress}
-              onSelect={handlePickupSelect}
-              required
-            />
-            <LocationAutocomplete
-              label="Dropoff"
-              placeholder="Search business, address, landmark..."
-              value={formData.dropoffAddress}
-              onSelect={handleDropoffSelect}
-              required
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ border: '1px solid #cbd5e1', padding: '16px', borderRadius: '12px', background: '#fff' }}>
+              <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 700 }}>Pickup Location</h4>
+              <MapPicker 
+                onLocationSelect={handlePickupSelect} 
+                initialLat={formData.pickupLat} 
+                initialLng={formData.pickupLng} 
+                initialAddress={formData.pickupAddress} 
+              />
+            </div>
+            <div style={{ border: '1px solid #cbd5e1', padding: '16px', borderRadius: '12px', background: '#fff' }}>
+              <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 700 }}>Dropoff Location</h4>
+              <MapPicker 
+                onLocationSelect={handleDropoffSelect} 
+                initialLat={formData.dropoffLat} 
+                initialLng={formData.dropoffLng} 
+                initialAddress={formData.dropoffAddress} 
+              />
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '16px', marginBottom: '12px', alignItems: 'center' }}>

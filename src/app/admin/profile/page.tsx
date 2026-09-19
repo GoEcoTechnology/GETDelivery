@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 import styles from '../admin.module.css';
 import { User, Building2, Users, Lock, Save, Trash2, Plus, Paintbrush, SlidersHorizontal, Upload } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
+import MapPicker from '@/components/MapPicker';
 
 type TabKey = 'profile' | 'team' | 'branding' | 'system';
 type TeamMember = {
@@ -23,6 +24,7 @@ export default function SettingsPage() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileData, setProfileData] = useState({ name: '', email: '', contactNumber: '', role: '', tenantName: '' });
+  const [tenantLocation, setTenantLocation] = useState<{lat: number; lng: number; address: string; landmark?: string} | null>(null);
   const [passwordData, setPasswordData] = useState({ password: '', confirmPassword: '' });
   const [teamLoading, setTeamLoading] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -41,6 +43,13 @@ export default function SettingsPage() {
           role: json.user.role || '',
           tenantName: json.tenant?.name || ''
         });
+        if (json.tenant?.address && json.tenant?.lat && json.tenant?.lng) {
+          setTenantLocation({
+            address: json.tenant.address,
+            lat: parseFloat(json.tenant.lat),
+            lng: parseFloat(json.tenant.lng)
+          });
+        }
       }
     } finally {
       setProfileLoading(false);
@@ -86,11 +95,16 @@ export default function SettingsPage() {
       }
     }
     try {
-      const payload: { name: string; businessName: string; contactNumber: string; password?: string } = { 
+      const payload: any = { 
         name: profileData.name, 
         businessName: profileData.tenantName,
         contactNumber: profileData.contactNumber
       };
+      if (tenantLocation) {
+        payload.address = tenantLocation.address + (tenantLocation.landmark ? ` (${tenantLocation.landmark})` : '');
+        payload.lat = tenantLocation.lat;
+        payload.lng = tenantLocation.lng;
+      }
       if (passwordEntered) payload.password = passwordData.password;
       const res = await fetch('/api/settings/profile', {
         method: 'PUT',
@@ -201,6 +215,21 @@ export default function SettingsPage() {
                     <div>
                       <label className={styles.label}>Business / Tenant Name</label>
                       <input className={styles.inputField} value={profileData.tenantName} onChange={e => setProfileData({ ...profileData, tenantName: e.target.value })} required />
+                    </div>
+                    <div>
+                      <label className={styles.label}>Business Location</label>
+                      <div style={{ marginBottom: '8px', fontSize: '13px', color: '#64748b' }}>
+                        Update your exact business location for accurate pickups.
+                      </div>
+                      {(!profileLoading) && (
+                        <MapPicker 
+                          initialLat={tenantLocation?.lat}
+                          initialLng={tenantLocation?.lng}
+                          initialAddress={tenantLocation?.address}
+                          onLocationSelect={setTenantLocation} 
+                          height="250px"
+                        />
+                      )}
                     </div>
                   </div>
                 )}

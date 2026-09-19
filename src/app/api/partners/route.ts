@@ -75,6 +75,11 @@ export async function POST(request: Request) {
       status: status || 'ACTIVE',
     }).returning();
 
+    if (partner.status === 'ACTIVE' || partner.status === 'AVAILABLE') {
+      const { invitePartnerToActiveDeliveries } = await import('@/lib/partnerInvitationHelper');
+      await invitePartnerToActiveDeliveries(partner.id);
+    }
+
     return NextResponse.json({ data: partner }, { status: 201 });
   });
 }

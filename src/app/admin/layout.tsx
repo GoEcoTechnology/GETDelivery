@@ -15,7 +15,8 @@ import {
   UserCog,
   Lightbulb,
   X,
-  AlertTriangle
+  AlertTriangle,
+  ShoppingCart
 } from 'lucide-react';
 import AdminNotifListener from './AdminNotifListener';
 import NotificationBell from './NotificationBell';
@@ -93,9 +94,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/inventory" className={pathname.startsWith('/admin/inventory') ? styles.active : ''}>
             <Package size={18} /> Inventory
           </Link>
+          <Link href="/admin/orders" className={pathname.startsWith('/admin/orders') ? styles.active : ''}>
+            <ShoppingCart size={18} /> Orders
+          </Link>
           <Link href="/admin/deliveries" className={pathname.startsWith('/admin/deliveries') ? styles.active : ''}>
             <Truck size={18} /> Deliveries
           </Link>
+
 
           <Link href="/admin/customers" className={pathname.startsWith('/admin/customers') ? styles.active : ''}>
             <Users size={18} /> Customers
@@ -144,6 +149,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {(() => {
                 if (pathname.startsWith('/admin/inventory')) return 'Inventory Management';
                 if (pathname.startsWith('/admin/deliveries')) return 'Deliveries';
+                if (pathname.startsWith('/admin/batches')) return 'Delivery Batches';
                 if (pathname.startsWith('/admin/customers')) return 'Customers';
                 if (pathname.startsWith('/admin/employees')) return 'Employees';
                 if (pathname.startsWith('/admin/drivers')) return 'Drivers';

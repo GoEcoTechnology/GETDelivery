@@ -54,40 +54,7 @@ export async function POST(
           )
         );
 
-      if (pendingInvitations.length === 0) {
-        // If no pending invitations remain, revert the order status to READY_FOR_DISPATCH
-        await db
-          .update(deliveryOrders)
-          .set({ status: 'READY_FOR_DISPATCH' })
-          .where(eq(deliveryOrders.id, orderId));
-      }
-
-      const [partner] = await db.select().from(deliveryPartners).where(eq(deliveryPartners.id, partnerId));
-      const partnerName = partner?.companyName || partner?.contactPerson || 'A delivery partner';
-
-      const messageTitle = 'Delivery Request Declined';
-      const messageBody = await buildStandardNotificationBody(messageTitle, {
-        orderId: orderId,
-        status: 'DECLINED',
-        reason: declineReason || 'Not specified'
-      });
-
-      // Insert Unified Notification
-      await db.insert(notifications).values({
-        tenantId: updatedInvitation.tenantId,
-        deliveryOrderId: orderId,
-        senderId: partnerId,
-        receiverId: 0, // 0 for broadcast to tenant
-        receiverRole: 'PLATFORM_OWNER',
-        notificationType: 'order_declined',
-        title: messageTitle,
-        body: messageBody,
-        actionUrl: `/admin/deliveries/${orderId}`,
-        status: 'UNREAD'
-      });
-
-
-      // Audit log
+      // Audit log (keeps internal record)
       await db.insert(auditLogs).values({
         tenantId: updatedInvitation.tenantId,
         actorType: 'PARTNER',
@@ -98,22 +65,9 @@ export async function POST(
         details: `Partner declined the request. Reason: ${declineReason || 'Not specified'}`
       });
 
-      // Send decline notification email to tenant users (fire-and-forget)
-      const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/admin/deliveries/${orderId}`;
-      sendPartnerDeclinedNotification(
-        updatedInvitation.tenantId,
-        orderId,
-        partnerName,
-        declineReason || 'Not specified',
-        dashboardUrl,
-        orderId
-      ).catch(err => {
-        console.error('Failed to send partner declined notification:', err.message);
-      });
-
-      // If there are still pending invitations, do not send "available" emails here
-      // The order remains in READY_FOR_DISPATCH and awaits Business Owner to re-broadcast
-      // if they want to retry with other partners
+      // No emails or in-app notifications are sent to the Business Owner here,
+      // as they should only be notified upon successful acceptance or completion.
+      // The order remains in DISPATCHED status.
 
       return NextResponse.json({ success: true, message: 'Delivery request declined.' });
 

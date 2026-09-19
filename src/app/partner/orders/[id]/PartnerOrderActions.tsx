@@ -135,7 +135,7 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
     }
   };
 
-  const isAssigned = ['ACCEPTED', 'ASSIGNED', 'TEMPORARY_WINNER', 'IN_TRANSIT', 'DELIVERED'].includes(localStatus);
+  const isAssigned = ['ACCEPTED', 'TEMPORARY_WINNER', 'IN_TRANSIT', 'DELIVERED'].includes(localStatus);
 
   // Render PENDING state: show Accept / Decline buttons
   if (localStatus === 'PENDING') {
@@ -212,7 +212,7 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
     <div style={{ display: 'grid', gap: '16px' }}>
       <div style={{ padding: '16px 20px', borderRadius: '18px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', justifyContent: 'center' }}>
         {localStatus === 'DELIVERED' && <StateMessage icon={<CheckCircle2 size={18} />} color="#16a34a" text="You completed this delivery" />}
-        {['ACCEPTED', 'ASSIGNED', 'TEMPORARY_WINNER'].includes(localStatus) && <StateMessage icon={<CheckCircle2 size={18} />} color="#16a34a" text="You have been assigned!" />}
+        {['ACCEPTED', 'TEMPORARY_WINNER'].includes(localStatus) && <StateMessage icon={<CheckCircle2 size={18} />} color="#16a34a" text="You have been assigned!" />}
         {localStatus === 'IN_TRANSIT' && <StateMessage icon={<CheckCircle2 size={18} />} color="#4f46e5" text="You are delivering this order" />}
         {localStatus === 'DECLINED' && <StateMessage icon={<XCircle size={18} />} color="#dc2626" text="You declined this request" />}
         {localStatus === 'CANCELLED' && <StateMessage icon={<XCircle size={18} />} color="#dc2626" text="You cancelled this assignment" />}
@@ -220,7 +220,7 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
         {!isAssigned && !['DECLINED', 'CANCELLED', 'EXPIRED', 'DELIVERED'].includes(localStatus) && <StateMessage icon={<AlertTriangle size={18} />} color="#64748b" text="Request is closed" />}
       </div>
       
-      {['ACCEPTED', 'ASSIGNED', 'TEMPORARY_WINNER'].includes(localStatus) && (
+      {['ACCEPTED', 'TEMPORARY_WINNER'].includes(localStatus) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <button 
             onClick={() => setShowStartModal(true)} 

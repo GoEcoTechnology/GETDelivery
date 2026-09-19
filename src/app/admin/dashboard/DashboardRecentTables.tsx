@@ -41,7 +41,7 @@ export default function DashboardRecentTables() {
                   <td style={{ fontWeight: 600 }}>{d.customerName || 'Unknown'}</td>
                   <td>
                     <span style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '4px', backgroundColor: '#f1f5f9' }}>
-                      {(d.status === 'TEMPORARY_WINNER' ? 'ASSIGNED' : d.status).replace(/_/g, ' ')}
+                      {(d.status === 'TEMPORARY_WINNER' ? 'ACCEPTED' : d.status).replace(/_/g, ' ')}
                     </span>
                   </td>
                   <td style={{ color: '#64748b', fontSize: '14px' }}>
@@ -57,3 +57,4 @@ export default function DashboardRecentTables() {
     </div>
   );
 }
+

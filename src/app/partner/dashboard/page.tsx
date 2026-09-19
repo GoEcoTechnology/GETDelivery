@@ -78,9 +78,9 @@ export default async function PartnerDashboard() {
   let active = 0;
   let completed = 0;
   invitations.forEach((inv) => {
-    const status = inv.status === 'TEMPORARY_WINNER' ? 'ASSIGNED' : inv.status;
-    if (status === 'PENDING' || status === 'DISPATCHED') newRequests++;
-    else if (status === 'ASSIGNED' || status === 'ACCEPTED' || status === 'IN_TRANSIT') active++;
+    const status = inv.status === 'TEMPORARY_WINNER' ? 'ACCEPTED' : inv.status;
+    if (status === 'PENDING' || status === 'WAITING_FOR_PARTNER') newRequests++;
+    else if (status === 'ACCEPTED' || status === 'ACCEPTED' || status === 'IN_TRANSIT') active++;
     else if (inv.status === 'DELIVERED' && new Date(inv.updatedAt || inv.createdAt || 0) >= monthStart) completed++;
   });
 
@@ -88,7 +88,7 @@ export default async function PartnerDashboard() {
 
   const calendarDeliveries = invitations
     .filter(inv => {
-      if (['ASSIGNED', 'IN_TRANSIT'].includes(inv.status)) return true;
+      if (['ACCEPTED', 'IN_TRANSIT'].includes(inv.status)) return true;
       if (['DELIVERED', 'COMPLETED'].includes(inv.status)) {
         const completedDate = new Date(inv.updatedAt || inv.createdAt || 0);
         const oneDayAgo = new Date();
@@ -132,7 +132,7 @@ export default async function PartnerDashboard() {
               ) : recentActivity.map((item) => (
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '14px 16px', borderRadius: '14px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
                   <div>
-                    <div style={{ fontWeight: 700, color: '#0f172a' }}>{(item.status === 'TEMPORARY_WINNER' ? 'ASSIGNED' : item.status).replace(/_/g, ' ')}</div>
+                    <div style={{ fontWeight: 700, color: '#0f172a' }}>{(item.status === 'TEMPORARY_WINNER' ? 'ACCEPTED' : item.status).replace(/_/g, ' ')}</div>
                     <div style={{ color: '#64748b', fontSize: '13px' }}>Delivery for {item.tenantName}</div>
                   </div>
                   <div style={{ textAlign: 'right', color: '#64748b', fontSize: '12px' }}>{new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}</div>
@@ -157,3 +157,4 @@ function Stat({ title, value, icon }: { title: string; value: number; icon: Reac
     </div>
   );
 }
+

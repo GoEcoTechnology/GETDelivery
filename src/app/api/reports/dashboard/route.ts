@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { products, deliveryOrders, tenants, deliveryPartners } from '@/db/schema';
+import { products, productVariants, deliveryOrders, tenants, deliveryPartners } from '@/db/schema';
 import { eq, sql, and, count } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
@@ -43,12 +43,13 @@ export async function GET(request: Request) {
 
     // 3. Get recent low stock items (Limit 5)
     const lowStockItems = await tx
-      .select({ id: products.id, name: products.name, stock: products.stock })
+      .select({ id: products.id, name: products.name, stock: productVariants.stock })
       .from(products)
+      .leftJoin(productVariants, eq(products.id, productVariants.productId))
       .where(
         tenantIdToUse 
-          ? and(eq(products.tenantId, tenantIdToUse as number), sql`stock <= low_stock_threshold`) 
-          : sql`stock <= low_stock_threshold`
+          ? and(eq(products.tenantId, tenantIdToUse as number), sql`${productVariants.stock} <= ${productVariants.lowStockThreshold}`) 
+          : sql`${productVariants.stock} <= ${productVariants.lowStockThreshold}`
       )
       .limit(5);
 

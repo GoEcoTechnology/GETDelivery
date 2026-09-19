@@ -18,9 +18,11 @@ const routeRoles: { prefix: string; roles: string[] }[] = [
   { prefix: '/platform-admin', roles: ['PLATFORM_OWNER'] },
   { prefix: '/partner',        roles: ['DELIVERY_PARTNER'] },
   { prefix: '/driver',         roles: ['DRIVER'] },
+  { prefix: '/customer',       roles: ['CUSTOMER'] },
 ];
 
 function getRedirectForRole(role: string): string {
+  if (role === 'CUSTOMER')          return '/customer';
   if (role === 'DELIVERY_PARTNER') return '/partner/orders';
   if (role === 'PLATFORM_OWNER')   return '/platform-admin';
   if (role === 'DRIVER')           return '/driver';

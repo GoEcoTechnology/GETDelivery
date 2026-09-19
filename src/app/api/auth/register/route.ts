@@ -10,10 +10,10 @@ export async function POST(request: Request) {
     const { type } = body; // 'tenant' or 'partner'
 
     if (type === 'tenant') {
-      const { businessName, contactPerson, email, password } = body;
+      const { businessName, contactPerson, email, password, address, lat, lng } = body;
 
-      if (!businessName || !email || !password) {
-        return NextResponse.json({ error: 'Business Name, Email, and Password are required.' }, { status: 400 });
+      if (!businessName || !email || !password || !address || !lat || !lng) {
+        return NextResponse.json({ error: 'Business Name, Email, Password, and Location are required.' }, { status: 400 });
       }
 
       if (password.length < 6) {
@@ -37,6 +37,9 @@ export async function POST(request: Request) {
       const [newTenant] = await db.insert(tenants).values({
         name: businessName,
         contactPerson: contactPerson || null,
+        address,
+        lat: lat.toString(),
+        lng: lng.toString(),
         status: 'PENDING',
       }).returning();
 
@@ -92,8 +95,45 @@ export async function POST(request: Request) {
         message: 'Registration successful! Your account is pending Super Admin approval. You will be notified once approved.'
       }, { status: 201 });
 
+    } else if (type === 'customer') {
+      const { name, email, password } = body;
+
+      if (!name || !email || !password) {
+        return NextResponse.json({ error: 'Name, Email, and Password are required.' }, { status: 400 });
+      }
+
+      if (password.length < 6) {
+        return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 });
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return NextResponse.json({ error: 'Invalid email format.' }, { status: 400 });
+      }
+
+      // Check if email already exists
+      const [existingUser] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+      if (existingUser) {
+        return NextResponse.json({ error: 'An account with this email already exists.' }, { status: 400 });
+      }
+
+      const passwordHash = await hashPassword(password);
+
+      await db.insert(users).values({
+        name,
+        email: email.toLowerCase(),
+        passwordHash,
+        role: 'CUSTOMER',
+        status: 'ACTIVE', // Customers are immediately active
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Registration successful! You can now log in.'
+      }, { status: 201 });
+
     } else {
-      return NextResponse.json({ error: 'Invalid registration type. Must be "tenant" or "partner".' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid registration type. Must be "tenant", "partner", or "customer".' }, { status: 400 });
     }
 
   } catch (error) {

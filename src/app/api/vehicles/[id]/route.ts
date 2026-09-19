@@ -10,7 +10,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 
     const body = await request.json();
-    const { plateNumber, vehicleType, status, orNumber, crNumber, registrationExpiry } = body;
+    const { plateNumber, vehicleType, status, orNumber, crNumber, registrationExpiry, capacityKg } = body;
     const parsedRegistrationExpiry = registrationExpiry ? new Date(registrationExpiry) : null;
 
     let condition = eq(vehicles.id, id);
@@ -25,6 +25,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         status,
         orNumber: orNumber || null,
         crNumber: crNumber || null,
+        capacityKg: capacityKg || 0,
         registrationExpiry: parsedRegistrationExpiry,
       })
       .where(condition)

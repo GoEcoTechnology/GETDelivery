@@ -23,6 +23,7 @@ export default function VehiclesClient() {
   const [newRegistrationExpiry, setNewRegistrationExpiry] = useState('');
   const [newOrNumber, setNewOrNumber] = useState('');
   const [newCrNumber, setNewCrNumber] = useState('');
+  const [newCapacityKg, setNewCapacityKg] = useState('');
 
   const getRegistrationStatus = (expiryDate: string) => {
     if (!expiryDate) return { text: 'No Reg Info', class: styles.badgeError };
@@ -85,6 +86,7 @@ export default function VehiclesClient() {
         vehicleType: editModal.vehicleType,
         orNumber: editModal.orNumber || null,
         crNumber: editModal.crNumber || null,
+        capacityKg: Number(editModal.capacityKg) || 0,
         registrationExpiry: editModal.registrationExpiry || null,
         status: editModal.status,
       };
@@ -119,6 +121,7 @@ export default function VehiclesClient() {
         body: JSON.stringify({ 
           plateNumber: newPlate, 
           vehicleType: newType,
+          capacityKg: Number(newCapacityKg) || 0,
           registrationExpiry: newRegistrationExpiry ? new Date(newRegistrationExpiry) : null,
           orNumber: newOrNumber,
           crNumber: newCrNumber
@@ -131,6 +134,7 @@ export default function VehiclesClient() {
         setNewRegistrationExpiry('');
         setNewOrNumber('');
         setNewCrNumber('');
+        setNewCapacityKg('');
         fetchVehicles();
       } else {
         alert('Failed to add vehicle');
@@ -175,6 +179,7 @@ export default function VehiclesClient() {
             <tr>
               <th>Plate Number</th>
               <th>Vehicle Type</th>
+              <th>Capacity (kg)</th>
               <th>Registration Info</th>
               <th>Status</th>
               <th style={{ textAlign: 'right' }}>Actions</th>
@@ -195,6 +200,9 @@ export default function VehiclesClient() {
                     <span style={{ padding: '4px 8px', backgroundColor: '#f1f5f9', borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}>
                       {vehicle.vehicleType}
                     </span>
+                  </td>
+                  <td style={{ fontWeight: 600, color: '#475569' }}>
+                    {vehicle.capacityKg} kg
                   </td>
                   <td>
                     {vehicle.orNumber || vehicle.crNumber || vehicle.registrationExpiry ? (
@@ -280,9 +288,15 @@ export default function VehiclesClient() {
                 </div>
               </div>
 
-              <div style={{ marginBottom: '24px' }}>
-                <label className={styles.label}>Registration Expiry Date</label>
-                <input className={styles.inputField} type="date" value={newRegistrationExpiry} onChange={e => setNewRegistrationExpiry(e.target.value)} />
+              <div style={{ marginBottom: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label className={styles.label}>Capacity (kg) *</label>
+                  <input required className={styles.inputField} type="number" min="0" value={newCapacityKg} onChange={e => setNewCapacityKg(e.target.value)} placeholder="e.g. 120" />
+                </div>
+                <div>
+                  <label className={styles.label}>Registration Expiry Date</label>
+                  <input className={styles.inputField} type="date" value={newRegistrationExpiry} onChange={e => setNewRegistrationExpiry(e.target.value)} />
+                </div>
               </div>
               
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
@@ -326,9 +340,15 @@ export default function VehiclesClient() {
                 </div>
               </div>
 
-              <div style={{ marginBottom: '16px' }}>
-                <label className={styles.label}>Registration Expiry</label>
-                <input className={styles.inputField} type="date" value={editModal.registrationExpiry ? new Date(editModal.registrationExpiry).toISOString().split('T')[0] : ''} onChange={e => setEditModal({...editModal, registrationExpiry: e.target.value ? new Date(e.target.value).toISOString() : null})} />
+              <div style={{ marginBottom: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label className={styles.label}>Capacity (kg) *</label>
+                  <input required className={styles.inputField} type="number" min="0" value={editModal.capacityKg || 0} onChange={e => setEditModal({...editModal, capacityKg: e.target.value})} />
+                </div>
+                <div>
+                  <label className={styles.label}>Registration Expiry</label>
+                  <input className={styles.inputField} type="date" value={editModal.registrationExpiry ? new Date(editModal.registrationExpiry).toISOString().split('T')[0] : ''} onChange={e => setEditModal({...editModal, registrationExpiry: e.target.value ? new Date(e.target.value).toISOString() : null})} />
+                </div>
               </div>
 
               <div style={{ marginBottom: '24px' }}>

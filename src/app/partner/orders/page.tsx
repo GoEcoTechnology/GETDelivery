@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems, products } from '@/db/schema';
+import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems, products, deliveryBatchItems } from '@/db/schema';
 import { eq, desc, inArray, and, ne, sql, isNull } from 'drizzle-orm';
 import { deliveryPartners } from '@/db/schema';
 import OrdersTableClient from './OrdersTableClient';
@@ -45,7 +45,8 @@ export default async function PartnerOrdersPage() {
         distanceKm: deliveryOrders.distanceKm,
         vehicleBasePrice: deliveryOrders.vehicleBasePrice,
         pricePerKm: deliveryOrders.pricePerKm,
-        pickupAddress: deliveryOrders.pickupAddress
+        pickupAddress: deliveryOrders.pickupAddress,
+        batchId: deliveryOrders.batchId
       },
       tenant: {
         name: tenants.name
@@ -67,9 +68,31 @@ export default async function PartnerOrdersPage() {
     .orderBy(desc(deliveryInvitations.createdAt))
     .limit(100);
 
-  const invitationsWithItems = invitations as Array<{
+  const batchIds = invitations.map(i => i.order.batchId).filter((id): id is number => id !== null);
+  const batchItemCounts = new Map<number, number>();
+  
+  if (batchIds.length > 0) {
+    const counts = await db
+      .select({
+        batchId: deliveryBatchItems.batchId,
+        count: sql<number>`count(${deliveryBatchItems.id})`
+      })
+      .from(deliveryBatchItems)
+      .where(inArray(deliveryBatchItems.batchId, batchIds))
+      .groupBy(deliveryBatchItems.batchId);
+      
+    counts.forEach(c => batchItemCounts.set(c.batchId!, Number(c.count)));
+  }
+
+  const invitationsWithItems = invitations.map(inv => ({
+    ...inv,
+    order: {
+      ...inv.order,
+      batchCustomerCount: inv.order.batchId ? batchItemCounts.get(inv.order.batchId) || 0 : 0
+    }
+  })) as Array<{
     invitation: { id: number; createdAt: Date | string; status: string };
-    order: { id: number; dropoffAddress: string; instructions?: string; preferredVehicle?: string; finalDeliveryPrice?: string | number; requiredVehicleType?: string; distanceKm?: string | number; vehicleBasePrice?: string | number; pricePerKm?: string | number; pickupAddress?: string };
+    order: { id: number; batchId?: number | null; batchCustomerCount?: number; dropoffAddress: string; instructions?: string; preferredVehicle?: string; finalDeliveryPrice?: string | number; requiredVehicleType?: string; distanceKm?: string | number; vehicleBasePrice?: string | number; pricePerKm?: string | number; pickupAddress?: string };
     tenant: { name: string };
     customer?: { name: string; mobileNumber?: string | null } | null;
   }>;

@@ -111,7 +111,7 @@ export function DeliveryDetailsModal({
                   const pct = Math.min(100, (accQty / targetQty) * 100);
                   const isReached = accQty >= targetQty;
                   const remaining = targetQty - accQty;
-                  const canAddQuota = !['READY_FOR_DISPATCH', 'DISPATCHED', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED'].includes(delivery.status);
+                  const canAddQuota = !['READY_FOR_DISPATCH', 'WAITING_FOR_PARTNER', 'ACCEPTED', 'IN_TRANSIT', 'DELIVERED'].includes(delivery.status);
                   const inputKey = `${delivery.id}-${prod.itemId}`;
                   const inputQty = addQuotaInputs[inputKey] || 0;
                   const errorMsg = addQuotaErrors[inputKey];
@@ -306,3 +306,4 @@ export function DeliveryDetailsModal({
     </div>
   );
 }
+

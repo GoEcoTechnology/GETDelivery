@@ -31,6 +31,7 @@ export async function GET(request: Request) {
         status: vehicles.status,
         orNumber: vehicles.orNumber,
         crNumber: vehicles.crNumber,
+        capacityKg: vehicles.capacityKg,
         registrationExpiry: vehicles.registrationExpiry,
         createdAt: vehicles.createdAt,
       })
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return withAuth(request, { requiredPermissions: ['delivery.manage'] }, async (tx, claims) => {
-    const { plateNumber, vehicleType, deliveryPartnerId } = await request.json();
+    const { plateNumber, vehicleType, deliveryPartnerId, capacityKg, orNumber, crNumber, registrationExpiry } = await request.json();
 
     if (!plateNumber || !vehicleType) {
       return NextResponse.json({ error: 'Plate Number and Vehicle Type are required' }, { status: 400 });
@@ -69,6 +70,10 @@ export async function POST(request: Request) {
       deliveryPartnerId: deliveryPartnerId || null,
       plateNumber,
       vehicleType,
+      capacityKg: capacityKg || 0,
+      orNumber: orNumber || null,
+      crNumber: crNumber || null,
+      registrationExpiry: registrationExpiry ? new Date(registrationExpiry) : null,
       status: 'ACTIVE'
     }).returning();
 

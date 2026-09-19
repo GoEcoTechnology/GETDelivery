@@ -3,8 +3,8 @@ import { verifyToken } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import DeliveriesClient from './DeliveriesClient';
 import { db } from '@/db';
-import { deliveryOrders, deliveryItems, products, quotaAccumulations, deliveryPartners } from '@/db/schema';
-import { eq, desc, inArray } from 'drizzle-orm';
+import { deliveryOrders, deliveryItems, products, productVariants, quotaAccumulations, deliveryPartners, deliveryBatches, deliveryBatchItems, customers } from '@/db/schema';
+import { eq, desc, inArray, and } from 'drizzle-orm';
 
 export default async function DeliveriesPage() {
   const cookieStore = await cookies();
@@ -20,7 +20,7 @@ export default async function DeliveriesPage() {
   }
 
   const tenantId = claims.tenantId as number | null;
-  let initialData: { data: any[]; page: number; limit: number; totalCount: number } = { data: [], page: 1, limit: 7, totalCount: 0 };
+  let initialData: { data: any[]; batches: any[]; page: number; limit: number; totalCount: number } = { data: [], batches: [], page: 1, limit: 7, totalCount: 0 };
 
   if (tenantId) {
     const data = await db
@@ -40,11 +40,67 @@ export default async function DeliveriesPage() {
         partnerDriverContact: deliveryOrders.partnerDriverContact,
         deliveryDate: deliveryOrders.deliveryDate,
         createdAt: deliveryOrders.createdAt,
+        orderSource: deliveryOrders.orderSource,
       })
       .from(deliveryOrders)
-      .where(eq(deliveryOrders.tenantId, tenantId))
+      .where(and(
+        eq(deliveryOrders.tenantId, tenantId),
+        eq(deliveryOrders.orderSource, 'CREATED')
+      ))
       .orderBy(desc(deliveryOrders.createdAt))
-      .limit(7);
+      .limit(20);
+
+    // Fetch Completed Batches (Marketplace Deliveries)
+    const batchesData = await db
+      .select({
+        id: deliveryBatches.id,
+        batchNumber: deliveryBatches.batchNumber,
+        totalQuantity: deliveryBatches.totalQuantity,
+        quotaQuantity: deliveryBatches.quotaQuantity,
+        totalWeight: deliveryBatches.totalWeight,
+        pickupLocation: deliveryBatches.pickupLocation,
+        status: deliveryBatches.status,
+        createdAt: deliveryBatches.createdAt,
+        variantName: productVariants.name,
+        productName: products.name,
+        variantPrice: productVariants.price,
+      })
+      .from(deliveryBatches)
+      .leftJoin(productVariants, eq(deliveryBatches.variantId, productVariants.id))
+      .leftJoin(products, eq(productVariants.productId, products.id))
+      .where(eq(deliveryBatches.tenantId, tenantId))
+      .orderBy(desc(deliveryBatches.createdAt));
+      
+    const batchIds = batchesData.map(b => b.id);
+    let allBatchItems: any[] = [];
+    if (batchIds.length > 0) {
+      allBatchItems = await db
+        .select({
+          id: deliveryBatchItems.id,
+          batchId: deliveryBatchItems.batchId,
+          quantity: deliveryBatchItems.quantity,
+          customerWeight: deliveryBatchItems.customerWeight,
+          customerName: customers.name,
+          customerContact: customers.mobileNumber,
+          dropoffAddress: deliveryOrders.dropoffAddress,
+          partnerDriverName: deliveryOrders.partnerDriverName,
+          partnerDriverContact: deliveryOrders.partnerDriverContact,
+        })
+        .from(deliveryBatchItems)
+        .leftJoin(customers, eq(deliveryBatchItems.customerId, customers.id))
+        .leftJoin(deliveryOrders, eq(deliveryBatchItems.customerOrderId, deliveryOrders.id))
+        .where(inArray(deliveryBatchItems.batchId, batchIds));
+    }
+    
+    const enrichedBatches = batchesData.map(batch => {
+      const items = allBatchItems.filter(item => item.batchId === batch.id);
+      return {
+        ...batch,
+        items,
+        partnerDriverName: items.find(i => i.partnerDriverName)?.partnerDriverName || null,
+        partnerDriverContact: items.find(i => i.partnerDriverContact)?.partnerDriverContact || null,
+      };
+    });
 
     const totalCount = data.length;
     const orderIds = data.map((o) => o.id);
@@ -74,10 +130,11 @@ export default async function DeliveriesPage() {
           productId: products.id,
           productName: products.name,
           quantity: deliveryItems.quantity,
-          unitPrice: products.price
+          unitPrice: productVariants.price
         })
         .from(deliveryItems)
         .innerJoin(products, eq(deliveryItems.productId, products.id))
+        .leftJoin(productVariants, eq(products.id, productVariants.productId))
         .where(inArray(deliveryItems.deliveryOrderId, orderIds));
 
       const accumulations = await db
@@ -111,7 +168,9 @@ export default async function DeliveriesPage() {
         temporaryWinner: order.temporaryWinnerId ? (winnerMap.get(order.temporaryWinnerId) || null) : null
       }));
 
-      initialData = { data: enriched, page: 1, limit: 7, totalCount };
+      initialData = { data: enriched, batches: enrichedBatches, page: 1, limit: 7, totalCount };
+    } else {
+      initialData = { data: [], batches: enrichedBatches, page: 1, limit: 7, totalCount: 0 };
     }
   }
 

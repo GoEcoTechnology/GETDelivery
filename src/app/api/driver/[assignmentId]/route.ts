@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryAssignments, deliveryOrders, deliveryItems, products } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { verifyToken, AppJwtPayload } from '@/lib/auth';
 
 export async function GET(request: Request, { params }: { params: Promise<{ assignmentId: string }> }) {
@@ -31,34 +31,54 @@ export async function GET(request: Request, { params }: { params: Promise<{ assi
       return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
     }
 
-    const [order] = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, assignment.deliveryOrderId));
+    const [mainOrder] = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, assignment.deliveryOrderId));
     
-    if (!order) {
+    if (!mainOrder) {
       return NextResponse.json({ error: 'Delivery order not found' }, { status: 404 });
     }
 
-    // Fetch items with product names
-    const items = await db
+    // If order is part of a batch, fetch all orders in that batch. Otherwise, just the main order.
+    let ordersToFetch = [mainOrder];
+    if (mainOrder.batchId) {
+      ordersToFetch = await db.select().from(deliveryOrders).where(eq(deliveryOrders.batchId, mainOrder.batchId));
+    }
+
+    const orderIds = ordersToFetch.map(o => o.id);
+
+    // Fetch items with product names for all orders in the batch
+    const allItems = await db
       .select({
         id: deliveryItems.id,
+        orderId: deliveryItems.deliveryOrderId,
         quantity: deliveryItems.quantity,
         unit: deliveryItems.unit,
         productName: products.name
       })
       .from(deliveryItems)
       .innerJoin(products, eq(deliveryItems.productId, products.id))
-      .where(eq(deliveryItems.deliveryOrderId, order.id));
+      .where(inArray(deliveryItems.deliveryOrderId, orderIds));
+
+    // Structure the data to support multiple orders
+    const structuredOrders = ordersToFetch.map(o => ({
+      orderId: o.id,
+      customerName: o.customerName,
+      customerContact: o.customerContact,
+      pickupAddress: o.pickupAddress,
+      pickupLat: o.pickupLat,
+      pickupLng: o.pickupLng,
+      dropoffAddress: o.dropoffAddress,
+      dropoffLat: o.dropoffLat,
+      dropoffLng: o.dropoffLng,
+      instructions: o.instructions,
+      items: allItems.filter(item => item.orderId === o.id).map(({ orderId, ...rest }) => rest)
+    }));
 
     return NextResponse.json({
       data: {
-        orderId: order.id,
+        assignmentId: assignment.id,
         status: assignment.status,
-        customerName: order.customerName,
-        customerContact: order.customerContact,
-        pickupAddress: order.pickupAddress,
-        dropoffAddress: order.dropoffAddress,
-        instructions: order.instructions,
-        items
+        batchId: mainOrder.batchId,
+        orders: structuredOrders
       }
     });
 

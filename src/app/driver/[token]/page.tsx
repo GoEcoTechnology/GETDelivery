@@ -136,6 +136,8 @@ export default function DriverPage() {
     );
   }
 
+  const isBatch = data.orders.length > 1;
+
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', paddingBottom: '32px', fontFamily: 'Inter, sans-serif' }}>
       
@@ -143,7 +145,7 @@ export default function DriverPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: '8px' }}>
-              Manifest #{data.orderId}
+              {isBatch ? `Batch #${data.batchId}` : `Manifest #${data.orders[0].orderId}`}
             </div>
             <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800 }}>Driver Portal</h1>
           </div>
@@ -155,56 +157,81 @@ export default function DriverPage() {
       
       <div style={{ marginTop: '-40px', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         
-        {/* Customer Info Card */}
-        <div style={contentCard}>
-          <h3 style={cardHeader}><FileText size={16} /> Customer Details</h3>
-          <div style={{ fontWeight: 700, fontSize: '18px', color: '#0f172a', marginBottom: '8px' }}>{data.customerName}</div>
-          {data.customerContact && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600, fontSize: '15px' }}>
-              <Phone size={16} /> <a href={`tel:${data.customerContact}`} style={{ color: 'inherit', textDecoration: 'none' }}>{data.customerContact}</a>
+        {data.orders.map((order: any, idx: number) => (
+          <div key={order.orderId} style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px', backgroundColor: 'white', borderRadius: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', border: isBatch ? '2px solid #e2e8f0' : 'none' }}>
+            {isBatch && (
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
+                Customer {idx + 1}
+              </div>
+            )}
+            {/* Customer Info Card */}
+            <div>
+              <h3 style={cardHeader}><FileText size={16} /> Customer Details</h3>
+              <div style={{ fontWeight: 700, fontSize: '18px', color: '#0f172a', marginBottom: '8px' }}>{order.customerName}</div>
+              {order.customerContact && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600, fontSize: '15px' }}>
+                  <Phone size={16} /> <a href={`tel:${order.customerContact}`} style={{ color: 'inherit', textDecoration: 'none' }}>{order.customerContact}</a>
+                </div>
+              )}
+              {order.instructions && (
+                <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#fef3c7', color: '#92400e', borderRadius: '8px', fontSize: '13px', fontWeight: 500 }}>
+                  <strong>Note:</strong> {order.instructions}
+                </div>
+              )}
             </div>
-          )}
-          {data.instructions && (
-            <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#fef3c7', color: '#92400e', borderRadius: '8px', fontSize: '13px', fontWeight: 500 }}>
-              <strong>Note:</strong> {data.instructions}
-            </div>
-          )}
-        </div>
 
-        {/* Route Card */}
-        <div style={contentCard}>
-          <h3 style={cardHeader}><Navigation size={16} /> Delivery Route</h3>
-          <div style={{ position: 'relative', paddingLeft: '24px' }}>
-            <div style={{ position: 'absolute', left: '7px', top: '10px', bottom: '10px', width: '2px', backgroundColor: '#e2e8f0' }}></div>
-            
-            <div style={{ position: 'relative', marginBottom: '24px' }}>
-              <div style={{ position: 'absolute', left: '-22px', top: '2px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#4f46e5', border: '2px solid white', boxShadow: '0 0 0 1px #cbd5e1' }}></div>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Pickup</div>
-              <div style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>{data.pickupAddress}</div>
-            </div>
-            
-            <div style={{ position: 'relative' }}>
-              <div style={{ position: 'absolute', left: '-22px', top: '2px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981', border: '2px solid white', boxShadow: '0 0 0 1px #cbd5e1' }}></div>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Drop-off</div>
-              <div style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>{data.dropoffAddress}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Items Card */}
-        <div style={contentCard}>
-          <h3 style={cardHeader}><Box size={16} /> Items to Deliver</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {data.items.map((item: any) => (
-              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
-                <div style={{ fontWeight: 600, color: '#334155', fontSize: '14px' }}>{item.productName}</div>
-                <div style={{ backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, color: '#475569' }}>
-                  {item.quantity} {item.unit || 'pcs'}
+            {/* Route Card */}
+            <div>
+              <h3 style={cardHeader}><Navigation size={16} /> Delivery Route</h3>
+              <div style={{ position: 'relative', paddingLeft: '24px' }}>
+                <div style={{ position: 'absolute', left: '7px', top: '10px', bottom: '10px', width: '2px', backgroundColor: '#e2e8f0' }}></div>
+                
+                <div style={{ position: 'relative', marginBottom: '24px' }}>
+                  <div style={{ position: 'absolute', left: '-22px', top: '2px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#4f46e5', border: '2px solid white', boxShadow: '0 0 0 1px #cbd5e1' }}></div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Pickup</div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>
+                    <a 
+                      href={order.pickupLat && order.pickupLng ? `https://www.google.com/maps/dir/?api=1&destination=${order.pickupLat},${order.pickupLng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.pickupAddress)}`} 
+                      target="_blank" 
+                      style={{ color: '#4f46e5', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      {order.pickupAddress} <Navigation size={14} />
+                    </a>
+                  </div>
+                </div>
+                
+                <div style={{ position: 'relative' }}>
+                  <div style={{ position: 'absolute', left: '-22px', top: '2px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981', border: '2px solid white', boxShadow: '0 0 0 1px #cbd5e1' }}></div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Drop-off</div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>
+                    <a 
+                      href={order.dropoffLat && order.dropoffLng ? `https://www.google.com/maps/dir/?api=1&destination=${order.dropoffLat},${order.dropoffLng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.dropoffAddress)}`} 
+                      target="_blank" 
+                      style={{ color: '#4f46e5', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      {order.dropoffAddress} <Navigation size={14} />
+                    </a>
+                  </div>
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Items Card */}
+            <div>
+              <h3 style={cardHeader}><Box size={16} /> Items to Deliver</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {order.items.map((item: any) => (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ fontWeight: 600, color: '#334155', fontSize: '14px' }}>{item.productName}</div>
+                    <div style={{ backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, color: '#475569' }}>
+                      {item.quantity} {item.unit || 'pcs'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        ))}
 
         {/* Actions Card */}
         <div style={contentCard}>

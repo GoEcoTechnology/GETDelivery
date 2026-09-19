@@ -1,33 +1,200 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import styles from '../admin.module.css';
-import { Search, Edit2, Trash2, PackagePlus, ArrowDownToLine, ChevronLeft, ChevronRight, X, History, ArrowUpRight, BarChart3, Download } from 'lucide-react';
+import {
+  Search, Edit2, Trash2, PackagePlus, ArrowDownToLine, ChevronLeft, ChevronRight,
+  X, History, ArrowUpRight, Download, ChevronDown, ChevronRight as ChevronRightIcon,
+  Plus, Tag, Layers
+} from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
 
+/* ─── helpers ─── */
+const fmt = (v: any) => {
+  if (v == null) return '—';
+  const num = Number(v);
+  return new Intl.NumberFormat('en-PH', { 
+    style: 'currency', 
+    currency: 'PHP',
+    minimumFractionDigits: Number.isInteger(num) ? 0 : 2
+  }).format(num);
+};
+
+const StockBadge = ({ stock, threshold }: { stock: number | null; threshold: number | null }) => {
+  if (stock == null) return <span style={{ color: '#94a3b8' }}>—</span>;
+  const low = threshold ?? 0;
+  const color = stock <= low ? '#dc2626' : '#16a34a';
+  return <span style={{ color, fontWeight: 700 }}>{stock}</span>;
+};
+
+/* ─── Variant row (sub-row) ─── */
+function VariantRow({ variant, productName }: { variant: any; productName: string }) {
+  const [showUnits, setShowUnits] = useState(false);
+  const hasUnits = variant.sellingUnits && variant.sellingUnits.length > 0;
+
+  return (
+    <div style={{ borderLeft: '2px solid #e2e8f0', marginLeft: '9px', paddingLeft: '20px', paddingBottom: '16px', paddingTop: '16px', borderBottom: '1px solid #f1f5f9' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => setShowUnits(!showUnits)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b' }}>{variant.name}</span>
+            {variant.status !== 'ACTIVE' && (
+              <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '11px', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>Inactive</span>
+            )}
+          </div>
+          <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
+            Stock: <StockBadge stock={variant.stock} threshold={variant.lowStockThreshold} /> {variant.unit ? variant.unit : ''}
+          </div>
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <span style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a', width: '100px', textAlign: 'right' }}></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '70px', justifyContent: 'flex-end' }}>
+            <ActionMenu actions={[
+              { label: 'Add Selling Unit', icon: <Plus size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('add-selling-unit', { detail: { variant, productName } })), color: '#8b5cf6' },
+              { label: 'Edit Variant', icon: <Edit2 size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('edit-variant', { detail: { variant, productName } })), color: '#3b82f6' },
+            ]} />
+            <button onClick={() => setShowUnits(!showUnits)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex', width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}>
+              {showUnits ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {showUnits && (
+        <div style={{ marginTop: '16px' }}>
+          {hasUnits && variant.sellingUnits.map((su: any) => (
+            <div key={su.id} style={{ borderLeft: '2px solid #eab308', marginLeft: '8px', paddingLeft: '16px', paddingBottom: '12px', marginBottom: '12px' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: 600, fontSize: '14px', color: '#334155' }}>{su.unitName}</span>
+                    {su.status !== 'ACTIVE' && (
+                      <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>Inactive</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a', width: '100px', textAlign: 'right' }}>{fmt(su.price)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '70px', justifyContent: 'flex-end' }}>
+                      <ActionMenu actions={[
+                        { label: 'Edit Selling Unit', icon: <Edit2 size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('edit-selling-unit', { detail: { unit: su, variant, productName } })), color: '#3b82f6' },
+                        { label: 'Delete Selling Unit', icon: <Trash2 size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('delete-selling-unit', { detail: { unit: su, variant } })), color: '#ef4444' },
+                      ]} />
+                      <div style={{ width: 26 }} />
+                    </div>
+                  </div>
+               </div>
+               <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
+                 {su.description || `1 ${su.unitName} = ${Number(su.equivalentQty)} ${variant.unit || 'pcs'}`}
+               </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Product row ─── */
+function ProductRow({
+  product,
+  onEdit,
+  onDelete,
+}: {
+  product: any;
+  onEdit: (p: any) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasVariants = product.variants && product.variants.length > 0;
+
+  // summary: total stock across all variants
+  const totalStock = hasVariants
+    ? product.variants.reduce((s: number, v: any) => s + (Number(v.stock) || 0), 0)
+    : 0;
+
+  return (
+    <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', background: '#fff', overflow: 'hidden' }}>
+      <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: expanded ? '#f8fafc' : '#fff' }}>
+        <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => hasVariants && setExpanded(!expanded)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 6, background: '#ecfdf5', color: '#10b981' }}>
+              <Layers size={14} />
+            </div>
+            <span style={{ fontWeight: 700, fontSize: '16px', color: '#0f172a' }}>{product.name}</span>
+            {product.status !== 'ACTIVE' && (
+              <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '11px', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>Inactive</span>
+            )}
+          </div>
+          <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px', paddingLeft: '36px' }}>
+            {product.variants?.length || 0} Variants • Total Inventory: {totalStock.toLocaleString()}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <ActionMenu actions={[
+            {
+              label: 'Edit Product',
+              icon: <Edit2 size={14} />,
+              onClick: () => onEdit(product),
+              color: '#3b82f6'
+            },
+            {
+              label: 'Add Variant',
+              icon: <Plus size={14} />,
+              onClick: () => window.dispatchEvent(new CustomEvent('add-variant', { detail: { product } })),
+              color: '#8b5cf6'
+            },
+            {
+              label: 'Delete Product',
+              icon: <Trash2 size={14} />,
+              onClick: () => onDelete(product.id),
+              color: '#ef4444'
+            }
+          ]} />
+          {hasVariants && (
+            <button onClick={() => setExpanded(!expanded)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex' }}>
+              {expanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {expanded && hasVariants && (
+        <div style={{ borderTop: '1px solid #e2e8f0', padding: '0 20px', background: '#fff' }}>
+          {product.variants.map((v: any, idx: number) => (
+             <div key={v.id} style={{ padding: '0' }}>
+               <VariantRow variant={v} productName={product.name} />
+             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Main component ─── */
 export default function InventoryClient() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Pagination & Search State
   const [page, setPage] = useState(1);
-  const [limit] = useState(7);
+  const [limit] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState('');
 
-  // Modals
   const [editModal, setEditModal] = useState<any>(null);
-
+  const [variantModal, setVariantModal] = useState<any>(null);
+  const [unitModal, setUnitModal] = useState<any>(null);
   const [exporting, setExporting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-
-  // Add Product State
-
-
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/products?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`);
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(
+        `/api/products?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       if (res.ok) {
         const json = await res.json();
         setProducts(json.data || []);
@@ -41,17 +208,97 @@ export default function InventoryClient() {
   }, [page, limit, search]);
 
   useEffect(() => {
-    // Debounce search
-    const timer = setTimeout(() => {
-      fetchProducts();
-    }, 300);
+    const timer = setTimeout(fetchProducts, 300);
     return () => clearTimeout(timer);
   }, [page, search, fetchProducts]);
+
+  useEffect(() => {
+    const openVariant = (event: Event) => setVariantModal((event as CustomEvent).detail);
+    const openUnit = (event: Event) => setUnitModal((event as CustomEvent).detail);
+    const addVariant = (event: Event) => {
+      const { product } = (event as CustomEvent).detail;
+      setVariantModal({ productName: product.name, productId: product.id, isNew: true, variant: { name: '', quantity: '', price: '', weightPerPieceKg: '', quota: '', stock: '', status: 'ACTIVE' } });
+    };
+    const addUnit = (event: Event) => {
+      const { variant, productName } = (event as CustomEvent).detail;
+      setUnitModal({ productName, variant, isNew: true, unit: { productId: variant.productId, unitName: '', equivalentQty: '', description: '', price: '', status: 'ACTIVE' } });
+    };
+    const deleteVariant = async (event: Event) => {
+      const { variant } = (event as CustomEvent).detail;
+      if (!confirm(`Delete variant "${variant.name}"?`)) return;
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(`/api/products/${variant.productId}/variants/${variant.id}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) fetchProducts(); else alert('Failed to delete variant');
+    };
+    const deleteUnit = async (event: Event) => {
+      const { unit, variant } = (event as CustomEvent).detail;
+      if (!confirm(`Delete selling unit "${unit.unitName}"?`)) return;
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(`/api/products/${unit.productId}/variants/${variant.id}/selling-units/${unit.id}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) fetchProducts(); else alert('Failed to delete selling unit');
+    };
+
+    window.addEventListener('edit-variant', openVariant);
+    window.addEventListener('edit-selling-unit', openUnit);
+    window.addEventListener('add-variant', addVariant);
+    window.addEventListener('add-selling-unit', addUnit);
+    window.addEventListener('delete-variant', deleteVariant);
+    window.addEventListener('delete-selling-unit', deleteUnit);
+    return () => {
+      window.removeEventListener('edit-variant', openVariant);
+      window.removeEventListener('edit-selling-unit', openUnit);
+      window.removeEventListener('add-variant', addVariant);
+      window.removeEventListener('add-selling-unit', addUnit);
+      window.removeEventListener('delete-variant', deleteVariant);
+      window.removeEventListener('delete-selling-unit', deleteUnit);
+    };
+  }, [fetchProducts]);
+
+  const saveVariant = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!variantModal) return;
+    const token = localStorage.getItem('token') || '';
+    const productId = variantModal.productId || variantModal.variant.productId;
+    const res = await fetch(variantModal.isNew
+      ? `/api/products/${productId}/variants`
+      : `/api/products/${productId}/variants/${variantModal.variant.id}`, {
+      method: variantModal.isNew ? 'POST' : 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(variantModal.variant),
+    });
+    if (!res.ok) return alert('Failed to update variant');
+    setVariantModal(null);
+    fetchProducts();
+  };
+
+  const saveUnit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!unitModal) return;
+    const token = localStorage.getItem('token') || '';
+    const { unit, variant } = unitModal;
+    const baseUrl = `/api/products/${unit.productId}/variants/${variant.id}/selling-units`;
+    const res = await fetch(unitModal.isNew ? baseUrl : `${baseUrl}/${unit.id}`, {
+      method: unitModal.isNew ? 'POST' : 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(unit),
+    });
+    if (!res.ok) return alert('Failed to update selling unit');
+    setUnitModal(null);
+    fetchProducts();
+  };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
     try {
-      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(`/api/products/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) fetchProducts();
       else alert('Failed to delete product');
     } catch (err) {
@@ -63,9 +310,10 @@ export default function InventoryClient() {
     e.preventDefault();
     if (!editModal) return;
     try {
+      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/products/${editModal.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(editModal)
       });
       if (res.ok) {
@@ -79,45 +327,41 @@ export default function InventoryClient() {
     }
   };
 
-
-
   const totalPages = Math.ceil(totalCount / limit);
 
   const exportCurrentStock = async () => {
     try {
       setExporting(true);
       setShowExportMenu(false);
-      const res = await fetch(`/api/products?page=1&limit=100000`);
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(`/api/products?page=1&limit=100000`, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error('Failed to fetch stock for export');
       const json = await res.json();
       const data = json.data || [];
-      
-      const headers = ['Product Name', 'SKU', 'Category', 'Price', 'Stock', 'Unit', 'Status', 'Created At'];
-      const csvRows = [headers.join(',')];
-      
-      for (const item of data) {
-        csvRows.push([
-          `"${(item.name || '').replace(/"/g, '""')}"`,
-          `"${(item.sku || '').replace(/"/g, '""')}"`,
-          `"${(item.category || '').replace(/"/g, '""')}"`,
-          item.price || 0,
-          item.stock || 0,
-          `"${(item.unit || '').replace(/"/g, '""')}"`,
-          `"${item.status || ''}"`,
-          `"${new Date(item.createdAt).toLocaleString()}"`
-        ].join(','));
+
+      const rows = ['Product Name,Variant,Category,Price,Stock,Unit,Status'];
+      for (const p of data) {
+        for (const v of (p.variants || [])) {
+          rows.push([
+            `"${(p.name || '').replace(/"/g, '""')}"`,
+            `"${(v.name || '').replace(/"/g, '""')}"`,
+            `"${(p.category || '').replace(/"/g, '""')}"`,
+            v.price || 0,
+            v.stock || 0,
+            `"${(v.unit || '').replace(/"/g, '""')}"`,
+            `"${p.status || ''}"`,
+          ].join(','));
+        }
       }
-      
-      const csvString = csvRows.join('\n');
-      const blob = new Blob([csvString], { type: 'text/csv' });
+
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.setAttribute('href', url);
-      a.setAttribute('download', `Current_Stock_${new Date().toISOString().split('T')[0]}.csv`);
+      a.href = url;
+      a.download = `Current_Stock_${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error(err);
       alert('Failed to export current stock.');
     } finally {
       setExporting(false);
@@ -128,23 +372,21 @@ export default function InventoryClient() {
     try {
       setExporting(true);
       setShowExportMenu(false);
+      const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/inventory/history?page=1&limit=100000`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error('Failed to fetch stock history for export');
+      if (!res.ok) throw new Error();
       const json = await res.json();
       const data = json.data || [];
-      
-      const headers = ['Date', 'Time', 'Product Name', 'SKU', 'Movement Type', 'Quantity Change', 'Previous Stock', 'New Stock', 'Reference', 'Performed By'];
-      const csvRows = [headers.join(',')];
-      
+
+      const rows = ['Date,Time,Product Name,Type,Qty Change,Previous,New,Reference,Performed By'];
       for (const item of data) {
-        const date = new Date(item.createdAt);
-        csvRows.push([
-          `"${date.toLocaleDateString()}"`,
-          `"${date.toLocaleTimeString()}"`,
+        const d = new Date(item.createdAt);
+        rows.push([
+          `"${d.toLocaleDateString()}"`,
+          `"${d.toLocaleTimeString()}"`,
           `"${(item.productName || '').replace(/"/g, '""')}"`,
-          `"${(item.sku || '').replace(/"/g, '""')}"`,
           `"${item.transactionType === 'IN' ? 'STOCK IN' : 'STOCK OUT'}"`,
           item.transactionType === 'IN' ? item.quantity : -item.quantity,
           item.previousStock,
@@ -153,17 +395,15 @@ export default function InventoryClient() {
           `"${(item.performedByName || '').replace(/"/g, '""')}"`
         ].join(','));
       }
-      
-      const csvString = csvRows.join('\n');
-      const blob = new Blob([csvString], { type: 'text/csv' });
+
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.setAttribute('href', url);
-      a.setAttribute('download', `Stock_History_${new Date().toISOString().split('T')[0]}.csv`);
+      a.href = url;
+      a.download = `Stock_History_${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
+    } catch {
       alert('Failed to export stock history.');
     } finally {
       setExporting(false);
@@ -179,22 +419,23 @@ export default function InventoryClient() {
             <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
-              placeholder="Search products "
+              placeholder="Search products..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className={styles.inputField}
               style={{ paddingLeft: '36px' }}
             />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'nowrap', overflowX: 'auto', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'nowrap' }}>
             <div style={{ position: 'relative' }}>
-              <button 
-                onClick={() => setShowExportMenu(!showExportMenu)} 
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
                 className={`${styles.btnSecondary} ${styles.toolbarBtn}`}
-                style={{ color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#e0e7ff', position: 'relative' }}
+                style={{ color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#e0e7ff' }}
                 disabled={exporting}
               >
-                <Download size={14} style={{ marginRight: '6px' }} /> {exporting ? 'Exporting...' : 'Export'}
+                <Download size={14} style={{ marginRight: '6px' }} />
+                {exporting ? 'Exporting...' : 'Export'}
               </button>
               {showExportMenu && (
                 <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', zIndex: 50, overflow: 'hidden', width: '160px' }}>
@@ -207,110 +448,118 @@ export default function InventoryClient() {
                 </div>
               )}
             </div>
-
-            <button 
-              onClick={() => window.location.href = '/admin/inventory/history'} 
-              className={`${styles.btnSecondary} ${styles.toolbarBtn}`}
-              style={{ color: '#475569', borderColor: '#cbd5e1', backgroundColor: '#f8fafc' }}
-            >
+            <button onClick={() => window.location.href = '/admin/inventory/history'} className={`${styles.btnSecondary} ${styles.toolbarBtn}`} style={{ color: '#475569', borderColor: '#cbd5e1', backgroundColor: '#f8fafc' }}>
               <History size={14} style={{ marginRight: '6px' }} /> History
             </button>
-
-            <button 
-              onClick={() => window.location.href = '/admin/inventory/stock-in'} 
-              className={`${styles.btnSecondary} ${styles.toolbarBtn}`}
-              style={{ color: '#15803d', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}
-            >
+            <button onClick={() => window.location.href = '/admin/inventory/stock-in'} className={`${styles.btnSecondary} ${styles.toolbarBtn}`} style={{ color: '#15803d', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}>
               <ArrowDownToLine size={14} style={{ marginRight: '6px' }} /> Stock In
             </button>
-            <button 
-              onClick={() => window.location.href = '/admin/inventory/stock-out'} 
-              className={`${styles.btnSecondary} ${styles.toolbarBtn}`}
-              style={{ color: '#b91c1c', borderColor: '#fecaca', backgroundColor: '#fef2f2' }}
-            >
+            <button onClick={() => window.location.href = '/admin/inventory/stock-out'} className={`${styles.btnSecondary} ${styles.toolbarBtn}`} style={{ color: '#b91c1c', borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
               <ArrowUpRight size={14} style={{ marginRight: '6px' }} /> Stock Out
             </button>
-
             <button onClick={() => window.location.href = '/admin/inventory/add'} className={`${styles.btnPrimary} ${styles.toolbarBtn}`}>
               <PackagePlus size={14} style={{ marginRight: '6px' }} /> Add
             </button>
           </div>
         </div>
 
-        <div className="table-responsive-wrapper">
-
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Product Name</th>
-                <th>Category</th>
-                <th>Price</th>
-                <th>Stock</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody className={!loading ? styles.fadeIn : ''}>
-              {loading ? null : products.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                    No products found.
-                  </td>
-                </tr>
-              ) : (
-                products.map((product) => (
-                  <tr key={product.id} onClick={() => setEditModal(product)} style={{ cursor: 'pointer' }}>
-                    <td style={{ fontWeight: 600 }}>{product.name}</td>
-                    <td>
-                      <span style={{ padding: '4px 8px', backgroundColor: '#f1f5f9', color: '#475569', borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}>
-                        {product.category || 'General'}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 700 }}>{product.price ? new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(product.price) : '-'}</td>
-                    <td>
-                      <span style={{ color: product.stock <= (product.lowStockThreshold || 0) ? '#dc2626' : '#16a34a', fontWeight: 700, fontSize: '15px' }}>
-                        {product.stock} <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{product.unit}</span>
-                      </span>
-                    </td>
-                    <td>
-                      {product.status === 'ACTIVE'
-                        ? <span className={`${styles.badge} ${styles.badgeActive}`}>Active</span>
-                        : <span className={`${styles.badge} ${styles.badgeError}`}>Inactive</span>
-                      }
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <ActionMenu actions={[
-                        { label: 'Edit', icon: <Edit2 size={14} />, onClick: () => setEditModal(product), color: '#3b82f6' },
-                        { label: 'Delete', icon: <Trash2 size={14} />, onClick: () => handleDelete(product.id), color: '#ef4444' }
-                      ]} />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#f8fafc' }}>
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>
+              Loading…
+            </div>
+          ) : products.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+              No products found.
+            </div>
+          ) : (
+            products.map((product) => (
+              <ProductRow
+                key={product.id}
+                product={product}
+                onEdit={setEditModal}
+                onDelete={handleDelete}
+              />
+            ))
+          )}
         </div>
 
-        {/* Pagination Controls */}
+        {/* Pagination */}
         <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderTop: '1px solid rgba(226, 232, 240, 0.5)', backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>
-          <button
-            disabled={page === 1}
-            onClick={() => setPage(p => p - 1)}
-            style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: page === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontWeight: 600, opacity: page === 1 ? 0.5 : 1 }}
-          >
+          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: page === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontWeight: 600, opacity: page === 1 ? 0.5 : 1 }}>
             <ChevronLeft size={16} /> Prev
           </button>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Page {page} of {totalPages || 1}</span>
-          <button
-            disabled={page >= totalPages}
-            onClick={() => setPage(p => p + 1)}
-            style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: page >= totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontWeight: 600, opacity: page >= totalPages ? 0.5 : 1 }}
-          >
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>
+            Page {page} of {totalPages || 1} &nbsp;·&nbsp; {totalCount} products
+          </span>
+          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: page >= totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontWeight: 600, opacity: page >= totalPages ? 0.5 : 1 }}>
             Next <ChevronRight size={16} />
           </button>
         </div>
       </div>
+
+      {variantModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}>
+          <form onSubmit={saveVariant} style={{ background: 'white', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 20px 25px rgba(0,0,0,0.15)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ margin: 0, fontSize: 20 }}>{variantModal.isNew ? 'Add Variant' : 'Edit Variant'}</h2>
+              <button type="button" onClick={() => setVariantModal(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: '#94a3b8' }}><X size={20} /></button>
+            </div>
+            <label className={styles.label}>Product Name</label>
+            <input className={styles.inputField} value={variantModal.productName} readOnly style={{ marginBottom: 14, background: '#f8fafc' }} />
+            <label className={styles.label}>Variant Name *</label>
+            <input required className={styles.inputField} value={variantModal.variant.name || ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, name: e.target.value } })} style={{ marginBottom: 14 }} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              <div><label className={styles.label}>Qty *</label><input required className={styles.inputField} type="number" min="1" value={variantModal.variant.quantity ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, quantity: e.target.value } })} /></div>
+              <div><label className={styles.label}>Price *</label><input required className={styles.inputField} type="number" min="0" step="0.01" value={variantModal.variant.price ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, price: e.target.value } })} /></div>
+              <div><label className={styles.label}>Weight (kg) *</label><input required className={styles.inputField} type="number" min="0" step="0.001" value={variantModal.variant.weightPerPieceKg ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, weightPerPieceKg: e.target.value } })} /></div>
+              <div><label className={styles.label}>Quota *</label><input required className={styles.inputField} type="number" min="0" value={variantModal.variant.quota ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, quota: e.target.value } })} /></div>
+              <div><label className={styles.label}>Current Stock *</label><input required className={styles.inputField} type="number" min="0" value={variantModal.variant.stock ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, stock: e.target.value } })} /></div>
+            </div>
+            <label className={styles.label} style={{ marginTop: 14 }}>Status</label>
+            <select className={styles.inputField} value={variantModal.variant.status || 'ACTIVE'} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, status: e.target.value } })}>
+              <option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option>
+            </select>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
+              <button type="button" onClick={() => setVariantModal(null)} className={styles.btnSecondary}>Cancel</button>
+              <button type="submit" className={styles.btnPrimary}>Save Variant</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {unitModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}>
+          <form onSubmit={saveUnit} style={{ background: 'white', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 20px 25px rgba(0,0,0,0.15)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <h2 style={{ margin: 0, fontSize: 20 }}>{unitModal.isNew ? 'Add Selling Unit' : 'Edit Selling Unit'}</h2>
+              <button type="button" onClick={() => setUnitModal(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: '#94a3b8' }}><X size={20} /></button>
+            </div>
+            <label className={styles.label}>Product Name</label>
+            <input className={styles.inputField} value={unitModal.productName} readOnly style={{ marginBottom: 14, background: '#f8fafc' }} />
+            <label className={styles.label}>Variant Name</label>
+            <input className={styles.inputField} value={unitModal.variant.name || ''} readOnly style={{ marginBottom: 14, background: '#f8fafc' }} />
+            <label className={styles.label}>Selling Unit Name *</label>
+            <input required className={styles.inputField} value={unitModal.unit.unitName || ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, unitName: e.target.value } })} style={{ marginBottom: 14 }} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div><label className={styles.label}>Qty Per Unit *</label><input required className={styles.inputField} type="number" min="1" step="0.01" value={unitModal.unit.equivalentQty ?? ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, equivalentQty: e.target.value } })} /></div>
+              <div><label className={styles.label}>Selling Price *</label><input required className={styles.inputField} type="number" min="0" step="0.01" value={unitModal.unit.price ?? ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, price: e.target.value } })} /></div>
+            </div>
+            <label className={styles.label} style={{ marginTop: 14 }}>Description *</label>
+            <textarea required className={styles.inputField} rows={3} value={unitModal.unit.description || ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, description: e.target.value } })} placeholder="1 Case = 24 bottles" />
+            <label className={styles.label} style={{ marginTop: 14 }}>Calculated Stock</label>
+            <input className={styles.inputField} readOnly value={`${Math.floor((Number(unitModal.variant.stock) || 0) / (Number(unitModal.unit.equivalentQty) || 1))} available`} style={{ background: '#f8fafc', marginBottom: 14 }} />
+            <label className={styles.label}>Status</label>
+            <select className={styles.inputField} value={unitModal.unit.status || 'ACTIVE'} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, status: e.target.value } })}>
+              <option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option>
+            </select>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
+              <button type="button" onClick={() => setUnitModal(null)} className={styles.btnSecondary}>Cancel</button>
+              <button type="submit" className={styles.btnPrimary}>Save Selling Unit</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editModal && (
@@ -326,48 +575,28 @@ export default function InventoryClient() {
                 <label className={styles.label}>Product Name</label>
                 <input required className={styles.inputField} type="text" value={editModal.name} onChange={e => setEditModal({ ...editModal, name: e.target.value })} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                <div>
-                  <label className={styles.label}>SKU</label>
-                  <input className={styles.inputField} type="text" value={editModal.sku || ''} onChange={e => setEditModal({ ...editModal, sku: e.target.value })} />
-                </div>
-                <div>
-                  <label className={styles.label}>Unit (e.g. kg, pcs)</label>
-                  <input required className={styles.inputField} type="text" value={editModal.unit} onChange={e => setEditModal({ ...editModal, unit: e.target.value })} />
-                </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label className={styles.label}>Category</label>
+                <input className={styles.inputField} type="text" value={editModal.category || ''} onChange={e => setEditModal({ ...editModal, category: e.target.value })} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-                <div>
-                  <label className={styles.label}>Low Stock Threshold</label>
-                  <input required className={styles.inputField} type="number" min="0" value={editModal.lowStockThreshold || 0} onChange={e => setEditModal({ ...editModal, lowStockThreshold: e.target.value === '' ? 0 : parseInt(e.target.value) })} />
-                </div>
-                <div>
-                  <label className={styles.label}>Unit Price (USD)</label>
-                  <input className={styles.inputField} type="number" step="0.01" min="0" value={editModal.price || ''} onChange={e => setEditModal({ ...editModal, price: e.target.value === '' ? null : parseFloat(e.target.value) })} />
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '24px' }}>
-                <div>
-                  <label className={styles.label}>Status</label>
-                  <select className={styles.inputField} value={editModal.status} onChange={e => setEditModal({ ...editModal, status: e.target.value })}>
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                  </select>
-                </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label className={styles.label}>Status</label>
+                <select className={styles.inputField} value={editModal.status} onChange={e => setEditModal({ ...editModal, status: e.target.value })}>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
               </div>
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setEditModal(null)} style={{ padding: '12px 20px', background: 'none', border: '1px solid #cbd5e1', borderRadius: '10px', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                <button type="button" onClick={() => setEditModal(null)} style={{ padding: '12px 20px', background: 'none', border: '1px solid #cbd5e1', borderRadius: '10px', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>
+                  Cancel
+                </button>
                 <button type="submit" className={styles.btnPrimary}>Save Changes</button>
               </div>
             </form>
           </div>
         </div>
       )}
-
-
-
-
     </div>
   );
 }

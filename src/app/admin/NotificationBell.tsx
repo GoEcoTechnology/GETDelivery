@@ -20,11 +20,7 @@ export default function NotificationBell() {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      const res = await fetch('/api/notifications?limit=5', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await fetch('/api/notifications?limit=5');
       if (!res.ok) return;
       const data = await res.json();
       const items = (data.notifications || []) as NotificationItem[];
@@ -62,11 +58,9 @@ export default function NotificationBell() {
     setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
 
     try {
-      const token = localStorage.getItem('token');
       await fetch('/api/notifications', {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ notificationIds, action: 'mark_read' })

@@ -1,6 +1,5 @@
-import { products, deliveryItems, inventoryTransactions } from '@/db/schema';
+import { products, productVariants, deliveryItems, inventoryTransactions } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
-import { PgTransaction } from 'drizzle-orm/pg-core';
 
 /**
  * Deduct stock for all items in a delivery order.
@@ -13,36 +12,37 @@ export async function deductOrderStock(tx: any, tenantId: number, orderId: numbe
 
   const productIds = items.map((item: any) => item.productId);
 
-  // 2. Fetch current products
-  const productList = await tx.select().from(products).where(inArray(products.id, productIds));
-  const productMap = new Map<number, any>(productList.map((p: any) => [p.id, p]));
+  // 2. Fetch current productVariants
+  const variantList = await tx.select().from(productVariants).where(inArray(productVariants.productId, productIds));
+  const variantMap = new Map<number, any>(variantList.map((v: any) => [v.productId, v]));
 
   // 3. Check stock and prepare updates
   for (const item of items) {
-    const product = productMap.get(item.productId);
-    if (!product) {
-      throw new Error(`Product ${item.productId} not found.`);
+    const variant = variantMap.get(item.productId);
+    if (!variant) {
+      throw new Error(`Product variant for ${item.productId} not found.`);
     }
-    if (product.stock < item.quantity) {
-      throw new Error(`Insufficient stock for product: ${product.name}. Required: ${item.quantity}, Available: ${product.stock}`);
+    if (variant.stock < item.quantity) {
+      throw new Error(`Insufficient stock for product ID: ${item.productId}. Required: ${item.quantity}, Available: ${variant.stock}`);
     }
   }
 
   // 4. Update stock and create inventory transactions
   for (const item of items) {
-    const product = productMap.get(item.productId);
-    const newStock = product.stock - item.quantity;
+    const variant = variantMap.get(item.productId);
+    const newStock = variant.stock - item.quantity;
 
     await tx
-      .update(products)
+      .update(productVariants)
       .set({ stock: newStock })
-      .where(eq(products.id, product.id));
+      .where(eq(productVariants.id, variant.id));
 
     await tx.insert(inventoryTransactions).values({
       tenantId,
-      productId: product.id,
+      productId: item.productId,
+      variantId: variant.id,
       quantity: item.quantity,
-      previousStock: product.stock,
+      previousStock: variant.stock,
       newStock: newStock,
       transactionType: 'OUT',
       reference: `Delivery Order SO-000${orderId} dispatched`,
@@ -61,27 +61,28 @@ export async function revertOrderStock(tx: any, tenantId: number, orderId: numbe
 
   const productIds = items.map((item: any) => item.productId);
 
-  // 2. Fetch current products
-  const productList = await tx.select().from(products).where(inArray(products.id, productIds));
-  const productMap = new Map<number, any>(productList.map((p: any) => [p.id, p]));
+  // 2. Fetch current productVariants
+  const variantList = await tx.select().from(productVariants).where(inArray(productVariants.productId, productIds));
+  const variantMap = new Map<number, any>(variantList.map((v: any) => [v.productId, v]));
 
   // 3. Update stock and create inventory transactions
   for (const item of items) {
-    const product = productMap.get(item.productId);
-    if (!product) continue;
+    const variant = variantMap.get(item.productId);
+    if (!variant) continue;
 
-    const newStock = product.stock + item.quantity;
+    const newStock = variant.stock + item.quantity;
 
     await tx
-      .update(products)
+      .update(productVariants)
       .set({ stock: newStock })
-      .where(eq(products.id, product.id));
+      .where(eq(productVariants.id, variant.id));
 
     await tx.insert(inventoryTransactions).values({
       tenantId,
-      productId: product.id,
+      productId: item.productId,
+      variantId: variant.id,
       quantity: item.quantity,
-      previousStock: product.stock,
+      previousStock: variant.stock,
       newStock: newStock,
       transactionType: 'IN',
       reference: `Delivery Order SO-000${orderId} cancelled`,

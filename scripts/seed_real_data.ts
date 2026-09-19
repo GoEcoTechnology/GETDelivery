@@ -146,35 +146,50 @@ async function seed() {
     const [product1] = await db.insert(schema.products).values({
       tenantId: tenant.id,
       name: 'Solar Panel 500W Monocrystalline',
-      sku: 'SP-500-MONO',
       category: 'Solar',
+      status: 'ACTIVE',
+    }).returning();
+    await db.insert(schema.productVariants).values({
+      tenantId: tenant.id,
+      productId: product1.id,
+      name: 'Regular',
       unit: 'pcs',
       price: '8500.00',
       stock: 120,
       lowStockThreshold: 20
-    }).returning();
+    });
 
     const [product2] = await db.insert(schema.products).values({
       tenantId: tenant.id,
       name: 'Hybrid Inverter 5kW',
-      sku: 'INV-5KW-HYB',
       category: 'Inverter',
+      status: 'ACTIVE',
+    }).returning();
+    await db.insert(schema.productVariants).values({
+      tenantId: tenant.id,
+      productId: product2.id,
+      name: 'Regular',
       unit: 'pcs',
       price: '32000.00',
       stock: 45,
       lowStockThreshold: 10
-    }).returning();
+    });
 
     const [product3] = await db.insert(schema.products).values({
       tenantId: tenant.id,
       name: 'LiFePO4 Battery 48V 100Ah',
-      sku: 'BAT-48V-100AH',
       category: 'Battery',
+      status: 'ACTIVE',
+    }).returning();
+    await db.insert(schema.productVariants).values({
+      tenantId: tenant.id,
+      productId: product3.id,
+      name: 'Regular',
       unit: 'pcs',
       price: '55000.00',
       stock: 15, // intentionally near low stock
       lowStockThreshold: 15
-    }).returning();
+    });
 
     console.log('Seeding Realistic Delivery Orders...');
     

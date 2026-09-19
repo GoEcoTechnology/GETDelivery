@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { products, inventoryTransactions, stockIns } from '@/db/schema';
+import { products, productVariants, inventoryTransactions, stockIns } from '@/db/schema';
 import { eq, inArray, desc, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
@@ -36,13 +36,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Fetch all products and lock rows
-    const lockedProducts = await tx
-      .select({ id: products.id, stock: products.stock })
-      .from(products)
-      .where(and(inArray(products.id, productIds), eq(products.tenantId, tenantIdToUse as number)));
+    // 2. Fetch all product variants and lock rows
+    const lockedVariants = await tx
+      .select({ id: productVariants.id, productId: productVariants.productId, stock: productVariants.stock })
+      .from(productVariants)
+      .where(and(inArray(productVariants.productId, productIds), eq(productVariants.tenantId, tenantIdToUse as number)));
 
-    if (lockedProducts.length !== itemMap.size) {
+    if (lockedVariants.length === 0) {
       return NextResponse.json({ error: 'One or more products not found or belong to a different tenant' }, { status: 400 });
     }
 
@@ -71,22 +71,24 @@ export async function POST(request: Request) {
     const stockInsToInsert = [];
 
     // 3. Process logic and perform individual updates
-    for (const product of lockedProducts) {
-      const itemData = itemMap.get(product.id);
+    for (const variant of lockedVariants) {
+      const itemData = itemMap.get(variant.productId);
+      if (!itemData) continue;
       const quantityToAdd = itemData.quantity;
 
-      const newStock = product.stock + quantityToAdd;
+      const newStock = variant.stock + quantityToAdd;
 
       await tx
-        .update(products)
+        .update(productVariants)
         .set({ stock: newStock, updatedAt: new Date() })
-        .where(eq(products.id, product.id));
+        .where(eq(productVariants.id, variant.id));
 
       transactionsToInsert.push({
         tenantId: tenantIdToUse,
-        productId: product.id,
+        productId: variant.productId,
+        variantId: variant.id,
         quantity: quantityToAdd,
-        previousStock: product.stock,
+        previousStock: variant.stock,
         newStock: newStock,
         transactionType: 'IN',
         reference: generatedReference,
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
 
       stockInsToInsert.push({
         tenantId: tenantIdToUse,
-        productId: product.id,
+        productId: variant.productId,
         quantity: quantityToAdd,
         unitCost: itemData.unitCost ? itemData.unitCost.toString() : null,
         supplier: itemData.supplier || null,
@@ -107,7 +109,7 @@ export async function POST(request: Request) {
         createdAt: today
       });
 
-      results.push({ productId: product.id, newStock, reference: generatedReference });
+      results.push({ productId: variant.productId, newStock, reference: generatedReference });
     }
 
     // 4. Bulk insert transaction logs
