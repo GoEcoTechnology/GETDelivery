@@ -2,7 +2,7 @@
 import { formatCurrency } from '@/lib/formatCurrency';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Package, Store, Truck, CheckCircle2, ChevronRight, RotateCcw, Info } from 'lucide-react';
+import { Package, Store, Truck, CheckCircle2, ChevronRight, RotateCcw, Info, Clock } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 
 export default function CustomerOrdersPage() {
@@ -10,7 +10,7 @@ export default function CustomerOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('All');
 
-  const tabs = ['All', 'To Receive', 'Completed', 'Cancelled'];
+  const tabs = ['All', 'Pending', 'To Receive', 'Completed', 'Cancelled'];
 
   useEffect(() => {
     fetchOrders();
@@ -64,6 +64,7 @@ export default function CustomerOrdersPage() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'DRAFT':
+        return 'Pending';
       case 'WAITING_FOR_PARTNER':
       case 'ACCEPTED':
       case 'IN_TRANSIT':
