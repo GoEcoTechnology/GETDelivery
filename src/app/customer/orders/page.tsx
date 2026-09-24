@@ -365,6 +365,7 @@ export default function CustomerOrdersPage() {
                       </button>
                     )}
                   </div>
+                  {order.status !== 'CANCELLED' && (
                   <button style={{
                     color: order.status === 'COMPLETED' ? '#4f46e5' : '#fff',
                     fontWeight: 700,
@@ -385,6 +386,7 @@ export default function CustomerOrdersPage() {
                   >
                     {order.status === 'COMPLETED' ? 'Buy Again' : 'Track'} <ChevronRight size={16} />
                   </button>
+                  )}
                 </div>
 
               </div>
