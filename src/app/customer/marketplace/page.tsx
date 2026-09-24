@@ -223,7 +223,7 @@ export default function MarketplacePage() {
                     <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>{hasOptions ? 'Starting at' : 'Price'}</div>
                     <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
                       <span style={{ fontSize: 14, marginRight: 1 }}>₱</span>
-                      {lowestPrice % 1 === 0 ? lowestPrice.toFixed(0) : lowestPrice.toFixed(2)}
+                      {formatCurrency(lowestPrice)}
                     </div>
                   </div>
                   <button
@@ -246,8 +246,7 @@ export default function MarketplacePage() {
       {/* ── Clean Product Detail Modal ── */}
       {selectedProduct && (() => {
         const formatPrice = (p: number | string) => {
-          const num = Number(p || 0);
-          return num % 1 === 0 ? num.toFixed(0) : num.toFixed(2);
+          return formatCurrency(p);
         };
         
         return (

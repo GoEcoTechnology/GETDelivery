@@ -105,13 +105,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const productId = parseInt(id);
   const body = await request.json();
 
-  const quantity = Number(body.quantity);
+  const quantity = Number(body.quantity) || 1;
   const price = Number(body.price);
   const weightPerPieceKg = Number(body.weightPerPieceKg);
-  const quota = Number(body.quota);
-  const stock = Number(body.stock);
-  if (!body.name?.trim() || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(price) || price < 0 || !Number.isFinite(weightPerPieceKg) || weightPerPieceKg <= 0 || !Number.isFinite(quota) || quota < 0 || !Number.isFinite(stock) || stock < 0) {
-    return NextResponse.json({ error: 'Variant name, quantity, price, weightPerPieceKg (must be > 0), quota, and stock are required.' }, { status: 400 });
+  const quota = Number(body.quota) || 0;
+  const stock = Number(body.stock) || 0;
+  
+  if (!body.name?.trim() || !Number.isFinite(price) || price < 0 || !Number.isFinite(weightPerPieceKg) || weightPerPieceKg < 0) {
+    return NextResponse.json({ error: 'Variant name, price (>=0), and weightPerPieceKg (>=0) are required.' }, { status: 400 });
   }
 
   const [variant] = await db.insert(productVariants).values({
@@ -123,6 +124,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     price: String(price),
     stock,
     lowStockThreshold: body.lowStockThreshold ?? 10,
+    weight: String(weightPerPieceKg),
     weightPerPieceKg: String(weightPerPieceKg),
     quota,
     status: body.status ?? 'ACTIVE',

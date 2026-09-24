@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { products, productVariants, productSellingUnits, inventoryTransactions } from '@/db/schema';
 import { eq, and, ilike, desc, sql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
+  console.log("HIT /api/products GET - timestamp:", Date.now());
   return withAuth(request, { requiredPermissions: ['inventory.view'] }, async (tx, claims) => {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -70,6 +72,7 @@ export async function GET(request: Request) {
           productType: productVariants.productType,
           status: productVariants.status,
           weight: productVariants.weight,
+          weightPerPieceKg: productVariants.weightPerPieceKg,
         })
         .from(productVariants)
         .where(inArray(productVariants.productId, productIds))

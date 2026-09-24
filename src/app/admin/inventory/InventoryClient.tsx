@@ -194,7 +194,7 @@ export default function InventoryClient() {
     try {
       const token = localStorage.getItem('token') || '';
       const res = await fetch(
-        `/api/products?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`,
+        `/api/products?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&t=${Date.now()}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.ok) {
@@ -536,7 +536,7 @@ export default function InventoryClient() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               <div><label className={styles.label}>Qty</label><input className={styles.inputField} type="number" value={variantModal.variant.quantity || 1} readOnly style={{ background: '#f8fafc' }} /></div>
               <div><label className={styles.label}>Price *</label><input required className={styles.inputField} type="number" min="0" step="0.01" value={variantModal.variant.price ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, price: e.target.value } })} /></div>
-              <div><label className={styles.label}>Weight (kg) *</label><input required className={styles.inputField} type="number" min="0" step="0.001" value={variantModal.variant.weightPerPieceKg ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, weightPerPieceKg: e.target.value } })} /></div>
+              <div><label className={styles.label}>Weight (kg) *</label><input required className={styles.inputField} type="number" min="0" step="0.001" value={variantModal.variant.weightPerPieceKg ?? variantModal.variant.weight ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, weightPerPieceKg: e.target.value } })} /></div>
               <div><label className={styles.label}>Quota *</label><input required className={styles.inputField} type="number" min="0" value={variantModal.variant.quota ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, quota: e.target.value } })} /></div>
               <div><label className={styles.label}>Current Stock *</label><input required className={styles.inputField} type="number" min="0" value={variantModal.variant.stock ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, stock: e.target.value } })} /></div>
             </div>
