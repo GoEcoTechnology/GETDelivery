@@ -305,7 +305,7 @@ export default function MarketplacePage() {
                             }}
                           >
                             <span>{v.variantName}</span>
-                            <span style={{ fontSize: '13px', fontWeight: 500, color: isActive ? '#4f46e5' : '#94a3b8' }}>₱{formatCurrency(v.price)}</span>
+                            {/* Price removed as per user request */}
                           </button>
                         );
                       })}
