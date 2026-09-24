@@ -47,13 +47,13 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
           key={day.toString()} 
           className="calendar-day"
           style={{
-            minHeight: '80px',
-            padding: '8px',
+            minHeight: '48px',
+            padding: '4px',
             border: '1px solid #e2e8f0',
             background: !isSameMonth(day, monthStart) ? '#f8fafc' : '#ffffff',
             display: 'flex',
             flexDirection: 'column',
-            gap: '4px',
+            gap: '2px',
             minWidth: 0,
             cursor: 'pointer'
           }}
@@ -63,7 +63,7 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
             }
           }}
         >
-          <div style={{ fontSize: '13px', fontWeight: 600, color: !isSameMonth(day, monthStart) ? '#cbd5e1' : '#475569', textAlign: 'right' }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: !isSameMonth(day, monthStart) ? '#cbd5e1' : '#475569', textAlign: 'right' }}>
             {formattedDate}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto', flex: 1 }}>
@@ -123,39 +123,38 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div style={{ background: 'white', borderRadius: '18px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(15,23,42,0.06)', height: '100%' }}>
+    <div style={{ background: 'white', borderRadius: '18px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(15,23,42,0.06)', height: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <CalendarIcon size={24} color="#4f46e5" />
           <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>Delivery Schedule</h2>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button onClick={prevMonth} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', width: '32px', height: '32px', display: 'grid', placeItems: 'center', cursor: 'pointer', color: '#475569' }}><ChevronLeft size={16} /></button>
-          <div style={{ fontWeight: 700, color: '#0f172a', minWidth: '120px', textAlign: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button onClick={prevMonth} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', width: '28px', height: '28px', display: 'grid', placeItems: 'center', cursor: 'pointer', color: '#475569' }}><ChevronLeft size={14} /></button>
+          <div style={{ fontWeight: 700, color: '#0f172a', minWidth: '100px', textAlign: 'center', fontSize: '13px' }}>
             {format(currentDate, "MMMM yyyy")}
           </div>
-          <button onClick={nextMonth} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', width: '32px', height: '32px', display: 'grid', placeItems: 'center', cursor: 'pointer', color: '#475569' }}><ChevronRight size={16} /></button>
+          <button onClick={nextMonth} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', width: '28px', height: '28px', display: 'grid', placeItems: 'center', cursor: 'pointer', color: '#475569' }}><ChevronRight size={14} /></button>
         </div>
       </div>
       
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-          <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: '#e0e7ff', border: '1px solid #c7d2fe' }}></div> Accepted/Assigned
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: '#475569' }}>
+          <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#e0e7ff', border: '1px solid #c7d2fe', flexShrink: 0 }}></div> Accepted
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-          <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: '#ede9fe', border: '1px solid #c4b5fd' }}></div> In Transit
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: '#475569' }}>
+          <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#ede9fe', border: '1px solid #c4b5fd', flexShrink: 0 }}></div> In Transit
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-          <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: '#dcfce7', border: '1px solid #bbf7d0' }}></div> Completed
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: '#475569' }}>
+          <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#dcfce7', border: '1px solid #bbf7d0', flexShrink: 0 }}></div> Completed
         </div>
       </div>
 
-      <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflowX: 'auto' }}>
-        <div style={{ minWidth: '600px' }}>
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ minWidth: '500px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-            {weekDays.map(wd => (
-              <div key={wd} style={{ padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+            {['S','M','T','W','T','F','S'].map((wd, i) => (
+              <div key={i} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
                 {wd}
               </div>
             ))}

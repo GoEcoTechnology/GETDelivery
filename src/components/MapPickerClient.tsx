@@ -110,43 +110,27 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
 
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(val)}&sessionToken=${sessionToken}`);
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=5&countrycodes=ph`, {
+          headers: {
+            'User-Agent': 'GETDeliveryApp/1.0 (contact@getdelivery.app)'
+          }
+        });
         const data = await res.json();
-        if (data.suggestions) {
-          setPredictions(data.suggestions.map((s: any) => s.placePrediction));
-        } else {
-          setPredictions([]);
-        }
+        setPredictions(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error('Autocomplete error:', err);
+        console.error('Nominatim search error:', err);
+        setPredictions([]);
       } finally {
         setIsSearching(false);
       }
-    }, 400); // 400ms debounce
+    }, 600); // 600ms debounce
   };
 
-  const handleSelectPlace = async (placeId: string, description: string) => {
-    setSearchInput(description);
+  const handleSelectPlace = (place: any) => {
+    setSearchInput(place.display_name);
     setShowDropdown(false);
-    setIsLoading(true);
-    setErrorMsg('');
-
-    try {
-      const res = await fetch(`/api/places/details?placeId=${placeId}&sessionToken=${sessionToken}`);
-      const data = await res.json();
-      
-      if (data.location) {
-        setPosition([data.location.latitude, data.location.longitude]);
-        setAddress(data.formattedAddress || data.displayName?.text || description);
-        setSessionToken(generateSessionToken()); // Reset token for next session
-      } else {
-        setErrorMsg('Failed to get location details for this place.');
-      }
-    } catch (err) {
-      setErrorMsg('Network error. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    setPosition([parseFloat(place.lat), parseFloat(place.lon)]);
+    setAddress(place.display_name);
   };
 
   const handleCurrentLocation = () => {
@@ -268,18 +252,6 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
               <Crosshair size={18} color="#2563eb" /> Use My Current Location
             </button>
             
-            <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '12px', fontWeight: 600 }}>OR</div>
-            
-            <button
-              type="button"
-              onClick={() => setManualMode(!manualMode)}
-              style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '13px', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
-            >
-              Pick Exact Location on Map
-            </button>
-          </div>
-
-          {manualMode && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
               <div style={{ fontSize: '13px', color: '#64748b' }}>If you cannot find your location, you can place a pin directly.</div>
               <button 
@@ -287,10 +259,10 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
                 onClick={() => setPosition([12.9744, 124.0055])} // Default fallback to Sorsogon area
                 style={{ background: '#0f172a', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
               >
-                Open Map to Drop Pin
+                Pick Exact Location on Map
               </button>
             </div>
-          )}
+          </div>
 
           {errorMsg && (
             <div style={{ padding: '12px', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', fontSize: '13px', marginTop: '10px', fontWeight: 500 }}>
@@ -319,6 +291,41 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
             Verify the location. You can drag the marker to adjust exactly where the pin drops.
           </div>
 
+          <div style={{ position: 'relative', marginTop: '16px', marginBottom: '8px' }}>
+            <div style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', top: '50%', left: '12px', transform: 'translateY(-50%)', color: '#94a3b8' }}>
+                <Search size={18} />
+              </div>
+              <input
+                type="text"
+                placeholder="Search for a location..."
+                value={searchInput}
+                onChange={handleSearchChange}
+                onFocus={() => { if (predictions.length > 0) setShowDropdown(true); }}
+                style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', boxSizing: 'border-box', outline: 'none' }}
+              />
+              {isSearching && (
+                <div style={{ position: 'absolute', top: '50%', right: '12px', transform: 'translateY(-50%)', color: '#94a3b8' }}>
+                  <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                </div>
+              )}
+            </div>
+
+            {showDropdown && predictions.length > 0 && (
+              <div ref={dropdownRef} style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', marginTop: '4px', maxHeight: '200px', overflowY: 'auto' }}>
+                {predictions.map((p, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => handleSelectPlace(p)}
+                    style={{ padding: '12px', borderBottom: idx === predictions.length - 1 ? 'none' : '1px solid #f1f5f9', cursor: 'pointer', fontSize: '13px', color: '#1e293b' }}
+                  >
+                    <div style={{ fontWeight: 600 }}>{p.name || p.display_name.split(',')[0]}</div>
+                    <div style={{ color: '#64748b', fontSize: '12px', marginTop: '2px' }}>{p.display_name}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div id="map-picker-container" style={{ width: '100%', height, borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1', zIndex: 0, position: 'relative' }}>
             <MapContainer key={mapKey} center={position} zoom={18} style={{ height: '100%', width: '100%' }}>
               <TileLayer

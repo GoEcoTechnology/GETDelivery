@@ -108,13 +108,13 @@ export default async function PartnerDashboard() {
 
   return (
     <div style={{ display: 'grid', gap: '24px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
         <Stat title="New Requests" value={newRequests} icon={<Package size={20} color="#94a3b8" />} />
         <Stat title="Active Deliveries" value={active} icon={<Truck size={20} color="#94a3b8" />} />
         <Stat title="Completed This Month" value={completed} icon={<CheckCircle size={20} color="#94a3b8" />} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
         <div style={{ minHeight: '400px' }}>
           <DashboardCalendar deliveries={calendarDeliveries} />
         </div>

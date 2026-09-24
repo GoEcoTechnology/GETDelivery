@@ -1,18 +1,14 @@
 'use client';
-import { X, Phone, Mail, MapPin, Package, User, Truck } from 'lucide-react';
+import { X, MapPin, Package, Truck, Phone, Mail, UserPlus, Users, DollarSign } from 'lucide-react';
 import styles from '../admin.module.css';
 import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 type DeliveryDetailsModalProps = {
   isOpen: boolean;
   onClose: () => void;
   delivery: any;
-  addQuotaInputs: Record<string, number>;
-  setAddQuotaInputs: React.Dispatch<React.SetStateAction<Record<string, number>>>;
-  addQuotaErrors: Record<string, string>;
-  setAddQuotaErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  handleAddQuota: (deliveryId: number, itemId: number, targetQty: number, currentQty: number) => void;
-  isAdding: (deliveryId: number, itemId: number) => boolean;
+  onAddCustomer?: (deliveryId: number, itemId: number, productId: number, variantId: number, productName: string, variantName: string, unit: string | null, sellingUnits: any[], targetQuantity: number, currentAccumulated: number, pickupAddress: string) => void;
   onDispatch?: () => void;
 };
 
@@ -26,25 +22,34 @@ export function DeliveryDetailsModal({
   isOpen,
   onClose,
   delivery,
-  addQuotaInputs,
-  setAddQuotaInputs,
-  addQuotaErrors,
-  setAddQuotaErrors,
-  handleAddQuota,
-  isAdding,
+  onAddCustomer,
   onDispatch
 }: DeliveryDetailsModalProps) {
-  // Prevent body scroll when modal is open
+  // Prevent background scrolling
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
+    if (isOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = 'unset';
+    return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
+
+  const { data: customersData, isLoading: isLoadingCustomers } = useQuery({
+    queryKey: ['delivery-customers', delivery?.id],
+    queryFn: async () => {
+      if (!delivery?.id) return [];
+      const res = await fetch(`/api/deliveries/${delivery.id}/customers`);
+      if (!res.ok) throw new Error('Failed to fetch customers');
+      const json = await res.json();
+      return json.data || [];
+    },
+    enabled: isOpen && !!delivery?.id,
+  });
+
+  const productTotal = delivery?.products?.reduce((sum: number, item: any) => {
+    return sum + (item.accumulatedQuantity * (Number(item.unitPrice) || 0));
+  }, 0) || 0;
+
+  const deliveryFee = Number(delivery?.finalDeliveryPrice) || Number(delivery?.offeredAmount) || 0;
+  const totalAmount = productTotal + deliveryFee;
 
   if (!isOpen || !delivery) return null;
 
@@ -64,7 +69,6 @@ export function DeliveryDetailsModal({
         <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Delivery Details</h2>
-            <div style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '4px' }}>Ref: {delivery.trackingNumber || delivery.id}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             {delivery.status === 'READY_FOR_DISPATCH' && onDispatch && (
@@ -85,18 +89,7 @@ export function DeliveryDetailsModal({
         <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
-            {/* Customer Info */}
-            <section>
-              <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <User size={14} /> Customer Information
-              </h3>
-              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem' }}>{delivery.customerName}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontSize: '0.875rem', marginTop: '4px' }}>
-                  <Phone size={14} /> {delivery.customerContact || 'No contact provided'}
-                </div>
-              </div>
-            </section>
+
 
           {/* Products & Quotas */}
           <section>
@@ -107,20 +100,19 @@ export function DeliveryDetailsModal({
               {delivery.products && delivery.products.length > 0 ? (
                 delivery.products.map((prod: any, idx: number) => {
                   const accQty = prod.accumulatedQuantity || 0;
-                  const targetQty = prod.targetQuantity || 20;
-                  const pct = Math.min(100, (accQty / targetQty) * 100);
-                  const isReached = accQty >= targetQty;
-                  const remaining = targetQty - accQty;
+                  const targetQty = prod.targetQuantity || 0;
+                  const pct = Math.min(100, targetQty > 0 ? (accQty / targetQty) * 100 : 0);
+                  const isReached = accQty >= targetQty && targetQty > 0;
                   const canAddQuota = !['READY_FOR_DISPATCH', 'WAITING_FOR_PARTNER', 'ACCEPTED', 'IN_TRANSIT', 'DELIVERED'].includes(delivery.status);
-                  const inputKey = `${delivery.id}-${prod.itemId}`;
-                  const inputQty = addQuotaInputs[inputKey] || 0;
-                  const errorMsg = addQuotaErrors[inputKey];
-                  const adding = isAdding(delivery.id, prod.itemId);
 
                   return (
                     <div key={idx} style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                        <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.875rem' }}>{prod.productName}</div>
+                        <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.875rem' }}>
+                          {prod.productName}
+                          {prod.variantName ? ` - ${prod.variantName}` : ''}
+                          {prod.unit ? ` (${prod.unit})` : ''}
+                        </div>
                         <div style={{ fontSize: '0.875rem', fontWeight: 700, color: isReached ? '#16a34a' : '#3b82f6' }}>
                           {accQty} / {targetQty} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748b' }}>units</span>
                         </div>
@@ -130,51 +122,89 @@ export function DeliveryDetailsModal({
                         <div style={{ height: '100%', width: `${pct}%`, backgroundColor: isReached ? '#16a34a' : '#3b82f6', borderRadius: '3px', transition: 'width 0.4s ease' }} />
                       </div>
 
-                      {!isReached && canAddQuota && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', borderTop: '1px dashed #e2e8f0', paddingTop: '12px' }}>
-                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Add to quota:</span>
-                          <input
-                            type="number" min={1} max={remaining}
-                            value={inputQty || ''}
-                            onChange={e => {
-                              const v = parseInt(e.target.value, 10);
-                              setAddQuotaInputs(prev => ({ ...prev, [inputKey]: isNaN(v) ? 0 : v }));
-                              setAddQuotaErrors(prev => ({ ...prev, [inputKey]: '' }));
-                            }}
-                            placeholder="Qty"
-                            style={{ width: '60px', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.875rem', textAlign: 'center' }}
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                      {canAddQuota && !isReached && onAddCustomer && (
+                        <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAddQuota(delivery.id, prod.itemId, targetQty, accQty);
+                            onClick={() => onAddCustomer(
+                              delivery.id,
+                              prod.itemId,
+                              prod.productId,
+                              prod.variantId || 0,
+                              prod.productName,
+                              prod.variantName || '',
+                              prod.unit || null,
+                              prod.sellingUnits || [],
+                              targetQty,
+                              accQty,
+                              delivery.pickupAddress
+                            )}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '6px',
+                              padding: '7px 14px',
+                              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                              color: 'white', border: 'none', borderRadius: '8px',
+                              fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer',
+                              transition: 'opacity 0.15s'
                             }}
-                            disabled={adding || remaining <= 0}
-                            style={{ padding: '6px 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}
                           >
-                            {adding ? 'Adding...' : 'Add'}
+                            <UserPlus size={14} /> Add Customer
                           </button>
                         </div>
                       )}
-                      {errorMsg && canAddQuota && <div style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '8px', textAlign: 'right' }}>{errorMsg}</div>}
+                      {isReached && (
+                        <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '12px', textAlign: 'right' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#16a34a' }}>✓ Quota Reached</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })
               ) : (
-                <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '0.875rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                  No products attached to this delivery.
+                <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                  No products in this delivery order.
                 </div>
               )}
             </div>
+
+            {/* Customers Section */}
+            {customersData && customersData.length > 0 && (
+              <div style={{ marginTop: '24px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.05em', color: '#64748b', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Users size={14} /> Added Customers
+                </div>
+                <div style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  {customersData.map((cust: any, i: number) => (
+                    <div key={cust.id} style={{ padding: '12px 16px', borderBottom: i < customersData.length - 1 ? '1px solid #e2e8f0' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.9rem', marginBottom: '4px' }}>
+                          {cust.customerName}
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                          {cust.customerContact && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Phone size={12} /> {cust.customerContact}</span>}
+                          {cust.address && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> {cust.address}</span>}
+                          {cust.landmark && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, fontSize: '12px', border: '1px solid #fde68a', marginTop: '2px' }}>Landmark: {cust.landmark}</span>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        {cust.items?.map((item: any, idx: number) => (
+                          <div key={idx} style={{ fontSize: '13px', fontWeight: 500, color: '#1e293b' }}>
+                            {item.quantity} {item.unit} <span style={{ color: '#64748b', fontWeight: 400 }}>{item.productName}{item.variantName ? ` - ${item.variantName}` : ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
-          {/* Location & Pricing */}
+          {/* Location */}
           <section>
             <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <MapPin size={14} /> Location & Pricing
+              <MapPin size={14} /> Location
             </h3>
             <div style={{ display: 'grid', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
@@ -184,76 +214,14 @@ export function DeliveryDetailsModal({
                   <div style={{ color: '#0f172a', fontSize: '0.875rem', lineHeight: 1.4 }}>{delivery.pickupAddress}</div>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981', marginTop: '5px', flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '2px' }}>DROPOFF</div>
-                  <div style={{ color: '#0f172a', fontSize: '0.875rem', lineHeight: 1.4 }}>{delivery.dropoffAddress}</div>
-                </div>
-              </div>
-              
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between' }}>
-                {!delivery.internalAssignment && delivery.requiredVehicleType && (
-                  <div style={{ flex: '1 1 100%' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>VEHICLE REQUIRED</div>
-                    <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px', marginBottom: '6px' }}>{delivery.requiredVehicleType}</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '13px', color: '#475569' }}>
-                        {delivery.vehicleBasePrice != null && (
-                          <span>Base Price: <strong style={{ color: '#16a34a' }}>{formatCurrency(delivery.vehicleBasePrice)}</strong></span>
-                        )}
-                        {delivery.pricePerKm != null && (
-                          <span>Per KM: <strong style={{ color: '#16a34a' }}>₱{Number(delivery.pricePerKm).toFixed(2)}/km</strong></span>
-                        )}
-                        {delivery.distanceKm != null && (
-                          <span>Distance: <strong style={{ color: '#3b82f6' }}>{Number(delivery.distanceKm).toFixed(2)} km</strong></span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {!delivery.internalAssignment && !delivery.requiredVehicleType && (
-                  <div>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>VEHICLE REQUIRED</div>
-                    <div style={{ fontWeight: 600, color: '#0f172a' }}>Any</div>
-                  </div>
-                )}
-                {delivery.internalAssignment && (
-                  <>
-                    <div>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>INTERNAL VEHICLE</div>
-                      <div style={{ fontWeight: 600, color: '#0f172a' }}>{delivery.internalAssignment.vehicleDetails}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>INTERNAL DRIVER</div>
-                      <div style={{ fontWeight: 600, color: '#0f172a' }}>{delivery.internalAssignment.driverName}</div>
-                    </div>
-                  </>
-                )}
-                <div style={{ flex: '1 1 100%' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>DELIVERY FEE</div>
-                  {delivery.finalDeliveryPrice != null ? (
-                    <div>
-                      <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1.25rem' }}>{formatCurrency(delivery.finalDeliveryPrice)}</div>
-                      {delivery.vehicleBasePrice != null && delivery.pricePerKm != null && delivery.distanceKm != null && (
-                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                          {formatCurrency(delivery.vehicleBasePrice)} base + ({Number(delivery.distanceKm).toFixed(2)} km × ₱{Number(delivery.pricePerKm).toFixed(2)}/km)
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ fontWeight: 700, color: '#10b981', fontSize: '1.125rem' }}>TBD</div>
-                  )}
-                </div>
-              </div>
             </div>
           </section>
 
-          {/* Delivery Partner */}
-          {!delivery.internalAssignment && (
+          {/* Delivery Partner / Internal Assignment */}
+          {!delivery.internalAssignment ? (
             <section>
               <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Truck size={14} /> Assigned Partner
+                <Truck size={14} /> Assigned To
               </h3>
               {delivery.temporaryWinner ? (
               <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'grid', gap: '16px' }}>
@@ -294,11 +262,52 @@ export function DeliveryDetailsModal({
               </div>
             ) : (
               <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '0.875rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                No delivery partner assigned yet.
+                Not assigned yet.
               </div>
             )}
           </section>
+          ) : (
+            <section>
+              <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Truck size={14} /> Internal Transport
+              </h3>
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'grid', gap: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>ASSIGNED DRIVER</div>
+                  <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '1rem' }}>
+                    {delivery.internalAssignment.driverName}
+                  </div>
+                </div>
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>VEHICLE</div>
+                  <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.875rem' }}>
+                    {delivery.internalAssignment.vehicleDetails}
+                  </div>
+                </div>
+              </div>
+            </section>
           )}
+
+          {/* Payment Summary */}
+          <section>
+            <h3 style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <DollarSign size={14} /> Payment Summary
+            </h3>
+            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#475569' }}>
+                <span>Products Total</span>
+                <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatCurrency(productTotal)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#475569' }}>
+                <span>Delivery Fee</span>
+                <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatCurrency(deliveryFee)}</span>
+              </div>
+              <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 700, color: '#1d4ed8' }}>
+                <span>Total Amount</span>
+                <span>{formatCurrency(totalAmount)}</span>
+              </div>
+            </div>
+          </section>
 
         </div>
       </div>

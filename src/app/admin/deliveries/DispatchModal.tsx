@@ -8,22 +8,23 @@ interface DispatchModalProps {
   isOpen: boolean;
   onClose: () => void;
   deliveryId: number | null;
+  tenantId?: number | null;
   type?: 'delivery' | 'batch';
   onDispatchComplete: () => void;
 }
 
-export function DispatchModal({ isOpen, onClose, deliveryId, type = 'delivery', onDispatchComplete }: DispatchModalProps) {
+export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'delivery', onDispatchComplete }: DispatchModalProps) {
   const [selectedOption, setSelectedOption] = useState<'internal' | 'partner' | null>(null);
   const [driverId, setDriverId] = useState<string>('');
   const [vehicleId, setVehicleId] = useState<string>('');
   const [customFee, setCustomFee] = useState<string>('');
 
   const { data: driversData, isLoading: loadingDrivers } = useQuery({
-    queryKey: ['company-drivers'],
+    queryKey: ['company-drivers', tenantId],
     queryFn: async () => {
-      const res = await fetch('/api/company/drivers', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
-      });
+      const headers: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` };
+      if (tenantId) headers['x-tenant-id'] = tenantId.toString();
+      const res = await fetch('/api/company/drivers', { headers });
       if (!res.ok) throw new Error('Failed to fetch drivers');
       return res.json();
     },
@@ -31,11 +32,11 @@ export function DispatchModal({ isOpen, onClose, deliveryId, type = 'delivery', 
   });
 
   const { data: vehiclesData, isLoading: loadingVehicles } = useQuery({
-    queryKey: ['company-vehicles'],
+    queryKey: ['company-vehicles', tenantId],
     queryFn: async () => {
-      const res = await fetch('/api/company/vehicles', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
-      });
+      const headers: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` };
+      if (tenantId) headers['x-tenant-id'] = tenantId.toString();
+      const res = await fetch('/api/company/vehicles', { headers });
       if (!res.ok) throw new Error('Failed to fetch vehicles');
       return res.json();
     },
@@ -48,14 +49,17 @@ export function DispatchModal({ isOpen, onClose, deliveryId, type = 'delivery', 
         ? `/api/deliveries/batches/${deliveryId}/dispatch-internal`
         : `/api/deliveries/${deliveryId}/dispatch-internal`;
         
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
+        const headers: HeadersInit = {
           'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ driverId, vehicleId, customFee: customFee ? parseFloat(customFee) : null })
-      });
+        };
+        if (tenantId) headers['x-tenant-id'] = tenantId.toString();
+        
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ driverId, vehicleId, customFee: customFee ? parseFloat(customFee) : null })
+        });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch internally');
       return data;
@@ -75,10 +79,13 @@ export function DispatchModal({ isOpen, onClose, deliveryId, type = 'delivery', 
         ? `/api/deliveries/batches/${deliveryId}/dispatch`
         : `/api/deliveries/${deliveryId}/dispatch`;
         
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
-      });
+        const headers: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` };
+        if (tenantId) headers['x-tenant-id'] = tenantId.toString();
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers
+        });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch to partners');
       return data;
@@ -112,7 +119,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, type = 'delivery', 
     <div className={styles.modalOverlay}>
       <div className={styles.modalContent}>
         <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>Dispatch {type === 'batch' ? 'Batch' : 'Delivery'} #{deliveryId}</h2>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>Dispatch {type === 'batch' ? 'Batch' : 'Delivery'}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
             <X size={24} />
           </button>

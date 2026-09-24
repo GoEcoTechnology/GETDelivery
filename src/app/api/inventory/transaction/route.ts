@@ -17,30 +17,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No items provided' }, { status: 400 });
     }
 
-    // 1. Extract product IDs and validate
-    const productIds: number[] = [];
+    // 1. Extract variant IDs and validate
+    const variantIds: number[] = [];
     const itemMap = new Map<number, any>();
     
     for (const item of items) {
-      if (!item.productId || !item.quantity || item.quantity <= 0) {
+      if (!item.productId || !item.variantId || !item.quantity || item.quantity <= 0) {
         throw new Error('Invalid item data');
       }
-      productIds.push(item.productId);
+      variantIds.push(item.variantId);
       
-      // Merge quantities if the same product is added multiple times
-      if (itemMap.has(item.productId)) {
-        const existing = itemMap.get(item.productId);
+      // Merge quantities if the same variant is added multiple times
+      if (itemMap.has(item.variantId)) {
+        const existing = itemMap.get(item.variantId);
         existing.quantity += item.quantity;
       } else {
-        itemMap.set(item.productId, { ...item });
+        itemMap.set(item.variantId, { ...item });
       }
     }
 
     // 2. Fetch all product variants and lock rows
     const lockedVariants = await tx
-      .select({ id: productVariants.id, productId: productVariants.productId, stock: productVariants.stock })
+      .select({ 
+        id: productVariants.id, 
+        productId: productVariants.productId, 
+        stock: productVariants.stock,
+        price: productVariants.price
+      })
       .from(productVariants)
-      .where(and(inArray(productVariants.productId, productIds), eq(productVariants.tenantId, tenantIdToUse as number)));
+      .where(and(inArray(productVariants.id, variantIds), eq(productVariants.tenantId, tenantIdToUse as number)));
 
     if (lockedVariants.length === 0) {
       return NextResponse.json({ error: 'One or more products not found or belong to a different tenant' }, { status: 400 });
@@ -66,13 +71,28 @@ export async function POST(request: Request) {
     }
     const generatedReference = `STIN-${dateStr}-${nextNum.toString().padStart(4, '0')}`;
 
+    // Fetch the most recent stock-in unit costs for these products as fallback
+    const productIdsToLookUp = lockedVariants.map((v: any) => v.productId);
+    const lastStockInsWithCost = await tx
+      .select({ productId: stockIns.productId, unitCost: stockIns.unitCost })
+      .from(stockIns)
+      .where(and(inArray(stockIns.productId, productIdsToLookUp), eq(stockIns.tenantId, tenantIdToUse as number)))
+      .orderBy(desc(stockIns.createdAt));
+
+    const lastCostMap = new Map<number, string>();
+    for (const record of lastStockInsWithCost) {
+      if (!lastCostMap.has(record.productId) && record.unitCost) {
+        lastCostMap.set(record.productId, record.unitCost);
+      }
+    }
+
     const results = [];
     const transactionsToInsert = [];
     const stockInsToInsert = [];
 
     // 3. Process logic and perform individual updates
     for (const variant of lockedVariants) {
-      const itemData = itemMap.get(variant.productId);
+      const itemData = itemMap.get(variant.id);
       if (!itemData) continue;
       const quantityToAdd = itemData.quantity;
 
@@ -96,11 +116,14 @@ export async function POST(request: Request) {
         createdAt: today
       });
 
+      // If cost is not provided, fallback to the last stock in cost for this product, or the variant's base price.
+      const fallbackCost = lastCostMap.get(variant.productId) || (variant.price ? variant.price.toString() : null);
+
       stockInsToInsert.push({
         tenantId: tenantIdToUse,
         productId: variant.productId,
         quantity: quantityToAdd,
-        unitCost: itemData.unitCost ? itemData.unitCost.toString() : null,
+        unitCost: itemData.unitCost ? itemData.unitCost.toString() : fallbackCost,
         supplier: itemData.supplier || null,
         notes: itemData.notes || null,
         referenceNumber: generatedReference,

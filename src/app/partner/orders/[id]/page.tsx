@@ -61,7 +61,10 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
       partnerDriverContact: deliveryOrders.partnerDriverContact,
       pickupLat: deliveryOrders.pickupLat,
       pickupLng: deliveryOrders.pickupLng,
-      instructions: deliveryOrders.instructions
+      instructions: deliveryOrders.instructions,
+      preferredVehicle: deliveryOrders.preferredVehicle,
+      vehicleBasePrice: deliveryOrders.vehicleBasePrice,
+      pricePerKm: deliveryOrders.pricePerKm
     },
     tenant: {
       id: tenants.id,
@@ -96,12 +99,15 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
 
   // 2. Fetch all orders for this delivery (either 1 or N if batch)
   let allOrders: any[] = [];
+  let totalWeightKg = 0;
   if (isBatch) {
     const bItems = await db.select().from(deliveryBatchItems).where(eq(deliveryBatchItems.batchId, baseOrder.batchId as number));
     const batchOrderIds = bItems.map(i => i.customerOrderId);
     if (batchOrderIds.length > 0) {
       allOrders = await db.select().from(deliveryOrders).where(inArray(deliveryOrders.id, batchOrderIds));
     }
+    const [batchRecord] = await db.select({ totalWeight: deliveryBatches.totalWeight }).from(deliveryBatches).where(eq(deliveryBatches.id, baseOrder.batchId as number));
+    if (batchRecord) totalWeightKg = Number(batchRecord.totalWeight) || 0;
   } else {
     allOrders = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, baseOrder.id));
   }
@@ -111,7 +117,6 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
   let totalCases = 0;
   let totalBottles = 0;
   let totalQuantity = 0;
-  let totalWeightKg = 0;
   let totalItemsCount = 0;
   let totalOrderAmount = 0;
   let totalDeliveryFee = 0;
@@ -343,11 +348,23 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
               <DetailRow label="Total Cases / Bottles / Pcs" value={`${totalCases} / ${totalBottles} / ${totalPieces}`} />
               
               <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '8px' }}>
-                <DetailRow label="Order Amount" value={formatCurrency(totalOrderAmount)} />
-                <DetailRow label="Delivery Fee" value={formatCurrency(totalDeliveryFee)} color="#16a34a" boldValue />
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Vehicle Details</div>
+                <DetailRow label="Suggested Vehicle" value={baseOrder.preferredVehicle || 'Motorcycle'} />
+                {totalWeightKg > 0 && <DetailRow label="Total Delivery Weight" value={`${totalWeightKg} kg`} />}
+                <DetailRow label="Distance (KM)" value={`${distanceKm.toFixed(2)} km`} />
+                <div style={{ height: '1px', background: '#cbd5e1', margin: '12px 0' }} />
+                
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Pricing Breakdown</div>
+                {Number(baseOrder.vehicleBasePrice) > 0 && <DetailRow label="Vehicle Base Fee" value={formatCurrency(Number(baseOrder.vehicleBasePrice))} />}
+                {Number(baseOrder.pricePerKm) > 0 && <DetailRow label="KM Charge" value={formatCurrency(distanceKm * Number(baseOrder.pricePerKm))} />}
+                {!baseOrder.vehicleBasePrice && !baseOrder.pricePerKm && (
+                  <DetailRow label="Delivery Fee" value={formatCurrency(totalDeliveryFee)} />
+                )}
+                <DetailRow label="Total Product Amount" value={formatCurrency(totalOrderAmount)} />
                 {totalUrgentFee > 0 && <DetailRow label="Urgent Fee" value={formatCurrency(totalUrgentFee)} color="#ea580c" />}
+                
                 <div style={{ height: '1px', background: '#cbd5e1', margin: '8px 0' }} />
-                <DetailRow label="Grand Total" value={formatCurrency(grandTotal)} color="#4f46e5" boldValue />
+                <DetailRow label="Grand Total Amount" value={formatCurrency(grandTotal)} color="#4f46e5" boldValue />
               </div>
 
             </div>

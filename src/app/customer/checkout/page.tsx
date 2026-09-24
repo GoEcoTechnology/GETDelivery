@@ -66,6 +66,15 @@ export default function CheckoutPage() {
       return item;
     }));
   };
+
+  const setQuantityExact = (id: number, qty: number) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, quantity: Math.max(1, qty) };
+      }
+      return item;
+    }));
+  };
   
   const itemsSubtotal = items.reduce((sum, item) => sum + (Number(item.sellingUnit?.price ?? item.product.price) * item.quantity), 0);
   const normalFee = selectedRate ? Number(selectedRate.basePrice || 0) : 50.00;
@@ -83,10 +92,7 @@ export default function CheckoutPage() {
       alert('Please select a delivery date for urgent delivery.');
       return;
     }
-    if (priority === 'URGENT' && !urgentReason) {
-      alert('Please provide a reason for the urgent delivery.');
-      return;
-    }
+
 
     setLoading(true);
     try {
@@ -237,7 +243,19 @@ export default function CheckoutPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', background: '#fff', borderRadius: '999px', border: '1px solid #e2e8f0', padding: '2px' }}>
                         <button type="button" onClick={() => updateQuantity(item.id, -1)} style={{ width: '28px', height: '28px', borderRadius: '50%', color: '#64748b', background: '#f1f5f9', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Minus size={14} /></button>
-                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', width: '32px', textAlign: 'center' }}>{item.quantity}</span>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (!isNaN(val) && val > 0) setQuantityExact(item.id, val);
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === '' || parseInt(e.target.value) < 1) setQuantityExact(item.id, 1);
+                          }}
+                          style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', width: '40px', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent' }}
+                        />
                         <button type="button" onClick={() => updateQuantity(item.id, 1)} style={{ width: '28px', height: '28px', borderRadius: '50%', color: '#64748b', background: '#f1f5f9', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={14} /></button>
                       </div>
                       <button type="button" onClick={() => removeItem(item.id)} style={{ color: '#94a3b8', background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'} onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}>
@@ -299,21 +317,7 @@ export default function CheckoutPage() {
                 </div>
                 <p style={{ fontSize: '13px', color: '#64748b' }}>Additional fee applied for urgent processing.</p>
                 
-                {priority === 'URGENT' && (
-                  <div style={{ marginTop: '16px' }}>
-                    <select 
-                      value={urgentReason}
-                      onChange={e => setUrgentReason(e.target.value)}
-                      style={{ width: '100%', padding: '12px', border: '1px solid #fecaca', borderRadius: '12px', fontSize: '14px', fontWeight: 600, color: '#0f172a', background: '#fff', outline: 'none' }}
-                      required
-                    >
-                      <option value="">Select reason for urgency</option>
-                      <option value="Emergency business need">Emergency business need</option>
-                      <option value="Stock is running low">Stock is running low</option>
-                      <option value="Customer needs it immediately">Customer needs it immediately</option>
-                    </select>
-                  </div>
-                )}
+
               </div>
             </label>
           </div>

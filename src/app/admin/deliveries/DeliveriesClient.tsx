@@ -2,8 +2,9 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import styles from '../admin.module.css';
-import { Truck, XCircle, Clock, CheckCircle2, ChevronRight, ChevronLeft, Edit, CheckSquare, Trash2, Plus, Mail, Phone, Download, Package, MapPin } from 'lucide-react';
+import { Truck, XCircle, Clock, CheckCircle2, ChevronRight, ChevronLeft, Edit, CheckSquare, Trash2, Plus, Mail, Phone, Download, Package, MapPin, Calendar, Zap } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
+import { EmptyState } from '@/components/EmptyState';
 import ExcelJS from 'exceljs';
 import dynamic from 'next/dynamic';
 
@@ -12,6 +13,14 @@ const DispatchModal = dynamic(() => import('./DispatchModal').then(m => m.Dispat
 });
 
 const DeliveryDetailsModal = dynamic(() => import('./DeliveryDetailsModal').then(m => m.DeliveryDetailsModal), {
+  ssr: false
+});
+
+const CreateDeliveryModal = dynamic(() => import('./CreateDeliveryModal'), {
+  ssr: false
+});
+
+const AddCustomerModal = dynamic(() => import('./AddCustomerModal').then(m => m.AddCustomerModal), {
   ssr: false
 });
 
@@ -52,7 +61,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
   const [loadingAction, setLoadingAction] = useState<LoadingAction | null>(null);
   
   // Tabs: 'CREATED' vs 'MARKETPLACE'
-  const [activeTab, setActiveTab] = useState<'CREATED' | 'MARKETPLACE'>('CREATED');
+  const [activeTab, setActiveTab] = useState<'CREATED' | 'MARKETPLACE'>('MARKETPLACE');
   const batches = initialData?.batches || [];
 
   // State for the Delivery Details Modal
@@ -61,9 +70,11 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
   // State for Batch Customers Modal
   const [selectedBatchForModal, setSelectedBatchForModal] = useState<any>(null);
 
-  // State for per-product manual quota addition
-  const [addQuotaInputs, setAddQuotaInputs] = useState<Record<string, number>>({});
-  const [addQuotaErrors, setAddQuotaErrors] = useState<Record<string, string>>({});
+  // State for Create Delivery Modal
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // State for Add Customer modal
+  const [addCustomerContext, setAddCustomerContext] = useState<any>(null);
 
   const { toasts, show: showToast, dismiss } = useToast();
   const [exporting, setExporting] = useState(false);
@@ -237,6 +248,8 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
       },
       onSuccess: (_data, id) => {
         showToast(successMsg, 'success');
+        queryClient.invalidateQueries({ queryKey: ['company-drivers'] });
+        queryClient.invalidateQueries({ queryKey: ['company-vehicles'] });
       },
       onError: (error: any, id, context: any) => {
         // Rollback to old status
@@ -315,6 +328,8 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
     }
     // Refetch only this page to sync with DB (don't refetch everything)
     queryClient.invalidateQueries({ queryKey, exact: true });
+    queryClient.invalidateQueries({ queryKey: ['company-drivers'] });
+    queryClient.invalidateQueries({ queryKey: ['company-vehicles'] });
   }, [optimisticStatusUpdate, queryClient, queryKey]);
 
   // Add-quota mutation (per item)
@@ -345,12 +360,12 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
             const updatedProducts = d.products.map((p: any) => {
               if (p.itemId === variables.itemId) {
                 const newAccQty = (p.accumulatedQuantity || 0) + variables.quantity;
-                if (newAccQty < (p.targetQuantity || 20)) {
+                if (newAccQty < (p.targetQuantity || 0)) {
                   allReached = false;
                 }
                 return { ...p, accumulatedQuantity: newAccQty };
               }
-              if ((p.accumulatedQuantity || 0) < (p.targetQuantity || 20)) {
+              if ((p.accumulatedQuantity || 0) < (p.targetQuantity || 0)) {
                 allReached = false;
               }
               return p;
@@ -376,10 +391,10 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
         const updatedProducts = prev.products.map((p: any) => {
           if (p.itemId === variables.itemId) {
             const newAccQty = (p.accumulatedQuantity || 0) + variables.quantity;
-            if (newAccQty < (p.targetQuantity || 20)) allReached = false;
+            if (newAccQty < (p.targetQuantity || 0)) allReached = false;
             return { ...p, accumulatedQuantity: newAccQty };
           }
-          if ((p.accumulatedQuantity || 0) < (p.targetQuantity || 20)) allReached = false;
+          if ((p.accumulatedQuantity || 0) < (p.targetQuantity || 0)) allReached = false;
           return p;
         });
         
@@ -392,11 +407,6 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
         };
       });
 
-
-      // Instantly clear the inputs
-      setAddQuotaInputs(prev => ({ ...prev, [`${variables.deliveryId}-${variables.itemId}`]: 0 }));
-      setAddQuotaErrors(prev => ({ ...prev, [`${variables.deliveryId}-${variables.itemId}`]: '' }));
-
       return { previousData };
     },
     onSuccess: (data) => {
@@ -408,18 +418,68 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
       if (context?.previousData) {
         queryClient.setQueryData(queryKey, context.previousData);
       }
-      setAddQuotaErrors(prev => ({ ...prev, [`${variables.deliveryId}-${variables.itemId}`]: error.message }));
+      showToast(error.message || 'Failed to update quota', 'error');
     }
   });
 
-  const handleAddQuota = (deliveryId: number, itemId: number, target: number, current: number) => {
-    const key = `${deliveryId}-${itemId}`;
-    const qty = addQuotaInputs[key] || 0;
-    const remaining = target - current;
-    if (qty <= 0) { setAddQuotaErrors(prev => ({ ...prev, [key]: 'Enter qty > 0' })); return; }
-    if (qty > remaining) { setAddQuotaErrors(prev => ({ ...prev, [key]: `Max: ${remaining}` })); return; }
-    setAddQuotaErrors(prev => ({ ...prev, [key]: '' }));
-    addQuotaMutation.mutate({ deliveryId, itemId, quantity: qty });
+  // Open the Add Customer modal with context
+  const handleOpenAddCustomer = (
+    deliveryId: number, itemId: number, productId: number, variantId: number,
+    productName: string, variantName: string, unit: string | null,
+    sellingUnits: any[], targetQuantity: number, currentAccumulated: number, pickupAddress: string
+  ) => {
+    setAddCustomerContext({ deliveryId, itemId, productId, variantId, productName, variantName, unit, sellingUnits, targetQuantity, currentAccumulated, pickupAddress });
+    setViewingDelivery(null); // Close the DeliveryDetailsModal when adding a customer
+  };
+
+  // Called after AddCustomerModal successfully submits
+  const handleAddCustomerSuccess = (deliveryId: number, addedCount: number) => {
+    let finalStatus = 'DRAFT';
+    
+    // Optimistically update the viewing delivery's accumulated quantity
+    setViewingDelivery((prev: any) => {
+      if (!prev || prev.id !== deliveryId) return prev;
+      let allReached = true;
+      const updatedProducts = prev.products.map((p: any) => {
+        let newAcc = p.accumulatedQuantity || 0;
+        if (p.productId === addCustomerContext?.productId && p.variantId === addCustomerContext?.variantId) {
+          newAcc = newAcc + addedCount;
+        }
+        if (newAcc < (p.targetQuantity || 0)) allReached = false;
+        return { ...p, accumulatedQuantity: newAcc };
+      });
+      const newStatus = (allReached && prev.status === 'DRAFT') ? 'READY_FOR_DISPATCH' : prev.status;
+      finalStatus = newStatus;
+      return { ...prev, products: updatedProducts, status: newStatus };
+    });
+
+    // Update queryClient list data optimistically
+    queryClient.setQueryData(queryKey, (old: any) => {
+      if (!old) return old;
+      return {
+        ...old,
+        data: old.data.map((d: any) => {
+          if (d.id !== deliveryId) return d;
+          let allReached = true;
+          const updatedProducts = d.products.map((p: any) => {
+            let newAcc = p.accumulatedQuantity || 0;
+            if (p.productId === addCustomerContext?.productId && p.variantId === addCustomerContext?.variantId) {
+              newAcc = newAcc + addedCount;
+            }
+            if (newAcc < (p.targetQuantity || 0)) allReached = false;
+            return { ...p, accumulatedQuantity: newAcc };
+          });
+          const newStatus = (allReached && d.status === 'DRAFT') ? 'READY_FOR_DISPATCH' : d.status;
+          return { ...d, products: updatedProducts, status: newStatus };
+        })
+      };
+    });
+
+    // Also update context so the modal shows correct remaining
+    setAddCustomerContext((prev: any) => prev ? { ...prev, currentAccumulated: (prev.currentAccumulated || 0) + addedCount } : prev);
+    showToast(`Customer added — ${addedCount} unit${addedCount > 1 ? 's' : ''} added to quota`, 'success');
+    queryClient.invalidateQueries({ queryKey });
+    queryClient.invalidateQueries({ queryKey: ['delivery-customers', deliveryId] });
   };
 
   const handleDelete = (id: number, status: string) => {
@@ -464,32 +524,32 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
           boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)'
         }}
       >
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'nowrap', background: 'linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,250,252,0.75))' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', background: 'linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,250,252,0.75))' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button
                 onClick={() => setActiveTab('CREATED')}
-                style={{ padding: '8px 16px', borderRadius: '999px', border: '1.5px solid', borderColor: activeTab === 'CREATED' ? '#4f46e5' : '#e2e8f0', background: activeTab === 'CREATED' ? '#4f46e5' : 'white', color: activeTab === 'CREATED' ? 'white' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ padding: '6px 12px', borderRadius: '999px', border: '1.5px solid', borderColor: activeTab === 'CREATED' ? '#4f46e5' : '#e2e8f0', background: activeTab === 'CREATED' ? '#4f46e5' : 'white', color: activeTab === 'CREATED' ? 'white' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
               >
                 <Package size={16} /> Created Deliveries
               </button>
               <button
                 onClick={() => setActiveTab('MARKETPLACE')}
-                style={{ padding: '8px 16px', borderRadius: '999px', border: '1.5px solid', borderColor: activeTab === 'MARKETPLACE' ? '#4f46e5' : '#e2e8f0', background: activeTab === 'MARKETPLACE' ? '#4f46e5' : 'white', color: activeTab === 'MARKETPLACE' ? 'white' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '6px' }}
+                style={{ padding: '6px 12px', borderRadius: '999px', border: '1.5px solid', borderColor: activeTab === 'MARKETPLACE' ? '#4f46e5' : '#e2e8f0', background: activeTab === 'MARKETPLACE' ? '#4f46e5' : 'white', color: activeTab === 'MARKETPLACE' ? 'white' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
               >
                 <Truck size={16} /> Marketplace Deliveries
               </button>
             </div>
 
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             {activeTab === 'CREATED' && (
               <>
-                <button onClick={exportCompletedDeliveries} disabled={exporting} className={styles.btnSecondary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 700, borderRadius: '14px', color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#e0e7ff' }}>
+                <button onClick={exportCompletedDeliveries} disabled={exporting} className={styles.btnSecondary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', fontWeight: 700, borderRadius: '12px', color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#e0e7ff', whiteSpace: 'nowrap', fontSize: '13px' }}>
                   <Download size={16} /> {exporting ? 'Exporting...' : 'Export Completed'}
                 </button>
-                <button onClick={() => window.location.href = '/admin/deliveries/create'} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 700, borderRadius: '14px', boxShadow: '0 10px 24px rgba(79, 70, 229, 0.25)' }}>
+                <button onClick={() => setIsCreateModalOpen(true)} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', fontWeight: 700, borderRadius: '12px', boxShadow: '0 10px 24px rgba(79, 70, 229, 0.25)', whiteSpace: 'nowrap', fontSize: '13px' }}>
                   <Plus size={16} /> Create Delivery
                 </button>
               </>
@@ -500,48 +560,11 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
         {activeTab === 'MARKETPLACE' && (
           <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', background: '#f8fafc' }}>
             {batches.length === 0 ? (
-              <div style={{ 
-                textAlign: 'center', 
-                padding: '64px 32px', 
-                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.02) 0%, rgba(147, 51, 234, 0.04) 100%)', 
-                borderRadius: '24px', 
-                border: '1px solid rgba(79, 70, 229, 0.1)',
-                boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 20px 25px -5px rgba(0, 0, 0, 0.02)',
-                position: 'relative',
-                overflow: 'hidden'
-              }}>
-                <style>{`
-                  @keyframes floating {
-                    0% { transform: translateY(0px) rotate(0deg); }
-                    50% { transform: translateY(-10px) rotate(2deg); }
-                    100% { transform: translateY(0px) rotate(0deg); }
-                  }
-                  @keyframes pulse-glow {
-                    0% { box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.3), inset 0 2px 4px rgba(255,255,255,0.3); }
-                    50% { box-shadow: 0 15px 35px -5px rgba(79, 70, 229, 0.5), inset 0 2px 4px rgba(255,255,255,0.4); }
-                    100% { box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.3), inset 0 2px 4px rgba(255,255,255,0.3); }
-                  }
-                `}</style>
-                <div style={{
-                  width: '80px',
-                  height: '80px',
-                  borderRadius: '24px',
-                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 24px',
-                  animation: 'floating 4s ease-in-out infinite, pulse-glow 4s ease-in-out infinite'
-                }}>
-                  <Package size={36} color="white" strokeWidth={1.5} />
-                </div>
-                <h3 style={{ margin: '0 0 12px 0', color: '#0f172a', fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                  No Marketplace Batches Yet
-                </h3>
-                <p style={{ color: '#475569', margin: '0 auto', maxWidth: '420px', fontSize: '15px', lineHeight: 1.6, fontWeight: 500 }}>
-                  Batches are intelligently and automatically generated the moment a product variant hits its target quota.
-                </p>
-              </div>
+              <EmptyState
+                icon={Package}
+                title="NO MARKETPLACE BATCHES YET"
+                description="Batches are intelligently and automatically generated the moment a product variant hits its target quota."
+              />
             ) : (
               batches.map((batch: any) => (
                 <div key={batch.id} className={styles.card} style={{ padding: 0, overflow: 'hidden', border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
@@ -575,9 +598,11 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <StatusBadge status={batch.status} />
-                      <div style={{ fontSize: '14px', color: '#475569', fontWeight: 600, marginTop: '8px' }}>
-                        Total: {batch.totalWeight} kg
-                      </div>
+                      {Number(batch.totalWeight) > 0 && (
+                        <div style={{ fontSize: '14px', color: '#475569', fontWeight: 600, marginTop: '8px' }}>
+                          Total: {batch.totalWeight} kg
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -586,6 +611,36 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                       <span style={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customers in this Batch ({batch.items.length})</span>
                       <span style={{ color: '#4f46e5', fontWeight: 700 }}>{batch.totalQuantity} / {batch.quotaQuantity} Quota Reached</span>
                     </div>
+                    {(() => {
+                      const totalProduct = batch.items.reduce((sum: number, item: any) => {
+                        const amount = Number(item.offeredAmount);
+                        return sum + (amount > 0 ? amount : Number(item.quantity || 0) * Number(batch.variantPrice || 0));
+                      }, 0);
+                      const totalDelivery = batch.items.reduce((sum: number, item: any) => sum + Number(item.finalDeliveryPrice || 0), 0);
+                      const grandTotal = totalProduct + totalDelivery;
+                      const hasDeliveryFee = batch.items.some((item: any) => item.finalDeliveryPrice !== null && item.finalDeliveryPrice !== undefined);
+                      
+                      return (
+                        <div style={{ marginTop: '16px', borderTop: '1px dashed #cbd5e1', paddingTop: '16px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b', marginBottom: '6px' }}>
+                            <span>Product Total</span>
+                            <span style={{ fontWeight: 600, color: '#1e293b' }}>{formatCurrency(totalProduct)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b', marginBottom: '8px' }}>
+                            <span>Delivery Fee</span>
+                            <span style={{ fontWeight: 600, color: '#1e293b' }}>
+                              {hasDeliveryFee ? formatCurrency(totalDelivery) : 'TBD'}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#0f172a', fontWeight: 700 }}>
+                            <span>Grand Total</span>
+                            <span style={{ color: '#4f46e5' }}>
+                              {hasDeliveryFee ? formatCurrency(grandTotal) : formatCurrency(totalProduct)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   
                   {/* Actions for Batch */}
@@ -622,17 +677,29 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
             <table className={styles.table}>
             <thead>
               <tr>
-                <th style={{ minWidth: '170px', width: '25%', textAlign: 'center' }}>Customer</th>
-                <th style={{ minWidth: '150px', width: '25%', textAlign: 'center' }}>Delivery Date</th>
-                <th style={{ minWidth: '120px', width: '20%', textAlign: 'center' }}>Status</th>
-                <th style={{ minWidth: '90px', width: '15%', textAlign: 'center' }}>Action</th>
+                <th style={{ minWidth: '180px', width: '25%', textAlign: 'left', paddingLeft: '16px' }}>Product Name</th>
+                <th style={{ minWidth: '120px', width: '15%', textAlign: 'center' }}>Date</th>
+                <th style={{ minWidth: '100px', width: '12%', textAlign: 'center' }}>Current Qty</th>
+                <th style={{ minWidth: '100px', width: '12%', textAlign: 'center' }}>Quota</th>
+                <th style={{ minWidth: '120px', width: '18%', textAlign: 'center' }}>Status</th>
+                <th style={{ minWidth: '90px', width: '18%', textAlign: 'center' }}>Action</th>
               </tr>
             </thead>
             <tbody className={!loading ? styles.fadeIn : ''}>
               {loading ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '36px 24px 42px', textAlign: 'center' }}>
+                      <div style={{ fontWeight: 600, color: '#1e293b', lineHeight: 1.2 }}>Loading deliveries...</div>
+                    </td>
+                  </tr>
+              ) : deliveries.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ padding: '36px 24px 42px', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
-                    <div style={{ fontWeight: 600, color: '#1e293b', lineHeight: 1.2 }}>Loading deliveries...</div>
+                  <td colSpan={6} style={{ padding: '0', border: 'none' }}>
+                    <EmptyState
+                      icon={Package}
+                      title="No Deliveries Found"
+                      description="You haven't created any deliveries yet."
+                    />
                   </td>
                 </tr>
               ) : (
@@ -650,16 +717,35 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                       }}
                       className={styles.clickableRow}
                     >
-                      {/* Customer Details */}
-                      <td style={{ minWidth: '170px', padding: '16px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
-                        <div style={{ fontWeight: 600, color: '#1e293b', lineHeight: 1.2, fontSize: '14px' }}>{delivery.customerName}</div>
-                        <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px', lineHeight: 1.35 }}>{delivery.customerContact || 'No contact'}</div>
+                      {/* Product Name */}
+                      <td style={{ minWidth: '180px', padding: '16px', textAlign: 'left', verticalAlign: 'middle' }}>
+                        <div style={{ fontWeight: 600, color: '#1e293b', lineHeight: 1.4, fontSize: '14px' }}>
+                          {delivery.products && delivery.products.length > 0 ? delivery.products.map((p: any) => {
+                            const variant = p.variantName ? ` - ${p.variantName}` : '';
+                            const unit = p.unit ? ` (${p.unit})` : '';
+                            return `${p.productName}${variant}${unit}`;
+                          }).join(', ') : 'No Product'}
+                        </div>
                       </td>
 
-                      {/* Delivery Date */}
+                      {/* Date */}
                       <td style={{ minWidth: '150px', padding: '16px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
                         <div style={{ fontWeight: 500, color: '#475569', fontSize: '14px' }}>
                           {delivery.deliveryDate ? new Date(delivery.deliveryDate).toLocaleDateString() : 'Not set'}
+                        </div>
+                      </td>
+                      
+                      {/* Current Qty */}
+                      <td style={{ minWidth: '120px', padding: '16px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
+                        <div style={{ fontWeight: 500, color: '#475569', fontSize: '14px' }}>
+                          {delivery.products && delivery.products.length > 0 ? delivery.products.reduce((acc: number, p: any) => acc + (p.accumulatedQuantity || 0), 0) : 0}
+                        </div>
+                      </td>
+                      
+                      {/* Quota */}
+                      <td style={{ minWidth: '120px', padding: '16px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
+                        <div style={{ fontWeight: 500, color: '#475569', fontSize: '14px' }}>
+                          {delivery.products && delivery.products.length > 0 ? delivery.products.reduce((acc: number, p: any) => acc + (p.targetQuantity || 0), 0) : 0}
                         </div>
                       </td>
 
@@ -675,7 +761,6 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                       >
                         <ActionMenu actions={[
                           ...(delivery.status === 'DRAFT' ? [
-                            { label: 'Edit', icon: <Edit size={14} />, onClick: () => window.location.href = `/admin/deliveries/${delivery.id}/edit`, color: '#3b82f6' },
                             { label: 'Mark Ready', icon: <CheckSquare size={14} />, onClick: () => readyMutation.mutate(delivery.id), color: '#eab308', disabled: isActing(delivery.id, 'mark ready') }
                           ] : []),
                           ...(delivery.status === 'READY_FOR_DISPATCH' ? [
@@ -700,19 +785,19 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
         </div>
 
         {/* Pagination Controls */}
-        <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(226, 232, 240, 0.5)', background: 'linear-gradient(180deg, rgba(248,250,252,0.8), rgba(255,255,255,0.95))' }}>
+        <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(226, 232, 240, 0.5)', background: 'linear-gradient(180deg, rgba(248,250,252,0.8), rgba(255,255,255,0.95))', gap: '8px' }}>
           <button
             disabled={page === 1}
             onClick={() => setPage(p => p - 1)}
-            style={{ padding: '10px 16px', border: '1px solid #cbd5e1', borderRadius: '12px', background: 'white', cursor: page === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontWeight: 700, opacity: page === 1 ? 0.5 : 1 }}
+            style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '10px', background: 'white', cursor: page === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: '#475569', fontWeight: 700, opacity: page === 1 ? 0.5 : 1, flexShrink: 0 }}
           >
             <ChevronLeft size={16} /> Prev
           </button>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', padding: '8px 12px', borderRadius: '999px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>Page {page} of {totalPages || 1}</span>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', padding: '6px 10px', borderRadius: '999px', background: '#f8fafc', border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>Page {page} of {totalPages || 1}</span>
             <button
               disabled={page >= totalPages}
               onClick={() => setPage(p => p + 1)}
-              style={{ padding: '10px 16px', border: '1px solid #cbd5e1', borderRadius: '12px', background: 'white', cursor: page >= totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontWeight: 700, opacity: page >= totalPages ? 0.5 : 1 }}
+              style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '10px', background: 'white', cursor: page >= totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: '#475569', fontWeight: 700, opacity: page >= totalPages ? 0.5 : 1, flexShrink: 0 }}
             >
               Next <ChevronRight size={16} />
             </button>
@@ -725,6 +810,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
         isOpen={isDispatchModalOpen}
         onClose={() => { setIsDispatchModalOpen(false); setSelectedDeliveryId(null); }}
         deliveryId={selectedDeliveryId}
+        tenantId={dispatchModalType === 'delivery' ? deliveries.find(d => d.id === selectedDeliveryId)?.tenantId : batches.find((b: any) => b.id === selectedDeliveryId)?.tenantId}
         type={dispatchModalType}
         onDispatchComplete={() => handleDispatchComplete(selectedDeliveryId ?? undefined)}
       />
@@ -733,20 +819,18 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
         isOpen={!!viewingDelivery}
         onClose={() => setViewingDelivery(null)}
         delivery={viewingDelivery}
-        addQuotaInputs={addQuotaInputs}
-        setAddQuotaInputs={setAddQuotaInputs}
-        addQuotaErrors={addQuotaErrors}
-        setAddQuotaErrors={setAddQuotaErrors}
-        handleAddQuota={handleAddQuota}
-        isAdding={(deliveryId, itemId) => 
-          addQuotaMutation.isPending && 
-          addQuotaMutation.variables?.deliveryId === deliveryId && 
-          addQuotaMutation.variables?.itemId === itemId
-        }
+        onAddCustomer={handleOpenAddCustomer}
         onDispatch={() => {
           setViewingDelivery(null);
           handleDispatch(viewingDelivery.id);
         }}
+      />
+
+      <AddCustomerModal
+        isOpen={!!addCustomerContext}
+        onClose={() => setAddCustomerContext(null)}
+        context={addCustomerContext}
+        onSuccess={handleAddCustomerSuccess}
       />
       
       {/* Batch Customers Modal */}
@@ -773,7 +857,13 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                       <MapPin size={20} color="#64748b" />
                     </div>
                     <div>
-                      <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '16px', marginBottom: '4px' }}>{item.customerName}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '16px' }}>{item.customerName}</div>
+                        {item.deliveryPriority === 'URGENT' && (
+                          <span style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>URGENT</span>
+                        )}
+                      </div>
+                      
                       <div style={{ fontSize: '14px', color: '#475569', marginBottom: '8px', lineHeight: 1.5, maxWidth: '450px' }}>{item.dropoffAddress}</div>
                       
                       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
@@ -785,6 +875,11 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#4f46e5', fontWeight: 600, background: '#eef2ff', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e0e7ff' }}>
                           <Package size={14} /> {item.quantity} units
                         </div>
+                        {item.deliveryPriority === 'URGENT' && item.deliveryDate && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#dc2626', fontWeight: 600, background: '#fef2f2', padding: '4px 10px', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                            <Calendar size={14} /> {new Date(item.deliveryDate).toLocaleDateString()}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -800,6 +895,12 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
           </div>
         </div>
       )}
+
+      <CreateDeliveryModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ['deliveries'] })}
+      />
     </div>
   );
 }
@@ -807,7 +908,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
 function StatusBadge({ status }: { status: string }) {
   let color = '#475569', bg = '#f1f5f9';
   let Icon: any = Clock;
-  let displayStatus = status;
+  let displayStatus = status.replace(/_/g, ' ');
 
   if (status === 'READY_FOR_DISPATCH') { color = '#d97706'; bg = '#fef3c7'; Icon = Clock; displayStatus = 'READY FOR DISPATCH'; }
   else if (status === 'DRAFT') { color = '#64748b'; bg = '#f1f5f9'; Icon = Edit; }

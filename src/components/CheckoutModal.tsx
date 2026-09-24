@@ -120,7 +120,8 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
           const rData = await ratesRes.json();
           setRates(rData.data || []);
           if (rData.data && rData.data.length > 0) {
-            setSelectedRate(rData.data.find((r: any) => r.vehicleType.toLowerCase() === 'motorcycle') || rData.data[0]);
+            const moto = rData.data.find((r: any) => r.vehicleType.toLowerCase().includes('motorcycle'));
+            setSelectedRate(moto || null);
           }
         }
       } catch (err) {
@@ -132,11 +133,42 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
     fetchCart();
   }, [isOpen]);
   
-  const itemsSubtotal = items.reduce((sum, item) => sum + (Number(item.sellingUnit?.price ?? item.product.price) * item.quantity), 0);
-  const normalFee = selectedRate ? Number(selectedRate.basePrice || 0) : 50.00;
-  const urgentFee = selectedRate && priority === 'URGENT' ? Number(selectedRate.urgentAdditionalFee || 0) : 0;
+  // Haversine formula to calculate distance in km
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c;
+  };
+
+  let distanceKm = 0;
+  if (dropoffLat !== null && dropoffLng !== null && items.length > 0) {
+    const tenantLat = items[0].product?.tenantLat;
+    const tenantLng = items[0].product?.tenantLng;
+    if (tenantLat !== undefined && tenantLat !== null && tenantLng !== undefined && tenantLng !== null) {
+      distanceKm = calculateDistance(Number(tenantLat), Number(tenantLng), dropoffLat, dropoffLng);
+    }
+  }
+
+  const itemsSubtotal = items.reduce((sum, item) => sum + (Number(item.sellingUnit?.price ?? item.product?.price) * item.quantity), 0);
+  const motorcycleRate = rates.find((r: any) => r.vehicleType.toLowerCase().includes('motorcycle'));
+  const basePrice = motorcycleRate ? Number(motorcycleRate.basePrice || 0) : 50.00;
+  const pricePerKm = motorcycleRate ? Number(motorcycleRate.pricePerKm || 0) : 10.00;
+  
+  // Only charge a delivery fee if a valid location is picked
+  const normalFee = (dropoffLat !== null && dropoffLng !== null) ? basePrice + (distanceKm * pricePerKm) : 0;
+  
+  // Urgent fee is a fixed amount across all vehicles, so we can just grab it from the first rate
+  const fixedUrgentFee = rates.length > 0 ? Number(rates[0].urgentAdditionalFee || 0) : 0;
+  const urgentFee = priority === 'URGENT' ? fixedUrgentFee : 0;
+  
   const shippingFee = normalFee + urgentFee;
-  const grandTotal = itemsSubtotal + shippingFee;
+  const grandTotal = itemsSubtotal + urgentFee;
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,10 +180,7 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
       alert('Please select a delivery date for urgent delivery.');
       return;
     }
-    if (priority === 'URGENT' && !urgentReason) {
-      alert('Please provide a reason for the urgent delivery.');
-      return;
-    }
+
 
     setLoading(true);
     try {
@@ -170,8 +199,8 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
         variantId: item.product.variantId || item.product.id,
         price: item.sellingUnit?.price ?? item.product.price,
         tenantId: item.product.tenantId,
-        unit: item.product.unit || 'piece',
-        productName: `${item.product.parentName ? `${item.product.parentName} - ${item.product.name}` : item.product.name}${item.sellingUnit?.name ? ` - ${item.sellingUnit.name}` : ''}`
+        unit: item.sellingUnit?.name || item.sellingUnit?.unitName || item.product.unit || 'piece',
+        productName: item.product.parentName ? `${item.product.parentName} - ${item.product.name}` : item.product.name
       }));
 
       const res = await fetch('/api/checkout', {
@@ -374,9 +403,9 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>Standard</span>
-                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>₱{Math.round(normalFee)}</span>
+                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>TBD</span>
                 </div>
-                <p style={{ fontSize: '13px', color: '#64748b' }}>Normal delivery rate.</p>
+                <p style={{ fontSize: '13px', color: '#64748b' }}>Normal delivery rate will be calculated once in transit.</p>
               </div>
             </div>
 
@@ -391,22 +420,11 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <span style={{ fontWeight: 800, color: '#ef4444', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px' }}><AlertCircle size={16}/> Urgent</span>
-                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>+₱{Math.round(selectedRate?.urgentAdditionalFee || 0)}</span>
+                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>+₱{Math.round(fixedUrgentFee)}</span>
                 </div>
                 <p style={{ fontSize: '13px', color: '#64748b' }}>Additional fee applied for urgent processing.</p>
                 
-                {priority === 'URGENT' && (
-                  <div style={{ marginTop: '16px' }} onClick={e => e.stopPropagation()}>
-                    <input 
-                      type="text"
-                      value={urgentReason}
-                      onChange={e => setUrgentReason(e.target.value)}
-                      placeholder="Enter reason for urgency..."
-                      style={{ width: '100%', padding: '12px', border: '1px solid #fecaca', borderRadius: '12px', fontSize: '14px', fontWeight: 600, color: '#0f172a', background: '#fff', outline: 'none' }}
-                      required
-                    />
-                  </div>
-                )}
+
               </div>
             </div>
           </div>
@@ -431,21 +449,21 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Delivery Fee</span>
-              <span style={{ color: '#0f172a' }}>₱{Math.round(normalFee)}</span>
+              <span style={{ color: '#0f172a', fontWeight: 700 }}>TBD</span>
             </div>
             {priority === 'URGENT' && (
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Urgent Surcharge</span>
-                <span style={{ color: '#ef4444' }}>₱{Math.round(urgentFee)}</span>
+                <span style={{ color: '#ef4444', fontWeight: 700 }}>₱{Math.round(urgentFee)}</span>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '12px', marginTop: '12px' }}>
               <span style={{ fontWeight: 700, color: '#0f172a' }}>Total Delivery</span>
-              <span style={{ color: '#0f172a', fontWeight: 700 }}>₱{Math.round(shippingFee)}</span>
+              <span style={{ color: '#0f172a', fontWeight: 700 }}>{priority === 'URGENT' ? `₱${Math.round(urgentFee)} + TBD` : 'TBD'}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, color: '#0f172a', fontSize: '18px', marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1' }}>
               <span>Total Payment</span>
-              <span style={{ color: '#4f46e5' }}>₱{Math.round(grandTotal)}</span>
+              <span style={{ color: '#4f46e5' }}>₱{Math.round(grandTotal)} + TBD</span>
             </div>
           </div>
         </div>

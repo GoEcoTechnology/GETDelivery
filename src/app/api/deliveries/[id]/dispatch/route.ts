@@ -170,6 +170,23 @@ export async function POST(
             });
           });
 
+          // Notification for Customer
+          if (order.customerId) {
+            newNotifsToInsert.push({
+              tenantId: tenantIdToUse,
+              deliveryOrderId: order.id,
+              senderId: claims.userId || null,
+              receiverId: order.customerId,
+              receiverRole: 'CUSTOMER',
+              recipientEmail: null,
+              notificationType: 'order_dispatched',
+              title: 'Order Dispatched',
+              body: `Your order has been dispatched and is looking for a delivery partner.`,
+              actionUrl: `/orders`,
+              status: 'UNREAD'
+            });
+          }
+
           // Insert unified notifications
           if (newNotifsToInsert.length > 0) {
             await db.insert(notifications).values(newNotifsToInsert);

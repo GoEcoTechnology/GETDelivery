@@ -45,6 +45,18 @@ export async function GET(request: Request) {
       
     const totalCount = Number(countResult[0]?.count || 0);
 
-    return NextResponse.json({ data, page, limit, totalCount });
+    const formattedData = data.map((item: any) => {
+      let ref = item.reference || '—';
+      if (ref.startsWith('Delivery Order SO-') || ref.startsWith('DISPATCH-BATCH-') || ref === 'Delivery Order') {
+        ref = 'Delivery Order';
+      } else if (ref.startsWith('STO-')) {
+        ref = 'Manual Stock Out';
+      } else if (ref.startsWith('STIN-')) {
+        ref = 'Manual Stock In';
+      }
+      return { ...item, reference: ref };
+    });
+
+    return NextResponse.json({ data: formattedData, page, limit, totalCount });
   });
 }

@@ -31,6 +31,8 @@ export async function GET(request: Request) {
           price: productVariants.price,
           tenantId: products.tenantId,
           tenantName: tenants.name,
+          tenantLat: tenants.lat,
+          tenantLng: tenants.lng,
           variantId: productVariants.id,
           unit: productVariants.unit,
         },

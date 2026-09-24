@@ -27,11 +27,11 @@ export default function DashboardClient({ currentRange, calendarDeliveries }: { 
       {/* High-Level Stats Cards - Loads immediately and independently */}
       <DashboardStats />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '24px', marginTop: '32px' }}>
-        <div>
+      <div className={styles.dashboardGrid}>
+        <div style={{ minWidth: 0, height: '100%' }}>
           <DashboardCalendar deliveries={calendarDeliveries} />
         </div>
-        <div>
+        <div style={{ minWidth: 0, height: '100%' }}>
           <DashboardRecentTables />
         </div>
       </div>

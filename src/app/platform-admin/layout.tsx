@@ -118,20 +118,29 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
         <header className="header-responsive hide-on-mobile">
           <div>
             <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-              {pathname.includes('/tenants') ? 'Tenant Management' : 
-               pathname.includes('/approvals') ? 'Pending Approvals' : 
-               pathname.includes('/partners') ? 'Delivery Partners' : 
-               pathname.includes('/delivery-pricing') ? 'Delivery Pricing' :
-               pathname.includes('/profile') ? 'Profile Settings' :
-               'Platform Dashboard'}
+              {(() => {
+                const segments = pathname.split('/').filter(Boolean);
+                const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
+                const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
+                if (['admin', 'partner', 'customer', 'platform-admin'].includes(lastSegment.toLowerCase())) {
+                  return 'Dashboard';
+                }
+                return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              })()}
             </h1>
             <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
-              {pathname.includes('/tenants') ? 'Manage all registered businesses on the platform' : 
-               pathname.includes('/approvals') ? 'Review and approve new tenant registrations' : 
-               pathname.includes('/partners') ? 'Manage platform delivery partners' : 
-               pathname.includes('/delivery-pricing') ? 'Configure global settings and rates' :
-               pathname.includes('/profile') ? 'Manage your account and platform settings' :
-               'Overview of platform activity'}
+              {(() => {
+                const segments = pathname.split('/').filter(Boolean);
+                const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
+                const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
+                
+                if (lastSegment === 'tenants') return 'Manage all registered businesses on the platform';
+                if (lastSegment === 'approvals') return 'Review and approve new tenant registrations';
+                if (lastSegment === 'partners') return 'Manage platform delivery partners';
+                if (lastSegment === 'delivery-pricing') return 'Configure global settings and rates';
+                if (lastSegment === 'profile') return 'Manage your account and platform settings';
+                return 'Overview of platform activity';
+              })()}
             </p>
           </div>
           <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>

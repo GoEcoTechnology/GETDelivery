@@ -165,13 +165,7 @@ export default function MarketplacePage() {
           <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)' }} />
         </div>
 
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {categories.map(cat => (
-            <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: '8px 14px', borderRadius: '999px', border: `1.5px solid ${activeCategory === cat ? '#4f46e5' : '#e2e8f0'}`, background: activeCategory === cat ? '#4f46e5' : 'white', color: activeCategory === cat ? 'white' : '#64748b', fontWeight: 700, fontSize: '12px', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
-              {cat}
-            </button>
-          ))}
-        </div>
+
 
         {cartCount > 0 && (
           <button onClick={() => router.push('/customer/cart')} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: '999px', background: '#FF5A2C', color: 'white', border: 'none', fontWeight: 800, fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>
@@ -387,7 +381,22 @@ export default function MarketplacePage() {
                     <button onClick={() => setCartQuantity(q => Math.max(1, q - 1))} style={{ width: '32px', height: '32px', borderRadius: '6px', background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', transition: 'background 0.1s' }} onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <Minus size={16} strokeWidth={2} />
                     </button>
-                    <span style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', width: '40px', textAlign: 'center' }}>{cartQuantity}</span>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max={selectedAvailable || 99}
+                      value={cartQuantity} 
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val) && val > 0) {
+                          setCartQuantity(Math.min(selectedAvailable || 99, val));
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value === '' || parseInt(e.target.value) < 1) setCartQuantity(1);
+                      }}
+                      style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', width: '50px', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent' }}
+                    />
                     <button onClick={() => setCartQuantity(q => Math.min(selectedAvailable || 99, q + 1))} style={{ width: '32px', height: '32px', borderRadius: '6px', background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', transition: 'background 0.1s' }} onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <Plus size={16} strokeWidth={2} />
                     </button>

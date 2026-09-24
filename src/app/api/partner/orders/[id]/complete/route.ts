@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryOrders, auditLogs, notifications } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 
@@ -94,7 +94,7 @@ export async function POST(
       deliveryOrderId: orderId,
       senderId: partnerId,
       receiverId: 0, // 0 means broadcast to tenant admins
-      receiverRole: 'PLATFORM_OWNER',
+      receiverRole: 'BUSINESS_OWNER',
       notificationType: 'delivery_completed',
       title: 'Delivery Completed',
       body: bodyStr,

@@ -70,6 +70,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         unitName: productSellingUnits.unitName,
         equivalentQty: productSellingUnits.equivalentQty,
         description: productSellingUnits.description,
+        weight: productSellingUnits.weight,
         price: productSellingUnits.price,
         status: productSellingUnits.status,
       }).from(productSellingUnits).where(inArray(productSellingUnits.variantId, variantIds));

@@ -1,9 +1,10 @@
 'use client';
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, XCircle, Clock, ShoppingBag, MapPin, Package, X } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, ShoppingBag, MapPin, Package, X, ChevronDown, ChevronUp, AlertCircle, Calendar, Zap, Trash2 } from 'lucide-react';
 import styles from '../admin.module.css';
 import { ActionMenu } from '@/components/ActionMenu';
+import { EmptyState } from '@/components/EmptyState';
 import dynamic from 'next/dynamic';
 
 const DispatchModal = dynamic(() => import('../deliveries/DispatchModal').then(m => m.DispatchModal), {
@@ -92,7 +93,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ── Order Details Modal ───────────────────────────────────────────────────────
-function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching }: { isOpen: boolean; onClose: () => void; order: CustomerOrder | null; onDispatch?: (id: number) => void; isDispatching?: boolean }) {
+function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching, onDelete, isDeleting }: { isOpen: boolean; onClose: () => void; order: CustomerOrder | null; onDispatch?: (id: number) => void; isDispatching?: boolean; onDelete?: (id: number) => void; isDeleting?: boolean }) {
   if (!isOpen || !order) return null;
 
   const isUrgent = order.deliveryPriority === 'URGENT';
@@ -125,6 +126,20 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching }
                 {isDispatching ? 'Dispatching...' : 'Dispatch Now'}
               </button>
             )}
+            {onDelete && (
+              <button
+                onClick={() => {
+                  if (confirm('Are you sure you want to delete this order?')) {
+                    onDelete(order.id);
+                  }
+                }}
+                disabled={isDeleting}
+                style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: isDeleting ? 'not-allowed' : 'pointer', opacity: isDeleting ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Trash2 size={16} />
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            )}
             <button onClick={onClose} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: 'all 0.2s' }}>
               <X size={18} />
             </button>
@@ -154,7 +169,7 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching }
                   </div>
                   {order.instructions && (
                     <div style={{ marginTop: '8px', background: '#fef9c3', border: '1px solid #fde047', borderRadius: '6px', padding: '8px 12px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                      <span style={{ fontWeight: 700, color: '#a16207', fontSize: '12px', whiteSpace: 'nowrap' }}>Note:</span>
+                      <span style={{ fontWeight: 700, color: '#a16207', fontSize: '12px', whiteSpace: 'nowrap' }}>Landmark:</span>
                       <span style={{ color: '#854d0e', fontSize: '13px', lineHeight: 1.4 }}>{order.instructions}</span>
                     </div>
                   )}
@@ -224,10 +239,28 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching }
 export default function OrdersClient({ initialOrders }: { initialOrders: CustomerOrder[] }) {
   const queryClient = useQueryClient();
   const { toasts, show: showToast } = useToast();
-  const [actingId, setActingId] = useState<{ id: number; action: 'accept' | 'reject' | 'dispatch' } | null>(null);
+  const [actingId, setActingId] = useState<{ id: number; action: 'accept' | 'reject' | 'dispatch' | 'delete' } | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [viewingOrder, setViewingOrder] = useState<CustomerOrder | null>(null);
   const [dispatchModalBatchId, setDispatchModalBatchId] = useState<number | null>(null);
+  const [selectedOrders, setSelectedOrders] = useState<Record<number, boolean>>({});
+
+  const toggleOrderSelection = (orderId: number) => {
+    setSelectedOrders(prev => ({
+      ...prev,
+      [orderId]: !prev[orderId]
+    }));
+  };
+
+  const toggleGroupSelection = (orderIds: number[], forceState: boolean) => {
+    setSelectedOrders(prev => {
+      const next = { ...prev };
+      orderIds.forEach(id => {
+        next[id] = forceState;
+      });
+      return next;
+    });
+  };
 
   const { data: orders, isLoading: loading } = useQuery<CustomerOrder[]>({
     queryKey: ['admin-orders'],
@@ -293,6 +326,43 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
     onSettled: () => setActingId(null),
   });
 
+  const [isBatchDispatching, setIsBatchDispatching] = useState(false);
+  
+  const batchDispatchMutation = useMutation({
+    mutationFn: async (orderIds: number[]) => {
+      const res = await fetch(`/api/admin/orders/batch-dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ orderIds })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch batch');
+      return data;
+    },
+    onMutate: () => setIsBatchDispatching(true),
+    onSuccess: (data, orderIds) => {
+      queryClient.setQueryData<CustomerOrder[]>(['admin-orders'], prev =>
+        prev ? prev.map(o => orderIds.includes(o.id) ? { ...o, status: 'PROCESSING' } : o) : prev
+      );
+      showToast('Selected orders batched successfully!', 'success');
+      
+      // Clear selection for dispatched orders
+      setSelectedOrders(prev => {
+        const next = { ...prev };
+        orderIds.forEach(id => delete next[id]);
+        return next;
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      
+      if (data.batchIds && data.batchIds.length > 0) {
+        setDispatchModalBatchId(data.batchIds[0]);
+      }
+    },
+    onError: (err: any) => showToast(err.message || 'Failed to dispatch orders', 'error'),
+    onSettled: () => setIsBatchDispatching(false),
+  });
+
   const rejectMutation = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(`/api/admin/orders/${id}/reject`, {
@@ -314,7 +384,29 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
     onSettled: () => setActingId(null),
   });
 
-  const statuses = ['ALL', 'DRAFT', 'PROCESSING', 'COMPLETED', 'CANCELLED'];
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/admin/orders/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete');
+      return data;
+    },
+    onMutate: (id) => setActingId({ id, action: 'delete' }),
+    onSuccess: (_, id) => {
+      queryClient.setQueryData<CustomerOrder[]>(['admin-orders'], prev =>
+        prev ? prev.filter(o => o.id !== id) : prev
+      );
+      showToast('Order deleted successfully.', 'success');
+      setViewingOrder(null);
+    },
+    onError: (err: any) => showToast(err.message || 'Failed to delete order', 'error'),
+    onSettled: () => setActingId(null),
+  });
+
+  const statuses = ['ALL'];
   const labelMap: Record<string, string> = {
     ALL: 'All',
     DRAFT: 'Pending',
@@ -323,25 +415,67 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
     CANCELLED: 'Rejected',
   };
 
-  const filtered = (orders || []).filter(o => filterStatus === 'ALL' || o.status === filterStatus);
+  const filtered = (orders || []).filter(o => (filterStatus === 'ALL' ? o.status !== 'CANCELLED' : o.status === filterStatus));
   const pendingCount = (orders || []).filter(o => o.status === 'DRAFT').length;
   
   // Separate orders
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupName]: !prev[groupName]
+    }));
+  };
+
   const manualFiltered = filtered.filter(o => o.orderSource !== 'MARKETPLACE');
   const marketplaceFiltered = filtered.filter(o => o.orderSource === 'MARKETPLACE' && !o.batchId);
 
-  // Compute quota progress for marketplace orders
-  const variantProgress: Record<string, { total: number, quota: number }> = {};
-  for (const o of (orders || [])) {
-    if (o.orderSource === 'MARKETPLACE' && !o.batchId) {
-      for (const p of o.products) {
-        if (!variantProgress[p.productName]) {
-          variantProgress[p.productName] = { total: 0, quota: p.quota || 50 };
-        }
-        variantProgress[p.productName].total += p.quantity;
-      }
+  // Group marketplace orders by product
+  interface ProductGroup {
+    productName: string;
+    totalCustomers: number;
+    totalQuantity: number;
+    totalValue: number;
+    urgentCount: number;
+    quota: number;
+    orders: CustomerOrder[];
+  }
+
+  const marketplaceGroups: Record<string, ProductGroup> = {};
+  for (const o of marketplaceFiltered) {
+    const p = o.products[0];
+    if (!p) continue;
+    const key = p.productName;
+    if (!marketplaceGroups[key]) {
+      marketplaceGroups[key] = {
+        productName: key,
+        totalCustomers: 0,
+        totalQuantity: 0,
+        totalValue: 0,
+        urgentCount: 0,
+        quota: p.quota || 50,
+        orders: []
+      };
+    }
+    marketplaceGroups[key].orders.push(o);
+    marketplaceGroups[key].totalCustomers++;
+    marketplaceGroups[key].totalQuantity += p.quantity;
+    marketplaceGroups[key].totalValue += (Number(p.unitPrice || 0) * p.quantity);
+    if (o.deliveryPriority === 'URGENT') {
+      marketplaceGroups[key].urgentCount++;
     }
   }
+
+  // Sort orders within each group so URGENT is at the top
+  const sortedMarketplaceGroups = Object.values(marketplaceGroups).map(g => {
+    g.orders.sort((a, b) => {
+      if (a.deliveryPriority === 'URGENT' && b.deliveryPriority !== 'URGENT') return -1;
+      if (b.deliveryPriority === 'URGENT' && a.deliveryPriority !== 'URGENT') return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+    return g;
+  });
 
   const isActing = (id: number, action?: string) =>
     actingId?.id === id && (!action || actingId.action === action);
@@ -363,6 +497,8 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
         order={viewingOrder} 
         onDispatch={(id) => dispatchMutation.mutate(id)}
         isDispatching={actingId?.id === viewingOrder?.id && actingId?.action === 'dispatch'}
+        onDelete={(id) => deleteMutation.mutate(id)}
+        isDeleting={actingId?.id === viewingOrder?.id && actingId?.action === 'delete'}
       />
 
       <DispatchModal
@@ -386,32 +522,16 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
           boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)'
         }}
       >
-        {/* Toolbar */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap', background: 'linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,250,252,0.75))' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ padding: '8px 12px', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', fontSize: '13px', fontWeight: 700 }}>
-              Total: {filtered.length} orders
-            </div>
-            
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginLeft: '12px' }}>
-              {statuses.map(s => (
-                <button
-                  key={s}
-                  onClick={() => setFilterStatus(s)}
-                  style={{ padding: '8px 16px', borderRadius: '999px', border: '1.5px solid', borderColor: filterStatus === s ? '#4f46e5' : '#e2e8f0', background: filterStatus === s ? '#4f46e5' : 'white', color: filterStatus === s ? 'white' : '#64748b', fontWeight: 700, fontSize: '12px', cursor: 'pointer', transition: 'all 0.15s' }}
-                >
-                  {labelMap[s] || s}
-                  {s === 'DRAFT' && pendingCount > 0 && (
-                    <span style={{ marginLeft: '6px', background: '#dc2626', color: 'white', borderRadius: '999px', padding: '1px 6px', fontSize: '10px', fontWeight: 900 }}>{pendingCount}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+
 
         {/* MARKETPLACE SECTION (Waiting for Quota) */}
-        {marketplaceFiltered.length > 0 && (
+        {marketplaceFiltered.length === 0 ? (
+          <EmptyState
+            icon={Package}
+            title="NO ORDERS WAITING"
+            description="There are currently no marketplace orders waiting for quota."
+          />
+        ) : (
           <div style={{ padding: '0 12px 0' }}>
             <div style={{ padding: '24px 12px 12px' }}>
               <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#334155', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -421,44 +541,216 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                 Marketplace orders waiting to be batched into deliveries.
               </p>
             </div>
-            <div className="table-responsive-wrapper">
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={{ minWidth: '170px', width: '25%', textAlign: 'center' }}>Customer</th>
-                    <th style={{ minWidth: '150px', width: '30%', textAlign: 'center' }}>Product</th>
-                    <th style={{ minWidth: '150px', width: '25%', textAlign: 'center' }}>Order Qty</th>
-                    <th style={{ minWidth: '120px', width: '20%', textAlign: 'center' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody className={!loading ? styles.fadeIn : ''}>
-                  {marketplaceFiltered.map((order: any) => {
-                    const rowActing = actingId?.id === order.id;
-                    const p = order.products[0];
-                    const progress = p ? variantProgress[p.productName] : null;
-                    const percentage = progress ? Math.min(100, Math.round((progress.total / progress.quota) * 100)) : 0;
-                    
-                    return (
-                      <tr key={order.id} onClick={() => setViewingOrder(order)} style={{ opacity: rowActing ? 0.75 : 1, transition: 'opacity 0.15s ease', cursor: 'pointer' }} className={styles.clickableRow}>
-                        <td style={{ minWidth: '170px', padding: '16px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
-                          <div style={{ fontWeight: 600, color: '#1e293b', lineHeight: 1.2, fontSize: '14px' }}>{order.customerName}</div>
-                        </td>
-                        <td style={{ minWidth: '150px', padding: '16px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
-                          <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px' }}>{p?.productName || 'Unknown'}</div>
-                        </td>
-                        <td style={{ minWidth: '150px', padding: '16px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
-                          <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>
-                            {p?.quantity || 0}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '0 12px 24px' }}>
+              {sortedMarketplaceGroups.map(group => {
+                const isExpanded = expandedGroups[group.productName];
+                const hasUrgent = group.urgentCount > 0;
+                const percentage = Math.min(100, Math.round((group.totalQuantity / group.quota) * 100));
+                
+                return (
+                  <div key={group.productName} style={{ 
+                    background: '#fff', 
+                    borderRadius: '16px', 
+                    border: hasUrgent ? '1px solid #fca5a5' : '1px solid #e2e8f0',
+                    boxShadow: hasUrgent ? '0 4px 12px rgba(239, 68, 68, 0.1)' : '0 2px 8px rgba(15, 23, 42, 0.04)',
+                    overflow: 'hidden'
+                  }}>
+                    {/* Header Summary */}
+                    <div 
+                      onClick={() => toggleGroup(group.productName)}
+                      style={{ 
+                        padding: '16px', 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        background: hasUrgent ? '#fef2f2' : '#f8fafc',
+                        borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none',
+                        transition: 'background 0.2s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{group.productName}</h4>
+                          {hasUrgent && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 800 }}>
+                              <Zap size={12} fill="white" /> URGENT ×{group.urgentCount}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span>{group.totalCustomers} Customers</span>
+                          <span style={{ color: '#cbd5e1' }}>•</span>
+                          <span>{group.totalQuantity} Ordered</span>
+                          <span style={{ color: '#cbd5e1' }}>•</span>
+                          <span>Quota: {group.quota}</span>
+                          <span style={{ color: '#cbd5e1' }}>•</span>
+                          <span style={{ fontWeight: 600, color: '#16a34a' }}>{formatCurrency(group.totalValue)}</span>
+                        </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Quota Progress</div>
+                          <div style={{ width: '120px', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${percentage}%`, background: percentage >= 100 ? '#10b981' : '#3b82f6', transition: 'width 0.3s ease' }}></div>
                           </div>
-                        </td>
-                        <td style={{ padding: '16px 12px', textAlign: 'center', verticalAlign: 'middle' }}>
-                          <StatusBadge status="WAITING" />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'white', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded Content (Orders List) */}
+                    {isExpanded && (
+                      <div style={{ padding: '0', display: 'flex', flexDirection: 'column' }} className={styles.fadeIn}>
+                        <table className={styles.table} style={{ margin: 0, width: '100%' }}>
+                          <thead style={{ background: '#f1f5f9' }}>
+                            <tr>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', width: '40px' }}>
+                                <input 
+                                  type="checkbox"
+                                  style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                  checked={group.orders.every(o => selectedOrders[o.id]) && group.orders.length > 0}
+                                  onChange={(e) => toggleGroupSelection(group.orders.map(o => o.id), e.target.checked)}
+                                />
+                              </th>
+                              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Customer</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Quantity</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Amount</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Status</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.orders.map(order => {
+                              const p = order.products[0];
+                              const isOrderUrgent = order.deliveryPriority === 'URGENT';
+                              const rowActing = actingId?.id === order.id;
+                              const isDeleting = actingId?.id === order.id && actingId?.action === 'delete';
+
+                              return (
+                                <tr 
+                                  key={order.id} 
+                                  style={{ 
+                                    background: isOrderUrgent ? '#fff5f5' : 'white',
+                                    opacity: rowActing ? 0.75 : 1, 
+                                    borderBottom: '1px solid #f1f5f9'
+                                  }} 
+                                  className={styles.clickableRow}
+                                >
+                                  <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle' }} onClick={(e) => e.stopPropagation()}>
+                                    <input 
+                                      type="checkbox"
+                                      style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                      checked={!!selectedOrders[order.id]}
+                                      onChange={() => toggleOrderSelection(order.id)}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '16px', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                      <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {order.customerName}
+                                        {isOrderUrgent && (
+                                          <span style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>URGENT</span>
+                                        )}
+                                      </div>
+                                      {isOrderUrgent && order.deliveryDate && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#dc2626', fontWeight: 500 }}>
+                                          <Calendar size={12} /> {new Date(order.deliveryDate).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
+                                    <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>{p.quantity}</div>
+                                  </td>
+                                  <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
+                                    <div style={{ fontWeight: 600, color: '#475569', fontSize: '14px' }}>{formatCurrency(Number(p.unitPrice || 0) * p.quantity)}</div>
+                                  </td>
+                                  <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
+                                    <StatusBadge status="WAITING" />
+                                  </td>
+                                  <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle' }} onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                      onClick={() => {
+                                        if (confirm('Are you sure you want to delete this order?')) {
+                                          deleteMutation.mutate(order.id);
+                                        }
+                                      }}
+                                      disabled={isDeleting}
+                                      style={{
+                                        background: 'transparent',
+                                        color: '#dc2626',
+                                        border: 'none',
+                                        padding: '8px',
+                                        borderRadius: '8px',
+                                        cursor: isDeleting ? 'not-allowed' : 'pointer',
+                                        opacity: isDeleting ? 0.5 : 1,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'background 0.2s'
+                                      }}
+                                      onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
+                                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                      title="Delete Order"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        
+                        {/* Footer Action Buttons */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>
+                            {group.orders.filter(o => selectedOrders[o.id]).length} of {group.orders.length} customers selected
+                          </div>
+                          <div style={{ display: 'flex', gap: '12px' }}>
+                            <button
+                              onClick={() => batchDispatchMutation.mutate(group.orders.filter(o => selectedOrders[o.id]).map(o => o.id))}
+                              disabled={group.orders.filter(o => selectedOrders[o.id]).length === 0 || isBatchDispatching}
+                              style={{ 
+                                padding: '8px 16px', 
+                                borderRadius: '8px', 
+                                border: '1px solid #cbd5e1', 
+                                background: 'white', 
+                                color: group.orders.filter(o => selectedOrders[o.id]).length === 0 ? '#94a3b8' : '#334155', 
+                                fontWeight: 600, 
+                                fontSize: '13px', 
+                                cursor: group.orders.filter(o => selectedOrders[o.id]).length === 0 ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              Dispatch Selected ({group.orders.filter(o => selectedOrders[o.id]).length})
+                            </button>
+                            <button
+                              onClick={() => batchDispatchMutation.mutate(group.orders.map(o => o.id))}
+                              disabled={isBatchDispatching}
+                              style={{ 
+                                padding: '8px 16px', 
+                                borderRadius: '8px', 
+                                border: 'none', 
+                                background: '#3b82f6', 
+                                color: 'white', 
+                                fontWeight: 600, 
+                                fontSize: '13px', 
+                                cursor: isBatchDispatching ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              Dispatch All ({group.orders.length})
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             
             <div style={{ borderBottom: '1px solid #e2e8f0', margin: '24px 12px 12px' }}></div>

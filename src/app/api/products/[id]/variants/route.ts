@@ -71,6 +71,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         unitName: productSellingUnits.unitName,
         equivalentQty: productSellingUnits.equivalentQty,
         description: productSellingUnits.description,
+        weight: productSellingUnits.weight,
         price: productSellingUnits.price,
         status: productSellingUnits.status,
       }).from(productSellingUnits).where(inArray(productSellingUnits.variantId, variantIds));
@@ -109,8 +110,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const weightPerPieceKg = Number(body.weightPerPieceKg);
   const quota = Number(body.quota);
   const stock = Number(body.stock);
-  if (!body.name?.trim() || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(price) || price < 0 || !Number.isFinite(weightPerPieceKg) || weightPerPieceKg < 0 || !Number.isFinite(quota) || quota < 0 || !Number.isFinite(stock) || stock < 0) {
-    return NextResponse.json({ error: 'Variant name, quantity, price, weightPerPieceKg, quota, and stock are required.' }, { status: 400 });
+  if (!body.name?.trim() || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(price) || price < 0 || !Number.isFinite(weightPerPieceKg) || weightPerPieceKg <= 0 || !Number.isFinite(quota) || quota < 0 || !Number.isFinite(stock) || stock < 0) {
+    return NextResponse.json({ error: 'Variant name, quantity, price, weightPerPieceKg (must be > 0), quota, and stock are required.' }, { status: 400 });
   }
 
   const [variant] = await db.insert(productVariants).values({

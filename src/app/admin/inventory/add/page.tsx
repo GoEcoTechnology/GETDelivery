@@ -239,7 +239,7 @@ export default function AddProductPage() {
         </section>
 
         <section style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 22, boxShadow: '0 6px 18px rgba(15,23,42,0.04)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Variants</h2>
               <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: 14 }}>
@@ -253,7 +253,7 @@ export default function AddProductPage() {
                 display: 'flex', alignItems: 'center', gap: 6,
                 background: '#4f46e5', color: 'white', border: 'none',
                 borderRadius: 10, padding: '10px 16px', fontWeight: 700,
-                cursor: 'pointer',
+                cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
               }}
             >
               <Plus size={16} /> Add Variant
@@ -267,17 +267,17 @@ export default function AddProductPage() {
 
               return (
                 <div key={variant.id} style={{ border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', background: '#f8fafc' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 18px', borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, padding: '16px 18px', borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none' }}>
                     <button
                       type="button"
                       onClick={() => toggleVariant(variant.id)}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: '1px solid #dbeafe', background: '#eff6ff', color: '#2563eb', cursor: 'pointer' }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: '1px solid #dbeafe', background: '#eff6ff', color: '#2563eb', cursor: 'pointer', marginTop: 24 }}
                     >
                       {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
 
-                    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(90px, 1fr))', gap: 12 }}>
-                      <div style={{ gridColumn: 'span 2' }}>
+                    <div style={{ flex: '1 1 280px', display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                      <div style={{ flex: '1 1 180px' }}>
                         <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', color: '#64748b', textTransform: 'uppercase' }}>
                           Variant Name
                         </label>
@@ -289,12 +289,12 @@ export default function AddProductPage() {
                         />
                       </div>
 
-                      <div>
+                      <div style={{ flex: '1 1 110px' }}>
                         <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', color: '#64748b', textTransform: 'uppercase' }}>Price *</label>
                         <input required type="number" min={0} step="0.01" value={variant.price} onChange={e => updateVariant(variant.id, 'price', e.target.value)} style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 10, padding: '10px 12px', boxSizing: 'border-box' }} />
                       </div>
 
-                      <div>
+                      <div style={{ flex: '1 1 110px' }}>
                         <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', color: '#64748b', textTransform: 'uppercase' }}>
                           Quota *
                         </label>
@@ -308,7 +308,7 @@ export default function AddProductPage() {
                         />
                       </div>
 
-                      <div>
+                      <div style={{ flex: '1 1 110px' }}>
                         <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', color: '#64748b', textTransform: 'uppercase' }}>
                           Weight (kg) *
                         </label>
@@ -323,18 +323,18 @@ export default function AddProductPage() {
                         />
                       </div>
 
-                      <div>
+                      <div style={{ flex: '1 1 110px' }}>
                         <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', color: '#64748b', textTransform: 'uppercase' }}>Stock *</label>
                         <input required type="number" min={0} value={variant.stock} onChange={e => updateVariant(variant.id, 'stock', e.target.value)} style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 10, padding: '10px 12px', boxSizing: 'border-box' }} />
                       </div>
 
-                      <div>
+                      <div style={{ flex: '1 1 110px' }}>
                         <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', color: '#64748b', textTransform: 'uppercase' }}>Low Stock *</label>
                         <input required type="number" min={0} value={variant.lowStockAlert} onChange={e => updateVariant(variant.id, 'lowStockAlert', e.target.value)} style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 10, padding: '10px 12px', boxSizing: 'border-box' }} />
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 24 }}>
                       <button
                         type="button"
                         onClick={() => addSellingUnit(variant.id)}
@@ -464,7 +464,7 @@ export default function AddProductPage() {
           </div>
         </section>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: 18 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 13, color: '#475569' }}>
             <span style={{ padding: '6px 10px', background: '#eff6ff', borderRadius: 999, color: '#1d4ed8', fontWeight: 700 }}>
               {totalVariantCount} variants
@@ -474,7 +474,7 @@ export default function AddProductPage() {
             </span>
           </div>
 
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <button
               type="button"
               onClick={() => router.push('/admin/inventory')}

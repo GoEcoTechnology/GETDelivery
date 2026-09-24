@@ -18,13 +18,13 @@ export default function DashboardRecentTables() {
   if (!recent) return null;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
-      <div className={styles.card}>
-        <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px', height: '100%' }}>
+      <div style={{ background: 'white', borderRadius: '18px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(15,23,42,0.06)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           <Clock size={18} color="#3b82f6" /> Delivery
         </h3>
-        <div className="table-responsive-wrapper">
-          <table className={styles.table}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '8px' }}>
+          <table className={styles.table} style={{ minWidth: '400px' }}>
           <thead>
             <tr>
               <th>Customer</th>

@@ -57,16 +57,14 @@ export const deliveryPartners = pgTable("delivery_partners", {
 
 export const drivers = pgTable("drivers", {
   id: serial("id").primaryKey(),
-  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }),
   deliveryPartnerId: integer("delivery_partner_id").references(() => deliveryPartners.id),
   name: varchar("name", { length: 255 }).notNull(),
   mobile: varchar("mobile", { length: 50 }).notNull(),
   status: varchar("status", { length: 50 }).default("ACTIVE").notNull(),
   licenseNumber: varchar("license_number", { length: 100 }),
   licenseType: varchar("license_type", { length: 50 }),
-  licenseRestrictions: varchar("license_restrictions", { length: 255 }),
   licenseExpiry: timestamp("license_expiry"),
-  licenseStatus: varchar("license_status", { length: 50 }).default("VALID"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("drivers_tenant_idx").on(table.tenantId),
@@ -75,13 +73,12 @@ export const drivers = pgTable("drivers", {
 
 export const vehicles = pgTable("vehicles", {
   id: serial("id").primaryKey(),
-  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+  tenantId: integer("tenant_id").references(() => tenants.id, { onDelete: 'cascade' }),
   deliveryPartnerId: integer("delivery_partner_id").references(() => deliveryPartners.id),
   plateNumber: varchar("plate_number", { length: 50 }).notNull(),
   vehicleType: varchar("vehicle_type", { length: 100 }).notNull(),
   status: varchar("status", { length: 50 }).default("ACTIVE").notNull(),
   registrationExpiry: timestamp("registration_expiry"),
-  registrationStatus: varchar("registration_status", { length: 50 }).default("ACTIVE"),
   orNumber: varchar("or_number", { length: 100 }),
   crNumber: varchar("cr_number", { length: 100 }),
   capacityKg: integer("capacity_kg").default(0).notNull(),
@@ -262,6 +259,7 @@ export const deliveryOrders = pgTable('delivery_orders', {
   id: serial('id').primaryKey(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
   customerId: integer('customer_id').references(() => customers.id),
+  parentOrderId: integer('parent_order_id'), // self-reference to deliveryOrders.id
   batchId: integer('batch_id').references(() => deliveryBatches.id, { onDelete: 'set null' }),
   customerName: varchar('customer_name', { length: 255 }).notNull(),
   customerContact: varchar('customer_contact', { length: 100 }),
@@ -315,6 +313,7 @@ export const deliveryOrders = pgTable('delivery_orders', {
 export const platformDeliverySettings = pgTable('platform_delivery_settings', {
   id: serial('id').primaryKey(),
   pricePerKm: decimal('price_per_km', { precision: 10, scale: 2 }).default('0').notNull(),
+  urgentDeliveryFee: decimal('urgent_delivery_fee', { precision: 10, scale: 2 }).default('0').notNull(),
   currencyCode: varchar('currency_code', { length: 10 }).default('PHP').notNull(),
   updatedBy: integer('updated_by').references(() => users.id),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

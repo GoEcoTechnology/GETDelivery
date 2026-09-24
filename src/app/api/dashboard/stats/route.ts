@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { products, deliveryOrders, customers, drivers, vehicles } from '@/db/schema';
+import { products, productVariants, deliveryOrders, customers, drivers, vehicles } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
@@ -9,35 +9,17 @@ export async function GET(req: Request) {
     try {
       const tenantIdToUse = claims.role === 'PLATFORM_OWNER' ? null : claims.tenantId;
       const tenantFilter = tenantIdToUse ? sql`tenant_id = ${tenantIdToUse}` : sql`1=1`;
+      const inventoryTenantFilter = tenantIdToUse ? sql`p.tenant_id = ${tenantIdToUse}` : sql`1=1`;
 
-      const hasLowStockColumnResult = await db.execute(sql`
-        SELECT EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = current_schema()
-            AND table_name = 'products'
-            AND column_name = 'low_stock_threshold'
-        ) AS has_low_stock_column
+      const inventoryStatsQuery = db.execute(sql`
+        SELECT 
+          COUNT(DISTINCT p.id) as total_products,
+          SUM(CASE WHEN pv.stock <= pv.low_stock_threshold THEN 1 ELSE 0 END) as low_stock_count,
+          SUM(pv.stock) as total_units_in_stock
+        FROM ${products} p
+        LEFT JOIN ${productVariants} pv ON p.id = pv.product_id
+        WHERE ${inventoryTenantFilter}
       `);
-      const hasLowStockColumn = Boolean((Array.isArray(hasLowStockColumnResult) ? hasLowStockColumnResult[0] : (hasLowStockColumnResult as any)?.[0])?.has_low_stock_column);
-
-      const inventoryStatsQuery = hasLowStockColumn
-        ? db.execute(sql`
-            SELECT 
-              COUNT(id) as total_products,
-              SUM(CASE WHEN stock <= low_stock_threshold THEN 1 ELSE 0 END) as low_stock_count,
-              SUM(stock) as total_units_in_stock
-            FROM ${products}
-            WHERE ${tenantFilter}
-          `)
-        : db.execute(sql`
-            SELECT 
-              COUNT(id) as total_products,
-              0 as low_stock_count,
-              0 as total_units_in_stock
-            FROM ${products}
-            WHERE ${tenantFilter}
-          `);
 
       const deliveryStatsQuery = db.execute(sql`
         SELECT 

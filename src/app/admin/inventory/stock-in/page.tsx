@@ -15,6 +15,7 @@ export default function StockInPage() {
     if (typeof window === 'undefined') return [{
       id: Date.now(),
       productId: '',
+      variantId: '',
       quantity: '',
       unitCost: '',
       supplier: '',
@@ -34,6 +35,7 @@ export default function StockInPage() {
     return [{
       id: Date.now(),
       productId: '',
+      variantId: '',
       quantity: '',
       unitCost: '',
       supplier: '',
@@ -56,7 +58,7 @@ export default function StockInPage() {
   }, [items, draftKey]);
 
   const handleAddItem = () => {
-    setItems([...items, { id: Date.now(), productId: '', quantity: '', unitCost: '', supplier: '', notes: '' }]);
+    setItems([...items, { id: Date.now(), productId: '', variantId: '', quantity: '', unitCost: '', supplier: '', notes: '' }]);
   };
 
   const handleRemoveItem = (id: number) => {
@@ -75,10 +77,11 @@ export default function StockInPage() {
     try {
       const payloadItems = items.map(item => ({
         productId: parseInt(item.productId),
+        variantId: parseInt(item.variantId),
         quantity: parseInt(item.quantity),
-        unitCost: item.unitCost ? parseFloat(item.unitCost) : undefined,
-        supplier: item.supplier || undefined,
-        notes: item.notes || undefined
+        unitCost: item.unitCost ? parseFloat(item.unitCost) : null,
+        supplier: item.supplier,
+        notes: item.notes
       }));
 
       const payload = {
@@ -116,7 +119,7 @@ export default function StockInPage() {
     let hasError = false;
     
     items.forEach(item => {
-      if (!item.productId || !item.quantity || item.quantity <= 0) {
+      if (!item.productId || !item.variantId || !item.quantity || item.quantity <= 0) {
         hasError = true;
       }
     });
@@ -168,29 +171,52 @@ export default function StockInPage() {
               
               return (
                 <div key={item.id} style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr', gap: '16px' }}>
+                  <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.5fr', gap: '16px' }}>
                     
-                    {/* Product Selection */}
+                    {/* Product Variant Selection */}
                     <div>
-                      <label className={styles.label}>Product *</label>
+                      <label className={styles.label}>Product Variant *</label>
                       <select 
                         className={styles.inputField} 
                         required 
-                        value={item.productId}
-                        onChange={e => handleItemChange(item.id, 'productId', e.target.value)}
+                        value={item.variantId || ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const selectedProd = products.find(p => p.variants?.some((v: any) => v.id.toString() === val));
+                          if (selectedProd) {
+                            // We need a custom update here since handleItemChange only updates one field.
+                            // Actually, I can just call it twice.
+                            handleItemChange(item.id, 'productId', selectedProd.id.toString());
+                            handleItemChange(item.id, 'variantId', val);
+                          }
+                        }}
                       >
-                        <option value="" disabled>-- Select Product --</option>
-                        {products.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} {p.sku ? `(${p.sku})` : ''} - {p.stock} {p.unit} avail.
-                          </option>
-                        ))}
+                        <option value="" disabled>-- Select Product Variant --</option>
+                        {products.map(p => {
+                          if (!p.variants || p.variants.length === 0) return null;
+                          return (
+                            <optgroup key={p.id} label={p.name}>
+                              {p.variants.map((v: any) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.name} - {v.stock} {v.unit} avail.
+                                </option>
+                              ))}
+                            </optgroup>
+                          );
+                        })}
                       </select>
-                      {selectedProduct && (
-                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                          Current Stock: <strong style={{ color: '#0f172a' }}>{selectedProduct.stock} {selectedProduct.unit}</strong>
-                        </div>
-                      )}
+                      {(() => {
+                        const selProd = products.find(p => p.id.toString() === item.productId);
+                        const selVar = selProd?.variants?.find((v: any) => v.id.toString() === item.variantId);
+                        if (selVar) {
+                          return (
+                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+                              Current Stock: <strong style={{ color: '#0f172a' }}>{selVar.stock} {selVar.unit}</strong>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     
                     {/* Quantity */}
@@ -203,20 +229,6 @@ export default function StockInPage() {
                         value={item.quantity}
                         onChange={e => handleItemChange(item.id, 'quantity', e.target.value === '' ? '' : e.target.value)}
                         placeholder="Qty"
-                      />
-                    </div>
-
-                    {/* Unit Cost */}
-                    <div>
-                      <label className={styles.label}>Unit Cost</label>
-                      <input 
-                        type="number"
-                        className={styles.inputField} 
-                        step="0.01"
-                        min="0"
-                        value={item.unitCost}
-                        onChange={e => handleItemChange(item.id, 'unitCost', e.target.value)}
-                        placeholder="0.00"
                       />
                     </div>
 

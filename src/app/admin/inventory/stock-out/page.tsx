@@ -23,21 +23,22 @@ export default function StockOutPage() {
     return '';
   });
   const [date, setDate] = useState(() => {
-    if (typeof window === 'undefined') return new Date().toISOString().slice(0, 16);
+    if (typeof window === 'undefined') return new Date().toISOString().slice(0, 10);
     try {
       const saved = localStorage.getItem(draftKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return parsed.date || new Date().toISOString().slice(0, 16);
+        return parsed.date || new Date().toISOString().slice(0, 10);
       }
     } catch {}
-    return new Date().toISOString().slice(0, 16);
+    return new Date().toISOString().slice(0, 10);
   });
   
   const [items, setItems] = useState<any[]>(() => {
     if (typeof window === 'undefined') return [{
       id: Date.now(),
       productId: '',
+      variantId: '',
       quantity: '',
       notes: ''
     }];
@@ -53,6 +54,7 @@ export default function StockOutPage() {
     return [{
       id: Date.now(),
       productId: '',
+      variantId: '',
       quantity: '',
       notes: ''
     }];
@@ -73,7 +75,7 @@ export default function StockOutPage() {
   }, [reason, date, items, draftKey]);
 
   const handleAddItem = () => {
-    setItems([...items, { id: Date.now(), productId: '', quantity: '', notes: '' }]);
+    setItems([...items, { id: Date.now(), productId: '', variantId: '', quantity: '', notes: '' }]);
   };
 
   const handleRemoveItem = (id: number) => {
@@ -92,6 +94,7 @@ export default function StockOutPage() {
     try {
       const payloadItems = items.map(item => ({
         productId: parseInt(item.productId),
+        variantId: parseInt(item.variantId),
         quantity: parseInt(item.quantity),
         notes: item.notes
       }));
@@ -141,12 +144,13 @@ export default function StockOutPage() {
     const selectedProductIds = new Set();
     
     items.forEach(item => {
-      if (!item.productId || !item.quantity || item.quantity <= 0) {
+      if (!item.productId || !item.variantId || !item.quantity || item.quantity <= 0) {
         hasError = true;
       }
       
       const product = products.find(p => p.id.toString() === item.productId);
-      if (product && item.quantity > product.stock) {
+      const variant = product?.variants?.find((v: any) => v.id.toString() === item.variantId);
+      if (variant && item.quantity > variant.stock) {
         hasExceededStock = true;
       }
     });
@@ -201,9 +205,9 @@ export default function StockOutPage() {
               />
             </div>
             <div>
-              <label className={styles.label}>Date & Time *</label>
+              <label className={styles.label}>Date *</label>
               <input 
-                type="datetime-local"
+                type="date"
                 className={styles.inputField} 
                 required
                 value={date}
@@ -230,34 +234,56 @@ export default function StockOutPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {items.map((item, index) => {
               const selectedProduct = products.find(p => p.id.toString() === item.productId);
-              const isOverStock = selectedProduct && item.quantity > selectedProduct.stock;
+              const selectedVariant = selectedProduct?.variants?.find((v: any) => v.id.toString() === item.variantId);
+              const isOverStock = selectedVariant && item.quantity > selectedVariant.stock;
               
               return (
                 <div key={item.id} style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                   <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '2fr 1fr 2fr', gap: '16px' }}>
                     
-                    {/* Product Selection */}
+                    {/* Product Variant Selection */}
                     <div>
-                      <label className={styles.label}>Product *</label>
+                      <label className={styles.label}>Product Variant *</label>
                       <select 
                         className={styles.inputField} 
                         required 
-                        value={item.productId}
-                        onChange={e => handleItemChange(item.id, 'productId', e.target.value)}
+                        value={item.variantId || ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const selectedProd = products.find(p => p.variants?.some((v: any) => v.id.toString() === val));
+                          if (selectedProd) {
+                            handleItemChange(item.id, 'productId', selectedProd.id.toString());
+                            handleItemChange(item.id, 'variantId', val);
+                          }
+                        }}
                       >
-                        <option value="" disabled>-- Select Product --</option>
-                        {products.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} {p.sku ? `(${p.sku})` : ''} - {p.stock} {p.unit} avail.
-                          </option>
-                        ))}
+                        <option value="" disabled>-- Select Product Variant --</option>
+                        {products.map(p => {
+                          if (!p.variants || p.variants.length === 0) return null;
+                          return (
+                            <optgroup key={p.id} label={p.name}>
+                              {p.variants.map((v: any) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.name} - {v.stock} {v.unit} avail.
+                                </option>
+                              ))}
+                            </optgroup>
+                          );
+                        })}
                       </select>
-                      {selectedProduct && (
-                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                          Available: <strong style={{ color: '#0f172a' }}>{selectedProduct.stock} {selectedProduct.unit}</strong>
-                          {selectedProduct.category && ` | ${selectedProduct.category}`}
-                        </div>
-                      )}
+                      {(() => {
+                        const selProd = products.find(p => p.id.toString() === item.productId);
+                        const selVar = selProd?.variants?.find((v: any) => v.id.toString() === item.variantId);
+                        if (selVar) {
+                          return (
+                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+                              Available: <strong style={{ color: '#0f172a' }}>{selVar.stock} {selVar.unit}</strong>
+                              {selProd?.category && ` | ${selProd.category}`}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     
                     {/* Quantity */}
@@ -267,7 +293,13 @@ export default function StockOutPage() {
                         type="number"
                         className={styles.inputField} 
                         min="1"
-                        max={selectedProduct ? selectedProduct.stock : undefined}
+                        max={
+                          (() => {
+                            const selProd = products.find(p => p.id.toString() === item.productId);
+                            const selVar = selProd?.variants?.find((v: any) => v.id.toString() === item.variantId);
+                            return selVar ? selVar.stock : undefined;
+                          })()
+                        }
                         value={item.quantity}
                         onChange={e => handleItemChange(item.id, 'quantity', e.target.value === '' ? '' : e.target.value)}
                         placeholder="Qty"

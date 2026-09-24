@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { cartItems, deliveryOrders, deliveryItems, products, productVariants, customers, users, deliveryBatches, deliveryBatchItems, vehicles, tenants } from '@/db/schema';
+import { cartItems, deliveryOrders, deliveryItems, products, productVariants, customers, users, deliveryBatches, deliveryBatchItems, vehicles, tenants, notifications } from '@/db/schema';
 import { eq, inArray, sql, and, gte, asc } from 'drizzle-orm';
 
 export async function POST(request: Request) {
@@ -122,6 +122,7 @@ export async function POST(request: Request) {
         urgentReason: urgentReason || null,
         normalDeliveryFee: normalDeliveryFee ? normalDeliveryFee.toString() : null,
         urgentAdditionalFee: urgentAdditionalFee ? urgentAdditionalFee.toString() : null,
+        offeredAmount: totalAmount.toString(),
       }).returning();
 
       // Create the deliveryItems
@@ -139,6 +140,20 @@ export async function POST(request: Request) {
       
       createdOrderIds.push(order.id);
 
+      // Add notification for Business Owner
+      await db.insert(notifications).values({
+        tenantId: tId,
+        deliveryOrderId: order.id,
+        senderId: customer.id,
+        receiverId: 0, 
+        receiverRole: 'BUSINESS_OWNER',
+        notificationType: 'new_customer_order',
+        title: 'New Customer Order',
+        body: `A customer (${customer.name}) has placed a new order.`,
+        actionUrl: `/admin/orders`,
+        status: 'UNREAD'
+      });
+
       // --- QUOTA-BASED AGGREGATION LOGIC ---
       // For each variant ordered, check if the quota is met
       const uniqueVariantIds = Array.from(new Set(tenantItems.map(ti => ti.variantId)));
@@ -147,10 +162,11 @@ export async function POST(request: Request) {
         
         // Find unbatched items for this variant
         const unbatchedResult = await db.execute(sql`
-          SELECT di.id, di.delivery_order_id, di.quantity, dord.customer_id, pv.quota, pv.weight_per_piece_kg, dord.pickup_address
+          SELECT di.id, di.delivery_order_id, di.quantity, dord.customer_id, pv.quota, pv.weight_per_piece_kg, dord.pickup_address, psu.weight as selling_unit_weight, psu.equivalent_qty
           FROM delivery_items di
           JOIN delivery_orders dord ON di.delivery_order_id = dord.id
           JOIN product_variants pv ON di.variant_id = pv.id
+          LEFT JOIN product_selling_units psu ON psu.variant_id = pv.id AND psu.unit_name = di.unit
           WHERE di.variant_id = ${vId}
             AND dord.status != 'CANCELLED'
             AND NOT EXISTS (
@@ -175,7 +191,11 @@ export async function POST(request: Request) {
         for (const row of unbatchedResult as any[]) {
           const qty = Number(row.quantity);
           totalQty += qty;
-          const cWeight = qty * weightPerPieceKg;
+          
+          const explicitUnitWeight = Number(row.selling_unit_weight) || 0;
+          const equivalentQty = Number(row.equivalent_qty) || 1;
+          const cWeight = qty * explicitUnitWeight;
+          
           totalWeight += cWeight;
           itemsToBatch.push({
             customerOrderId: row.delivery_order_id,

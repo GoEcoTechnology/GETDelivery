@@ -87,7 +87,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
   })
   .from(deliveryItems)
   .innerJoin(products, eq(deliveryItems.productId, products.id))
-  .leftJoin(productVariants, eq(products.id, productVariants.productId))
+  .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
   .where(eq(deliveryItems.deliveryOrderId, order.id));
 
   const [businessOwner] = await db.select({ name: users.name, contactNumber: users.contactNumber, email: users.email })

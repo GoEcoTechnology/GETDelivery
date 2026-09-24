@@ -125,7 +125,7 @@ export async function POST(
               deliveryOrderId: orderId,
               senderId: partnerId,
               receiverId: 0, 
-              receiverRole: 'PLATFORM_OWNER',
+              receiverRole: 'BUSINESS_OWNER',
               notificationType: 'order_accepted',
               title: 'Partner Accepted Request',
               body: bodyStr,

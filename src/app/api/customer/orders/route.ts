@@ -29,6 +29,11 @@ export async function GET(request: Request) {
       tenantId: deliveryOrders.tenantId,
       tenantName: tenants.name,
       instructions: deliveryOrders.instructions,
+      vehicleBasePrice: deliveryOrders.vehicleBasePrice,
+      pricePerKm: deliveryOrders.pricePerKm,
+      distanceKm: deliveryOrders.distanceKm,
+      normalDeliveryFee: deliveryOrders.normalDeliveryFee,
+      urgentAdditionalFee: deliveryOrders.urgentAdditionalFee,
     })
     .from(deliveryOrders)
     .innerJoin(tenants, eq(deliveryOrders.tenantId, tenants.id))
@@ -40,7 +45,7 @@ export async function GET(request: Request) {
       const items = await db.select({
         quantity: deliveryItems.quantity,
         unit: deliveryItems.unit,
-        productName: products.name,
+        productName: deliveryItems.productName,
         price: productVariants.price,
       })
       .from(deliveryItems)

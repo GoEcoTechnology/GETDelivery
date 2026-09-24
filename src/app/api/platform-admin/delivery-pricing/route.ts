@@ -51,6 +51,7 @@ export async function PUT(request: Request) {
       .insert(platformDeliverySettings)
       .values({
         pricePerKm: pricePerKm.toString(),
+        urgentDeliveryFee: Number(body.urgentDeliveryFee || 0).toString(),
         currencyCode: body.currencyCode || 'PHP',
         updatedBy: claims.userId as number,
       })

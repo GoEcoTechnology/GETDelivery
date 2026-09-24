@@ -538,9 +538,46 @@
   font-size: 13px;
   padding: 8px 16px;
 }
+
 @media (max-width: 768px) {
   .toolbarBtn {
     font-size: 12px;
     padding: 6px 10px;
   }
+
+  .table {
+    min-width: 600px;
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .mainContent {
+    padding: 16px 12px;
+  }
+
+  .modalContent {
+    border-radius: 0;
+    max-height: 100vh;
+    height: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
 }
+
+/* Tablet adjustments */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .mainContent {
+    padding: 24px 20px;
+  }
+  .sidebar {
+    width: 220px;
+  }
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.navReminderContainer:hover .navReminderTooltip { display: block !important; }

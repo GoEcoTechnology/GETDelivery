@@ -45,8 +45,8 @@ export async function deductOrderStock(tx: any, tenantId: number, orderId: numbe
       previousStock: variant.stock,
       newStock: newStock,
       transactionType: 'OUT',
-      reference: `Delivery Order SO-000${orderId} dispatched`,
-      performedBy: userId
+      reference: 'Delivery Order',
+      performedBy: userId,
     });
   }
 }

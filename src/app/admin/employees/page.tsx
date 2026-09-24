@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import styles from '../admin.module.css';
 import { Users, Plus, Trash2, X, UserCheck, Lock } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
+import { EmptyState } from '@/components/EmptyState';
 
 const MAX_EMPLOYEES = 3;
 
@@ -98,15 +99,16 @@ export default function EmployeesPage() {
         {isPending ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Loading...</div>
         ) : employees.length === 0 ? (
-          <div style={{ padding: '60px 40px', textAlign: 'center' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <Users size={28} color="#94a3b8" />
-            </div>
-            <h3 style={{ margin: '0 0 8px', color: '#1e293b', fontWeight: 700, justifyContent: 'center' }}>No employees yet</h3>
-            <p style={{ margin: '0', color: '#64748b', fontSize: '14px' }}>
-              Create up to {MAX_EMPLOYEES} employee accounts. They can log in immediately — no admin approval needed.
-            </p>
-          </div>
+          <EmptyState
+            icon={Users}
+            title="No Employees Yet"
+            description={`Create up to ${MAX_EMPLOYEES} employee accounts. They can log in immediately — no admin approval needed.`}
+            actionButton={
+              employeeCount < MAX_EMPLOYEES ? (
+                <button onClick={() => setAddModal(true)} className={styles.btnPrimary}>+ Add Employee</button>
+              ) : null
+            }
+          />
         ) : (
           <div className="table-responsive-wrapper">
             <table className={styles.table}>

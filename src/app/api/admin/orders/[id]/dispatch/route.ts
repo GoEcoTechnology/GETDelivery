@@ -35,10 +35,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         
         // Find unbatched items for this variant
         const unbatchedResult = await db.execute(sql`
-          SELECT di.id, di.delivery_order_id, di.quantity, dord.customer_id, pv.quota, pv.weight_per_piece_kg, dord.pickup_address
+          SELECT di.id, di.delivery_order_id, di.quantity, dord.customer_id, pv.quota, pv.weight_per_piece_kg, dord.pickup_address, psu.weight as selling_unit_weight
           FROM delivery_items di
           JOIN delivery_orders dord ON di.delivery_order_id = dord.id
           JOIN product_variants pv ON di.variant_id = pv.id
+          LEFT JOIN product_selling_units psu ON psu.variant_id = pv.id AND psu.unit_name = di.unit
           WHERE di.variant_id = ${vId}
             AND dord.status != 'CANCELLED'
             AND NOT EXISTS (
@@ -63,7 +64,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         for (const row of unbatchedResult as any[]) {
           const qty = Number(row.quantity);
           totalQty += qty;
-          const cWeight = qty * weightPerPieceKg;
+          const explicitUnitWeight = Number(row.selling_unit_weight) || 0;
+          const cWeight = qty * explicitUnitWeight;
           totalWeight += cWeight;
           itemsToBatch.push({
             customerOrderId: row.delivery_order_id,

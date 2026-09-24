@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryOrders, deliveryBatches, deliveryBatchItems, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates } from '@/db/schema';
-import { eq, and, or, isNotNull, desc, inArray } from 'drizzle-orm';
+import { eq, and, or, isNotNull, desc, inArray, gte } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 import { deductOrderStock } from '@/lib/inventory-helper';
@@ -96,18 +96,59 @@ export async function POST(
           await deductOrderStock(innerTx, tenantIdToUse, order.id, claims.userId as number);
         }
 
-        // 1. Update all order statuses
+        // Determine the vehicle and pricing
+        let totalWeight = Number(batch.totalWeight) || 0;
+        
+        // Find recommended vehicle based on capacity
+        const { vehicles } = await import('@/db/schema');
+        const [suggestedVehicle] = await innerTx
+          .select({ id: vehicles.id, vehicleType: vehicles.vehicleType })
+          .from(vehicles)
+          .where(
+            and(
+              eq(vehicles.tenantId, tenantIdToUse),
+              eq(vehicles.status, 'ACTIVE'),
+              gte(vehicles.capacityKg, Math.ceil(totalWeight))
+            )
+          )
+          .orderBy(vehicles.capacityKg)
+          .limit(1);
+
+        let basePrice = 0;
+        let pricePerKm = 0;
+        let finalVehicleType = 'Motorcycle';
+
+        if (suggestedVehicle) {
+          finalVehicleType = suggestedVehicle.vehicleType;
+          const [rate] = await innerTx
+            .select()
+            .from(vehicleDeliveryRates)
+            .where(eq(vehicleDeliveryRates.vehicleType, finalVehicleType))
+            .limit(1);
+
+          if (rate) {
+            basePrice = Number(rate.basePrice) || 0;
+            pricePerKm = Number(rate.pricePerKm) || 0;
+          }
+        } else if (settings) {
+          pricePerKm = Number(settings.pricePerKm) || 0;
+        }
+
+        // 1. Update all order statuses and pricing
         for (const order of ordersInBatch) {
-          const vehicleType = order.preferredVehicle || 'Motorcycle';
           const distanceKm = Number.parseFloat(String(order.routeDistance || '0').replace(/[^\d.]/g, '')) || 0;
+          const finalDeliveryPrice = basePrice + (distanceKm * pricePerKm);
           
-          // Note: in a real scenario, this would query rates individually or bulk, we assume basePrice=0 here for simplicity
-          // or we can just update status
           await innerTx
             .update(deliveryOrders)
             .set({
               status: 'WAITING_FOR_PARTNER',
               pricingFrozenAt: new Date(),
+              vehicleBasePrice: basePrice.toString(),
+              pricePerKm: pricePerKm.toString(),
+              distanceKm: distanceKm.toString(),
+              finalDeliveryPrice: finalDeliveryPrice.toString(),
+              preferredVehicle: finalVehicleType,
             })
             .where(eq(deliveryOrders.id, order.id));
         }
@@ -115,7 +156,10 @@ export async function POST(
         // 2. Mark batch as WAITING_FOR_PARTNER
         await innerTx
           .update(deliveryBatches)
-          .set({ status: 'WAITING_FOR_PARTNER' })
+          .set({ 
+            status: 'WAITING_FOR_PARTNER',
+            suggestedVehicleId: suggestedVehicle?.id || null
+          })
           .where(eq(deliveryBatches.id, batchId));
       }); // End of transaction
 
@@ -185,7 +229,26 @@ export async function POST(
               body: bodyStr,
               actionUrl: acceptUrl,
               status: 'UNREAD'
-            });
+            }
+          }
+
+          // Notifications for Customers
+          for (const order of ordersInBatch) {
+            if (order.customerId) {
+              newNotifsToInsert.push({
+                tenantId: tenantIdToUse,
+                deliveryOrderId: order.id,
+                senderId: claims.userId || null,
+                receiverId: order.customerId,
+                receiverRole: 'CUSTOMER',
+                recipientEmail: null,
+                notificationType: 'order_dispatched',
+                title: 'Order Dispatched',
+                body: `Your order has been dispatched and is looking for a delivery partner.`,
+                actionUrl: `/orders`,
+                status: 'UNREAD'
+              });
+            }
           }
 
           if (newNotifsToInsert.length > 0) {

@@ -125,8 +125,8 @@ export default function ApprovalsPage() {
   return (
     <div>
       {/* Summary bar */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', flex: '1 1 200px' }}>
           <Building2 size={15} color="#3b82f6" />
           <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
             Business Tenants:&nbsp;
@@ -135,7 +135,7 @@ export default function ApprovalsPage() {
             </span>
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', flex: '1 1 200px' }}>
           <Briefcase size={15} color="#10b981" />
           <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
             Delivery Partners:&nbsp;
@@ -148,9 +148,9 @@ export default function ApprovalsPage() {
 
       <div className={styles.card} style={{ padding: 0, overflow: 'hidden' }}>
         {/* Toolbar */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', borderRadius: '12px', padding: '4px' }}>
+          <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', borderRadius: '12px', padding: '4px', flexWrap: 'wrap' }}>
             <button style={tabStyle('tenants')} onClick={() => setActiveTab('tenants')}>
               <Building2 size={15} />
               Business Tenants
@@ -172,7 +172,7 @@ export default function ApprovalsPage() {
           </div>
 
           {/* Search */}
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: '320px', minWidth: '140px' }}>
             <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
@@ -180,13 +180,14 @@ export default function ApprovalsPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               className={styles.inputField}
-              style={{ paddingLeft: '32px', width: '220px', height: '36px', fontSize: '13px' }}
+              style={{ paddingLeft: '32px', width: '100%', minWidth: '160px', height: '36px', fontSize: '13px' }}
             />
           </div>
         </div>
 
         {/* Table */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', minWidth: '800px', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: '25%' }} />
             <col style={{ width: '22%' }} />
@@ -299,6 +300,7 @@ export default function ApprovalsPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

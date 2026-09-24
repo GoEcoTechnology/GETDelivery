@@ -33,21 +33,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    // 1. Validate and extract product IDs
-    const productIds: number[] = [];
+    // 1. Validate and extract variant IDs
+    const variantIds: number[] = [];
     const itemMap = new Map<number, any>();
     for (const item of items) {
-      if (!item.productId || !item.quantity || item.quantity <= 0) {
+      if (!item.productId || !item.variantId || !item.quantity || item.quantity <= 0) {
         throw new Error('Invalid item data');
       }
-      productIds.push(item.productId);
+      variantIds.push(item.variantId);
       
-      if (itemMap.has(item.productId)) {
-        const existing = itemMap.get(item.productId);
+      if (itemMap.has(item.variantId)) {
+        const existing = itemMap.get(item.variantId);
         existing.quantity += item.quantity;
         if (item.notes) existing.notes = item.notes; // Keep the latest note if duplicated
       } else {
-        itemMap.set(item.productId, { ...item });
+        itemMap.set(item.variantId, { ...item });
       }
     }
 
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       .innerJoin(products, eq(productVariants.productId, products.id))
       .where(
         and(
-          inArray(productVariants.productId, productIds),
+          inArray(productVariants.id, variantIds),
           eq(productVariants.tenantId, tenantIdToUse as number)
         )
       )
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
 
     // 3. Process logic and perform individual updates
     for (const variant of lockedVariants) {
-      const itemData = itemMap.get(variant.productId);
+      const itemData = itemMap.get(variant.id);
       if (!itemData) continue;
       const quantityToDeduct = itemData.quantity;
 
@@ -108,12 +108,12 @@ export async function POST(request: Request) {
         previousStock: variant.stock,
         newStock: newStock,
         transactionType: 'OUT',
-        reference: generatedReference,
+        reference: reason,
         performedBy: claims.userId,
         createdAt: transactionDate
       });
 
-      results.push({ productId: variant.productId, newStock, reference: generatedReference });
+      results.push({ productId: variant.productId, newStock, reference: reason });
     }
 
     // 4. Bulk insert transaction logs

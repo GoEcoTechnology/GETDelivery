@@ -4,9 +4,10 @@ import styles from '../admin.module.css';
 import {
   Search, Edit2, Trash2, PackagePlus, ArrowDownToLine, ChevronLeft, ChevronRight,
   X, History, ArrowUpRight, Download, ChevronDown, ChevronRight as ChevronRightIcon,
-  Plus, Tag, Layers
+  Plus, Tag, Layers, Package
 } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
+import { EmptyState } from '@/components/EmptyState';
 
 /* ─── helpers ─── */
 const fmt = (v: any) => {
@@ -186,6 +187,7 @@ export default function InventoryClient() {
   const [unitModal, setUnitModal] = useState<any>(null);
   const [exporting, setExporting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -414,8 +416,8 @@ export default function InventoryClient() {
     <div>
       <div className={styles.card} style={{ padding: '0', overflow: 'hidden' }}>
         {/* Toolbar */}
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'nowrap', gap: '16px' }}>
-          <div style={{ position: 'relative', flex: '1 1 300px', minWidth: '200px' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ position: 'relative', flex: '1 1 200px', minWidth: '200px' }}>
             <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
@@ -426,40 +428,57 @@ export default function InventoryClient() {
               style={{ paddingLeft: '36px' }}
             />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            {/* Export dropdown */}
             <div style={{ position: 'relative' }}>
               <button
-                onClick={() => setShowExportMenu(!showExportMenu)}
+                onClick={() => { setShowExportMenu(!showExportMenu); setShowActionsMenu(false); }}
                 className={`${styles.btnSecondary} ${styles.toolbarBtn}`}
-                style={{ color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#e0e7ff' }}
+                style={{ color: '#4f46e5', borderColor: '#c7d2fe', backgroundColor: '#e0e7ff', whiteSpace: 'nowrap' }}
                 disabled={exporting}
               >
                 <Download size={14} style={{ marginRight: '6px' }} />
                 {exporting ? 'Exporting...' : 'Export'}
+                <ChevronDown size={12} style={{ marginLeft: '4px' }} />
               </button>
               {showExportMenu && (
-                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', zIndex: 50, overflow: 'hidden', width: '160px' }}>
-                  <button onClick={exportCurrentStock} style={{ display: 'block', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#334155', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 10px 25px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', zIndex: 100, overflow: 'hidden', minWidth: '160px' }}>
+                  <button onClick={exportCurrentStock} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#334155', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                     Current Stock
                   </button>
-                  <button onClick={exportStockHistory} style={{ display: 'block', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#334155' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                  <button onClick={exportStockHistory} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#334155' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                     Stock History
                   </button>
                 </div>
               )}
             </div>
-            <button onClick={() => window.location.href = '/admin/inventory/history'} className={`${styles.btnSecondary} ${styles.toolbarBtn}`} style={{ color: '#475569', borderColor: '#cbd5e1', backgroundColor: '#f8fafc' }}>
-              <History size={14} style={{ marginRight: '6px' }} /> History
-            </button>
-            <button onClick={() => window.location.href = '/admin/inventory/stock-in'} className={`${styles.btnSecondary} ${styles.toolbarBtn}`} style={{ color: '#15803d', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4' }}>
-              <ArrowDownToLine size={14} style={{ marginRight: '6px' }} /> Stock In
-            </button>
-            <button onClick={() => window.location.href = '/admin/inventory/stock-out'} className={`${styles.btnSecondary} ${styles.toolbarBtn}`} style={{ color: '#b91c1c', borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
-              <ArrowUpRight size={14} style={{ marginRight: '6px' }} /> Stock Out
-            </button>
-            <button onClick={() => window.location.href = '/admin/inventory/add'} className={`${styles.btnPrimary} ${styles.toolbarBtn}`}>
-              <PackagePlus size={14} style={{ marginRight: '6px' }} /> Add
-            </button>
+
+            {/* Actions dropdown */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => { setShowActionsMenu(!showActionsMenu); setShowExportMenu(false); }}
+                className={`${styles.btnPrimary} ${styles.toolbarBtn}`}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                Actions <ChevronDown size={12} style={{ marginLeft: '4px' }} />
+              </button>
+              {showActionsMenu && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 10px 25px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', zIndex: 100, overflow: 'hidden', minWidth: '160px' }}>
+                  <button onClick={() => { window.location.href = '/admin/inventory/history'; setShowActionsMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#475569', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    <History size={14} color="#64748b" /> History
+                  </button>
+                  <button onClick={() => { window.location.href = '/admin/inventory/stock-in'; setShowActionsMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#15803d', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0fdf4'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    <ArrowDownToLine size={14} color="#15803d" /> Stock In
+                  </button>
+                  <button onClick={() => { window.location.href = '/admin/inventory/stock-out'; setShowActionsMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#b91c1c', borderBottom: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    <ArrowUpRight size={14} color="#b91c1c" /> Stock Out
+                  </button>
+                  <button onClick={() => { window.location.href = '/admin/inventory/add'; setShowActionsMenu(false); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '11px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#4f46e5', fontWeight: 700 }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#eef2ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    <PackagePlus size={14} color="#4f46e5" /> Add Product
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -469,8 +488,13 @@ export default function InventoryClient() {
               Loading…
             </div>
           ) : products.length === 0 ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-              No products found.
+            <div style={{ padding: '0', border: 'none' }}>
+              <EmptyState
+                icon={Package}
+                title="No Products Found"
+                description="No products found in your inventory. Add your first product."
+                actionButton={<button onClick={() => window.location.href = '/admin/inventory/add'} className={styles.btnPrimary}>+ Add Product</button>}
+              />
             </div>
           ) : (
             products.map((product) => (
@@ -541,9 +565,10 @@ export default function InventoryClient() {
             <input className={styles.inputField} value={unitModal.variant.name || ''} readOnly style={{ marginBottom: 14, background: '#f8fafc' }} />
             <label className={styles.label}>Selling Unit Name *</label>
             <input required className={styles.inputField} value={unitModal.unit.unitName || ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, unitName: e.target.value } })} style={{ marginBottom: 14 }} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div><label className={styles.label}>Qty Per Unit *</label><input required className={styles.inputField} type="number" min="1" step="0.01" value={unitModal.unit.equivalentQty ?? ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, equivalentQty: e.target.value } })} /></div>
               <div><label className={styles.label}>Selling Price *</label><input required className={styles.inputField} type="number" min="0" step="0.01" value={unitModal.unit.price ?? ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, price: e.target.value } })} /></div>
+              <div><label className={styles.label}>Weight (kg)</label><input className={styles.inputField} type="number" min="0" step="0.001" value={unitModal.unit.weight ?? ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, weight: e.target.value } })} /></div>
             </div>
             <label className={styles.label} style={{ marginTop: 14 }}>Description *</label>
             <textarea required className={styles.inputField} rows={3} value={unitModal.unit.description || ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, description: e.target.value } })} placeholder="1 Case = 24 bottles" />

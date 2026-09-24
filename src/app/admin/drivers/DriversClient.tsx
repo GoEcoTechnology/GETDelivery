@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import styles from '../admin.module.css';
 import { Search, UserPlus, X, Edit2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
+import { EmptyState } from '@/components/EmptyState';
 
 export default function DriversClient() {
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -149,8 +150,8 @@ export default function DriversClient() {
       <div className={styles.card} style={{ padding: '0', overflow: 'hidden' }}>
         
         {/* Toolbar */}
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ position: 'relative', width: '300px' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ position: 'relative', flex: '1 1 200px', minWidth: '200px' }}>
             <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input 
               type="text" 
@@ -162,16 +163,14 @@ export default function DriversClient() {
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
-              Total: {totalCount} drivers
-            </div>
-            <button onClick={() => setAddModal(true)} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 600 }}>
+            <button onClick={() => setAddModal(true)} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}>
               <UserPlus size={16} /> Register Driver
             </button>
           </div>
         </div>
 
-        <table className={styles.table}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table className={styles.table} style={{ minWidth: '600px' }}>
           <thead>
             <tr>
               <th>Driver Name</th>
@@ -184,8 +183,13 @@ export default function DriversClient() {
           <tbody className={!loading ? styles.fadeIn : ''}>
             {loading ? null : drivers.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                  No drivers found.
+                <td colSpan={5} style={{ padding: '0', border: 'none' }}>
+                  <EmptyState
+                    icon={UserPlus}
+                    title="No Drivers Found"
+                    description="No drivers found. Register your first driver."
+                    actionButton={<button onClick={() => setAddModal(true)} className={styles.btnPrimary}>+ Register Driver</button>}
+                  />
                 </td>
               </tr>
             ) : (
@@ -224,6 +228,7 @@ export default function DriversClient() {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Pagination Controls */}
         <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(226, 232, 240, 0.5)', backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>

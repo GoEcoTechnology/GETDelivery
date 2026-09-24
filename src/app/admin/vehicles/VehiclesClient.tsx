@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import styles from '../admin.module.css';
 import { Search, Edit2, Trash2, Car, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
+import { EmptyState } from '@/components/EmptyState';
 
 export default function VehiclesClient() {
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -152,8 +153,8 @@ export default function VehiclesClient() {
       <div className={styles.card} style={{ padding: '0', overflow: 'hidden' }}>
         
         {/* Toolbar */}
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ position: 'relative', width: '300px' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ position: 'relative', flex: '1 1 200px', minWidth: '200px' }}>
             <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input 
               type="text" 
@@ -164,17 +165,18 @@ export default function VehiclesClient() {
               style={{ paddingLeft: '36px' }}
             />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
             <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
               Total: {totalCount} vehicles
             </div>
-            <button onClick={() => setAddModal(true)} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 600 }}>
+            <button onClick={() => setAddModal(true)} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontWeight: 600, whiteSpace: 'nowrap' }}>
               <Car size={16} /> Register Vehicle
             </button>
           </div>
         </div>
 
-        <table className={styles.table}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table className={styles.table} style={{ minWidth: '600px' }}>
           <thead>
             <tr>
               <th>Plate Number</th>
@@ -188,8 +190,13 @@ export default function VehiclesClient() {
           <tbody className={!loading ? styles.fadeIn : ''}>
             {loading ? null : vehicles.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                  No vehicles found.
+                <td colSpan={6} style={{ padding: '0', border: 'none' }}>
+                  <EmptyState
+                    icon={Car}
+                    title="No Vehicles Found"
+                    description="No vehicles found. Register your first vehicle."
+                    actionButton={<button onClick={() => setAddModal(true)} className={styles.btnPrimary}>+ Register Vehicle</button>}
+                  />
                 </td>
               </tr>
             ) : (
@@ -235,6 +242,7 @@ export default function VehiclesClient() {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Pagination Controls */}
         <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(226, 232, 240, 0.5)', backgroundColor: 'rgba(248, 250, 252, 0.5)' }}>

@@ -13,7 +13,8 @@ import {
   Tag, 
   LogOut,
   ShoppingBag,
-  Bell
+  Bell,
+  Info
 } from 'lucide-react';
 import NotificationBell from '../admin/NotificationBell';
 
@@ -117,20 +118,29 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         <header className="header-responsive hide-on-mobile">
           <div>
             <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-              {pathname.includes('/marketplace') ? 'Marketplace' : 
-               pathname.includes('/cart') ? 'Shopping Cart' :
-               pathname.includes('/checkout') ? 'Checkout' :
-               pathname.includes('/orders') ? 'My Purchases' :
-               pathname.includes('/profile') ? 'Profile Settings' :
-               'Customer Dashboard'}
+              {(() => {
+                const segments = pathname.split('/').filter(Boolean);
+                const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
+                const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
+                if (['admin', 'partner', 'customer', 'platform-admin'].includes(lastSegment.toLowerCase())) {
+                  return 'Dashboard';
+                }
+                return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              })()}
             </h1>
             <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
-              {pathname.includes('/marketplace') ? 'Discover products and exclusive deals' : 
-               pathname.includes('/cart') ? 'Review your items before checkout' :
-               pathname.includes('/checkout') ? 'Complete your order' :
-               pathname.includes('/orders') ? 'Track and manage your orders' :
-               pathname.includes('/profile') ? 'Manage your account and addresses' :
-               'Welcome back! Find what you need today.'}
+              {(() => {
+                const segments = pathname.split('/').filter(Boolean);
+                const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
+                const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
+                
+                if (lastSegment === 'marketplace') return 'Discover products and exclusive deals';
+                if (lastSegment === 'cart') return 'Review your items before checkout';
+                if (lastSegment === 'checkout') return 'Complete your order';
+                if (lastSegment === 'orders') return 'Track and manage your orders';
+                if (lastSegment === 'profile') return 'Manage your account and addresses';
+                return 'Welcome back! Find what you need today.';
+              })()}
             </p>
           </div>
           <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>

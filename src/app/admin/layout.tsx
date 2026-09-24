@@ -147,15 +147,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
               {(() => {
-                if (pathname.startsWith('/admin/inventory')) return 'Inventory Management';
-                if (pathname.startsWith('/admin/deliveries')) return 'Deliveries';
-                if (pathname.startsWith('/admin/batches')) return 'Delivery Batches';
-                if (pathname.startsWith('/admin/customers')) return 'Customers';
-                if (pathname.startsWith('/admin/employees')) return 'Employees';
-                if (pathname.startsWith('/admin/drivers')) return 'Drivers';
-                if (pathname.startsWith('/admin/vehicles')) return 'Vehicles';
-                if (pathname.startsWith('/admin/profile')) return 'Profile Settings';
-                return 'Dashboard';
+                const segments = pathname.split('/').filter(Boolean);
+                const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
+                const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
+                if (['admin', 'partner', 'customer', 'platform-admin'].includes(lastSegment.toLowerCase())) {
+                  return 'Dashboard';
+                }
+                return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
               })()}
             </h1>
           </div>

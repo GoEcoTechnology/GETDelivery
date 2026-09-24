@@ -81,3 +81,167 @@
   "code": "ENOTFOUND"
 }
 
+2026-09-19T07:12:31.144Z
+{
+  "message": "Failed query: \n      SELECT \n        COUNT(id) as total_products,\n        SUM(CASE WHEN stock <= low_stock_threshold THEN 1 ELSE 0 END) as low_stock_count,\n        SUM(stock) as total_units_in_stock\n      FROM \"products\"\n      WHERE 1=1\n    \nparams: ",
+  "cause": "column \"stock\" does not exist",
+  "code": "42703"
+}
+
+2026-09-19T07:12:31.480Z
+{
+  "message": "Failed query: \n      SELECT \n        COUNT(id) as total_products,\n        SUM(CASE WHEN stock <= low_stock_threshold THEN 1 ELSE 0 END) as low_stock_count,\n        SUM(stock) as total_units_in_stock\n      FROM \"products\"\n      WHERE 1=1\n    \nparams: ",
+  "cause": "column \"stock\" does not exist",
+  "code": "42703"
+}
+
+2026-09-21T05:52:40.963Z
+{
+  "message": "Failed query: select \"reference_number\" from \"stock_ins\" where \"stock_ins\".\"tenant_id\" = $1 order by \"stock_ins\".\"id\" desc limit $2\nparams: 17,1",
+  "cause": "relation \"stock_ins\" does not exist",
+  "code": "42P01"
+}
+
+2026-09-21T05:59:11.020Z
+{
+  "message": "Failed query: select \"reference_number\" from \"stock_ins\" where \"stock_ins\".\"tenant_id\" = $1 order by \"stock_ins\".\"id\" desc limit $2\nparams: 17,1",
+  "cause": "relation \"stock_ins\" does not exist",
+  "code": "42P01"
+}
+
+2026-09-21T06:45:35.996Z
+{
+  "message": "Failed query: insert into \"drivers\" (\"id\", \"tenant_id\", \"delivery_partner_id\", \"name\", \"mobile\", \"status\", \"license_number\", \"license_type\", \"license_restrictions\", \"license_expiry\", \"license_status\", \"created_at\") values (default, $1, $2, $3, $4, $5, $6, $7, default, $8, default, default) returning \"id\", \"tenant_id\", \"delivery_partner_id\", \"name\", \"mobile\", \"status\", \"license_number\", \"license_type\", \"license_restrictions\", \"license_expiry\", \"license_status\", \"created_at\"\nparams: 17,,Japhet,09123456789,ACTIVE,123123123,Professional,2026-09-23T00:00:00.000Z",
+  "cause": "column \"license_restrictions\" of relation \"drivers\" does not exist",
+  "code": "42703"
+}
+
+2026-09-21T06:46:02.345Z
+{
+  "message": "Failed query: insert into \"vehicles\" (\"id\", \"tenant_id\", \"delivery_partner_id\", \"plate_number\", \"vehicle_type\", \"status\", \"registration_expiry\", \"registration_status\", \"or_number\", \"cr_number\", \"capacity_kg\", \"created_at\") values (default, $1, $2, $3, $4, $5, $6, default, $7, $8, $9, default) returning \"id\", \"tenant_id\", \"delivery_partner_id\", \"plate_number\", \"vehicle_type\", \"status\", \"registration_expiry\", \"registration_status\", \"or_number\", \"cr_number\", \"capacity_kg\", \"created_at\"\nparams: 17,,123123,van,ACTIVE,2026-10-01T00:00:00.000Z,3123,321312,12",
+  "cause": "column \"registration_status\" of relation \"vehicles\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T00:24:11.806Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T00:24:12.283Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T00:25:53.443Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T00:25:53.926Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T00:35:18.578Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T00:35:19.097Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T00:36:56.020Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T00:36:56.576Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T01:00:47.714Z
+{
+  "message": "Cannot convert undefined or null to object",
+  "cause": null
+}
+
+2026-09-22T01:00:48.011Z
+{
+  "message": "Cannot convert undefined or null to object",
+  "cause": null
+}
+
+2026-09-22T01:28:45.131Z
+{
+  "message": "Cannot convert undefined or null to object",
+  "cause": null
+}
+
+2026-09-22T01:28:45.385Z
+{
+  "message": "Cannot convert undefined or null to object",
+  "cause": null
+}
+
+2026-09-22T01:30:40.526Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T01:30:41.137Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T01:30:41.650Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-22T01:30:42.152Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-23T08:09:09.738Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+
+2026-09-23T08:11:59.855Z
+{
+  "message": "Failed query: select \"id\", \"price_per_km\", \"urgent_delivery_fee\", \"currency_code\", \"updated_by\", \"updated_at\" from \"platform_delivery_settings\" order by \"platform_delivery_settings\".\"updated_at\" desc limit $1\nparams: 1",
+  "cause": "column \"urgent_delivery_fee\" does not exist",
+  "code": "42703"
+}
+

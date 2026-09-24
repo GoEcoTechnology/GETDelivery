@@ -46,6 +46,15 @@ export default function CartPage() {
     }));
   };
 
+  const setQuantityExact = (id: number, qty: number) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, quantity: Math.max(1, qty) };
+      }
+      return item;
+    }));
+  };
+
   // Group items by tenant
   const itemsByTenant = items.reduce((acc: any, item: any) => {
     const tId = item.product.tenantId;
@@ -170,7 +179,19 @@ export default function CartPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', background: '#fff', borderRadius: '999px', border: '1px solid #e2e8f0', padding: '2px' }}>
                             <button onClick={() => updateQuantity(item.id, -1)} style={{ width: '28px', height: '28px', borderRadius: '50%', color: '#64748b', background: '#f1f5f9', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Minus size={14} /></button>
-                            <span style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', width: '32px', textAlign: 'center' }}>{item.quantity}</span>
+                            <input 
+                              type="number" 
+                              min="1" 
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                if (!isNaN(val) && val > 0) setQuantityExact(item.id, val);
+                              }}
+                              onBlur={(e) => {
+                                if (e.target.value === '' || parseInt(e.target.value) < 1) setQuantityExact(item.id, 1);
+                              }}
+                              style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', width: '40px', textAlign: 'center', border: 'none', outline: 'none', background: 'transparent' }}
+                            />
                             <button onClick={() => updateQuantity(item.id, 1)} style={{ width: '28px', height: '28px', borderRadius: '50%', color: '#64748b', background: '#f1f5f9', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={14} /></button>
                           </div>
                           <button onClick={() => removeItem(item.id)} style={{ color: '#94a3b8', background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'} onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}>

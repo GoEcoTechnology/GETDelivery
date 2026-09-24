@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { products, productVariants, productSellingUnits } from '@/db/schema';
+import { products, productVariants, productSellingUnits, inventoryTransactions } from '@/db/schema';
 import { eq, and, ilike, desc, sql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
@@ -83,6 +83,7 @@ export async function GET(request: Request) {
           unitName: productSellingUnits.unitName,
           equivalentQty: productSellingUnits.equivalentQty,
           description: productSellingUnits.description,
+          weight: productSellingUnits.weight,
           price: productSellingUnits.price,
           status: productSellingUnits.status,
         })
@@ -197,6 +198,21 @@ export async function POST(request: Request) {
           status: variant.status || 'ACTIVE',
         })
         .returning();
+
+      // Log initial stock if greater than 0
+      if (variantStock > 0) {
+        await tx.insert(inventoryTransactions).values({
+          tenantId: tenantIdToUse as number,
+          productId: newProduct.id,
+          variantId: newVariant.id,
+          quantity: variantStock,
+          previousStock: 0,
+          newStock: variantStock,
+          transactionType: 'IN',
+          reference: 'Initial Stock',
+          performedBy: claims.userId,
+        });
+      }
 
       const sellingUnits = Array.isArray(variant.sellingUnits) ? variant.sellingUnits : [];
       for (const sellingUnit of sellingUnits) {

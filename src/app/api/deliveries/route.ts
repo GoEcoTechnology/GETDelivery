@@ -36,6 +36,7 @@ export async function GET(request: Request) {
     const data = await tx
       .select({
         id: deliveryOrders.id,
+        tenantId: deliveryOrders.tenantId,
         offeredAmount: deliveryOrders.offeredAmount,
         customerName: deliveryOrders.customerName,
         customerContact: deliveryOrders.customerContact,
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
         partnerDriverName: deliveryOrders.partnerDriverName,
         partnerDriverContact: deliveryOrders.partnerDriverContact,
         deliveryDate: deliveryOrders.deliveryDate,
-        currentOrdersCount: drizzleSql<number>`COALESCE((SELECT SUM(quantity) FROM delivery_items WHERE delivery_order_id = ${deliveryOrders.id}), 0)::int`,
+        currentOrdersCount: deliveryOrders.currentOrdersCount,
         createdAt: deliveryOrders.createdAt,
       })
       .from(deliveryOrders)
@@ -102,12 +103,14 @@ export async function GET(request: Request) {
           deliveryOrderId: deliveryItems.deliveryOrderId,
           productId: products.id,
           productName: products.name,
+          variantName: productVariants.name,
+          unit: deliveryItems.unit,
           quantity: deliveryItems.quantity,
           unitPrice: productVariants.price
         })
         .from(deliveryItems)
         .innerJoin(products, eq(deliveryItems.productId, products.id))
-        .leftJoin(productVariants, eq(products.id, productVariants.productId))
+        .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
         .where(inArray(deliveryItems.deliveryOrderId, orderIds));
 
       const accumulations = await tx
@@ -133,8 +136,8 @@ export async function GET(request: Request) {
             return {
               ...i,
               accumulatedQuantity: accQty,
-              targetQuantity: i.quantity,
-              quotaStatus: accQty >= i.quantity ? 'REACHED' : 'IN_PROGRESS'
+              targetQuantity: order.quota,
+              quotaStatus: accQty >= order.quota ? 'REACHED' : 'IN_PROGRESS'
             };
           });
 
@@ -194,6 +197,8 @@ export async function POST(request: Request) {
     const deliveryDate = body.deliveryDate ? new Date(body.deliveryDate) : null;
     const instructions = String(body.instructions || '').trim();
     const preferredVehicle = body.preferredVehicle !== undefined && body.preferredVehicle !== null && body.preferredVehicle !== '' ? String(body.preferredVehicle).trim() : null;
+    const quota = body.quota !== undefined && body.quota !== null ? Number(body.quota) : 10;
+    const orderSource = body.orderSource ? String(body.orderSource) : 'CREATED';
 
     // Vehicle pricing fields — set at creation from Platform Owner rates
     const requiredVehicleType = body.requiredVehicleType !== undefined && body.requiredVehicleType !== null && body.requiredVehicleType !== '' ? String(body.requiredVehicleType).trim() : null;
@@ -226,13 +231,14 @@ export async function POST(request: Request) {
     const normalizedItems = items.map((item: any) => {
       const productId = parseInt(item.productId, 10);
       const quantity = parseInt(item.quantity, 10);
-      if (Number.isNaN(productId) || Number.isNaN(quantity) || quantity <= 0) {
+      if (Number.isNaN(productId) || Number.isNaN(quantity) || quantity < 0) {
         throw new Error('Invalid item data');
       }
       return {
         productId,
         quantity,
         unit: String(item.unit || '').trim() || 'pcs',
+        variantId: item.variantId ? parseInt(item.variantId, 10) : undefined,
       };
     });
 
@@ -260,7 +266,10 @@ export async function POST(request: Request) {
       finalDeliveryPrice: finalDeliveryPrice ?? undefined,
       pricingFrozenAt: requiredVehicleType ? new Date() : undefined,
       status: 'DRAFT',
+      orderSource,
+      quota,
       currentOrdersCount: totalQuantity,
+      offeredAmount: items.reduce((sum: number, it: any) => sum + (Number(it.quantity) * Number(it.price || 0)), 0).toString(),
     }).returning();
 
     const productIdsToFetch = normalizedItems.map((item) => item.productId);
@@ -309,6 +318,7 @@ export async function POST(request: Request) {
         productId: item.productId,
         quantity: item.quantity,
         unit: item.unit,
+        variantId: item.variantId,
       });
     }
 

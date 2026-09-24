@@ -17,16 +17,17 @@ export async function GET(request: Request) {
     const tenantIdToUse = claims.role === 'PLATFORM_OWNER' ? null : claims.tenantId;
     
     const tenantCondition = tenantIdToUse 
-      ? sql`tenant_id = ${tenantIdToUse}` 
+      ? sql`p.tenant_id = ${tenantIdToUse}` 
       : sql`1=1`;
 
     // 1. Get Inventory summary (Total products, Low stock count)
     const [inventoryStats] = await tx.execute(sql`
       SELECT 
-        COUNT(id) as total_products,
-        SUM(CASE WHEN stock <= low_stock_threshold THEN 1 ELSE 0 END) as low_stock_count,
-        SUM(stock) as total_units_in_stock
-      FROM ${products}
+        COUNT(DISTINCT p.id) as total_products,
+        SUM(CASE WHEN pv.stock <= pv.low_stock_threshold THEN 1 ELSE 0 END) as low_stock_count,
+        SUM(pv.stock) as total_units_in_stock
+      FROM ${products} p
+      LEFT JOIN ${productVariants} pv ON p.id = pv.product_id
       WHERE ${tenantCondition}
     `);
 

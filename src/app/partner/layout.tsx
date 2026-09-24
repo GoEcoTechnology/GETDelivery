@@ -118,14 +118,25 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
         <header className="header-responsive hide-on-mobile">
           <div>
             <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-              {pathname.includes('/orders') ? 'My Orders' : 
-               pathname.includes('/profile') ? 'Profile Settings' :
-               'Dashboard Summary'}
+              {(() => {
+                const segments = pathname.split('/').filter(Boolean);
+                const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
+                const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
+                if (['admin', 'partner', 'customer', 'platform-admin'].includes(lastSegment.toLowerCase())) {
+                  return 'Dashboard';
+                }
+                return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              })()}
             </h1>
             <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
-              {pathname.includes('/orders') ? 'View and manage your assigned delivery requests' : 
-               pathname.includes('/profile') ? 'Manage your account and preferences' :
-               'Overview of your delivery requests and performance'}
+              {(() => {
+                const segments = pathname.split('/').filter(Boolean);
+                const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
+                const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
+                if (lastSegment === 'orders') return 'View and manage your assigned delivery requests';
+                if (lastSegment === 'profile') return 'Manage your account and preferences';
+                return 'Overview of your delivery requests and performance';
+              })()}
             </p>
           </div>
           <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>

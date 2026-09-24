@@ -29,6 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     unitName: body.unitName.trim(),
     description: body.description.trim(),
     equivalentQty: String(equivalentQty),
+    weight: body.weight ? String(body.weight) : null,
     price: String(price),
     status: body.status ?? 'ACTIVE',
   }).returning();

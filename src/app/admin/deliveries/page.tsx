@@ -3,7 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import DeliveriesClient from './DeliveriesClient';
 import { db } from '@/db';
-import { deliveryOrders, deliveryItems, products, productVariants, quotaAccumulations, deliveryPartners, deliveryBatches, deliveryBatchItems, customers } from '@/db/schema';
+import { deliveryOrders, deliveryItems, products, productVariants, quotaAccumulations, deliveryPartners, deliveryBatches, deliveryBatchItems, customers, deliveryAssignments } from '@/db/schema';
 import { eq, desc, inArray, and } from 'drizzle-orm';
 
 export default async function DeliveriesPage() {
@@ -26,6 +26,7 @@ export default async function DeliveriesPage() {
     const data = await db
       .select({
         id: deliveryOrders.id,
+        tenantId: deliveryOrders.tenantId,
         customerName: deliveryOrders.customerName,
         customerContact: deliveryOrders.customerContact,
         pickupAddress: deliveryOrders.pickupAddress,
@@ -54,6 +55,7 @@ export default async function DeliveriesPage() {
     const batchesData = await db
       .select({
         id: deliveryBatches.id,
+        tenantId: deliveryBatches.tenantId,
         batchNumber: deliveryBatches.batchNumber,
         totalQuantity: deliveryBatches.totalQuantity,
         quotaQuantity: deliveryBatches.quotaQuantity,
@@ -85,6 +87,10 @@ export default async function DeliveriesPage() {
           dropoffAddress: deliveryOrders.dropoffAddress,
           partnerDriverName: deliveryOrders.partnerDriverName,
           partnerDriverContact: deliveryOrders.partnerDriverContact,
+          finalDeliveryPrice: deliveryOrders.finalDeliveryPrice,
+          offeredAmount: deliveryOrders.offeredAmount,
+          deliveryPriority: deliveryOrders.deliveryPriority,
+          deliveryDate: deliveryOrders.deliveryDate,
         })
         .from(deliveryBatchItems)
         .leftJoin(customers, eq(deliveryBatchItems.customerId, customers.id))
@@ -129,13 +135,27 @@ export default async function DeliveriesPage() {
           deliveryOrderId: deliveryItems.deliveryOrderId,
           productId: products.id,
           productName: products.name,
+          variantName: productVariants.name,
+          unit: deliveryItems.unit,
           quantity: deliveryItems.quantity,
           unitPrice: productVariants.price
         })
         .from(deliveryItems)
         .innerJoin(products, eq(deliveryItems.productId, products.id))
-        .leftJoin(productVariants, eq(products.id, productVariants.productId))
+        .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
         .where(inArray(deliveryItems.deliveryOrderId, orderIds));
+
+      const assignments = await db
+        .select({
+          deliveryOrderId: deliveryAssignments.deliveryOrderId,
+          driverName: deliveryAssignments.driverName,
+          vehicleDetails: deliveryAssignments.vehicleDetails,
+        })
+        .from(deliveryAssignments)
+        .where(inArray(deliveryAssignments.deliveryOrderId, orderIds));
+      
+      const assignmentMap = new Map();
+      assignments.forEach((a) => assignmentMap.set(a.deliveryOrderId, a));
 
       const accumulations = await db
         .select({
@@ -161,11 +181,12 @@ export default async function DeliveriesPage() {
             return {
               ...i,
               accumulatedQuantity: accQty,
-              targetQuantity: i.quantity,
-              quotaStatus: accQty >= i.quantity ? 'REACHED' : 'IN_PROGRESS'
+              targetQuantity: order.quota,
+              quotaStatus: accQty >= order.quota ? 'REACHED' : 'IN_PROGRESS'
             };
           }),
-        temporaryWinner: order.temporaryWinnerId ? (winnerMap.get(order.temporaryWinnerId) || null) : null
+        temporaryWinner: order.temporaryWinnerId ? (winnerMap.get(order.temporaryWinnerId) || null) : null,
+        internalAssignment: !order.temporaryWinnerId ? (assignmentMap.get(order.id) || null) : null
       }));
 
       initialData = { data: enriched, batches: enrichedBatches, page: 1, limit: 7, totalCount };

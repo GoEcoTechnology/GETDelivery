@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import styles from '../admin.module.css';
 import { Users, Search, Edit2, Trash2, Plus, X, Phone, Mail, MapPin, Eye } from 'lucide-react';
 import { ActionMenu } from '@/components/ActionMenu';
+import { EmptyState } from '@/components/EmptyState';
+import MapPicker from '@/components/MapPicker';
 
 export default function CustomersClient() {
   const queryClient = useQueryClient();
@@ -124,8 +126,8 @@ export default function CustomersClient() {
   return (
     <div>
       <div className={styles.card} style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(226,232,240,0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '16px' }}>
-          <div style={{ position: 'relative', width: '300px' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(226,232,240,0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ position: 'relative', flex: '1 1 200px', minWidth: '200px' }}>
             <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
@@ -136,10 +138,7 @@ export default function CustomersClient() {
               style={{ paddingLeft: '36px' }}
             />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
-              Total: {totalCount}
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
             <button
               onClick={() => { resetForm(); setAddModal(true); }}
               className={`${styles.btnPrimary} ${styles.toolbarBtn}`}
@@ -149,7 +148,8 @@ export default function CustomersClient() {
           </div>
         </div>
 
-        <table className={styles.table} style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%', tableLayout: 'fixed' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table className={styles.table} style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%', minWidth: '560px', tableLayout: 'fixed' }}>
           <thead>
             <tr style={{ background: 'rgba(248, 250, 252, 0.9)' }}>
               <th style={{ width: '22%', textAlign: 'center', padding: '14px 10px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', color: '#64748b', textTransform: 'uppercase' }}>Customer</th>
@@ -162,9 +162,13 @@ export default function CustomersClient() {
           <tbody className={!isLoading ? styles.fadeIn : ''}>
             {isLoading ? null : customers.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                  <Users size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-                  <p>No customers found. Add your first customer.</p>
+                <td colSpan={5} style={{ padding: '0', border: 'none' }}>
+                  <EmptyState
+                    icon={Users}
+                    title="No Customers Found"
+                    description="No customers found. Add your first customer."
+                    actionButton={<button onClick={() => setAddModal(true)} className={styles.btnPrimary}>+ Add Customer</button>}
+                  />
                 </td>
               </tr>
             ) : (
@@ -180,9 +184,26 @@ export default function CustomersClient() {
                     </div>
                   </td>
                   <td style={{ textAlign: 'center', padding: '12px 8px', verticalAlign: 'middle' }}>
-                    <div style={{ fontSize: '13px', color: '#475569', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', textAlign: 'center', maxWidth: '100%' }}>
-                      <MapPin size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                      <span style={{ lineHeight: 1.45 }}>{c.address}{c.barangay ? `, ${c.barangay}` : ''}{c.municipality ? `, ${c.municipality}` : ''}</span>
+                    <div style={{ fontSize: '13px', color: '#475569', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', textAlign: 'center', maxWidth: '100%' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        <MapPin size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                        <span style={{ 
+                          lineHeight: 1.45, 
+                          display: '-webkit-box', 
+                          WebkitLineClamp: 2, 
+                          WebkitBoxOrient: 'vertical', 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis',
+                          wordBreak: 'break-word'
+                        }}>
+                          {c.address}{c.barangay ? `, ${c.barangay}` : ''}{c.municipality ? `, ${c.municipality}` : ''}
+                        </span>
+                      </div>
+                      {c.notes && (
+                        <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          Landmark: {c.notes}
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td style={{ textAlign: 'center', padding: '12px 8px', verticalAlign: 'middle' }}>
@@ -204,13 +225,15 @@ export default function CustomersClient() {
             )}
           </tbody>
         </table>
+        </div>
 
-        <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', backgroundColor: '#f8fafc' }}>
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className={styles.btnSecondary}>Previous</button>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Page {page} of {totalPages}</span>
-          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className={styles.btnSecondary}>Next</button>
+        <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc', gap: '8px' }}>
+          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className={styles.btnSecondary} style={{ flexShrink: 0, whiteSpace: 'nowrap', padding: '8px 16px' }}>Previous</button>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569', textAlign: 'center' }}>Page {page} of {totalPages}</span>
+          <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className={styles.btnSecondary} style={{ flexShrink: 0, whiteSpace: 'nowrap', padding: '8px 16px' }}>Next</button>
         </div>
       </div>
+
 
       {/* Add / Edit Modal */}
       {(addModal || editModal) && (
@@ -226,11 +249,7 @@ export default function CustomersClient() {
                 <label className={styles.label}>Business / Full Name*</label>
                 <input required type="text" className={styles.inputField} value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label className={styles.label}>Contact Person</label>
-                  <input type="text" className={styles.inputField} value={formData.contactPerson || ''} onChange={e => setFormData({ ...formData, contactPerson: e.target.value })} />
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
                 <div>
                   <label className={styles.label}>Mobile Number*</label>
                   <input required type="text" className={styles.inputField} value={formData.mobileNumber || ''} onChange={e => setFormData({ ...formData, mobileNumber: e.target.value })} />
@@ -240,9 +259,21 @@ export default function CustomersClient() {
                 <label className={styles.label}>Email Address</label>
                 <input type="email" className={styles.inputField} value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
               </div>
-              <div>
-                <label className={styles.label}>Complete Address*</label>
-                <input required type="text" className={styles.inputField} value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+              <div style={{ marginBottom: '8px' }}>
+                <label className={styles.label}>Complete Address & Landmark*</label>
+                <div style={{ marginTop: '8px' }}>
+                  <MapPicker
+                    initialAddress={formData.address || undefined}
+                    initialLandmark={formData.notes || undefined}
+                    onLocationSelect={(res) => {
+                      setFormData({ 
+                        ...formData, 
+                        address: res.address,
+                        notes: res.landmark !== undefined ? res.landmark : formData.notes
+                      });
+                    }}
+                  />
+                </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
@@ -340,6 +371,10 @@ export default function CustomersClient() {
                         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>BARANGAY</div>
                         <div style={{ color: '#1e293b', fontSize: '0.875rem' }}>{viewModal.barangay || 'N/A'}</div>
                       </div>
+                    </div>
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>LANDMARK</div>
+                      <div style={{ color: '#1e293b', fontSize: '0.875rem' }}>{viewModal.notes || 'N/A'}</div>
                     </div>
                   </div>
                 </section>
