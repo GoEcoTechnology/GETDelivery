@@ -1,5 +1,5 @@
-import { formatCurrency } from '@/lib/formatCurrency';
 'use client';
+import { formatCurrency } from '@/lib/formatCurrency';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Package, Store, Truck, CheckCircle2, ChevronRight, RotateCcw, Info } from 'lucide-react';

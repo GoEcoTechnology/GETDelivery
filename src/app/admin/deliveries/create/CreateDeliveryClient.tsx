@@ -1,5 +1,5 @@
-import { formatCurrency } from '@/lib/formatCurrency';
 'use client';
+import { formatCurrency } from '@/lib/formatCurrency';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';

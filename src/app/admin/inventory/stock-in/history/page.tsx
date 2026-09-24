@@ -1,5 +1,5 @@
-import { formatCurrency } from '@/lib/formatCurrency';
 'use client';
+import { formatCurrency } from '@/lib/formatCurrency';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from '../../../../admin/admin.module.css';

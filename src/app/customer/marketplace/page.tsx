@@ -1,5 +1,5 @@
-import { formatCurrency } from '@/lib/formatCurrency';
 'use client';
+import { formatCurrency } from '@/lib/formatCurrency';
 import { useState, useEffect } from 'react';
 import { Search, ShoppingCart, Minus, Plus, Package, X, Store, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
