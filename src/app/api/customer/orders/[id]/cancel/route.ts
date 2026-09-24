@@ -5,10 +5,11 @@ import { eq } from 'drizzle-orm';
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const orderId = Number(params.id);
+    const { id } = await params;
+    const orderId = Number(id);
     if (isNaN(orderId)) {
       return NextResponse.json({ message: 'Invalid order ID' }, { status: 400 });
     }

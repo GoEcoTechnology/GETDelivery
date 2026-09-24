@@ -229,7 +229,7 @@ export async function POST(
               body: bodyStr,
               actionUrl: acceptUrl,
               status: 'UNREAD'
-            }
+            });
           }
 
           // Notifications for Customers

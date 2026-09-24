@@ -73,7 +73,7 @@ export default async function CreateDeliveryPage() {
       productMap[row.productId] = { id: row.productId, name: row.productName, variants: [] };
     }
     const sellingUnits = sellingUnitRows.filter(
-      su => su.variantId === row.variantId || (!su.variantId && su.productId === row.productId)
+      (su: any) => su.variantId === row.variantId || (!su.variantId && su.productId === row.productId)
     );
     productMap[row.productId].variants.push({
       id: row.variantId,
