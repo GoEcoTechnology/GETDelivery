@@ -350,7 +350,7 @@ export default function MarketplacePage() {
                             }}
                           >
                             <span>{u.unitName}</span>
-                            <span style={{ fontSize: '13px', fontWeight: 500, color: isActive ? '#4f46e5' : '#94a3b8' }}>x{u.equivalentQty}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 500, color: isActive ? '#4f46e5' : '#94a3b8' }}>x{Number(u.equivalentQty)}</span>
                           </button>
                         );
                       })}

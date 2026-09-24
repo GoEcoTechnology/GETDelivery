@@ -22,7 +22,11 @@ export async function GET() {
       .where(eq(vehicleDeliveryRates.isActive, true))
       .orderBy(asc(vehicleDeliveryRates.vehicleType));
 
-    return NextResponse.json({ data: rates });
+    const { platformDeliverySettings } = await import('@/db/schema');
+    const { desc } = await import('drizzle-orm');
+    const [settings] = await db.select().from(platformDeliverySettings).orderBy(desc(platformDeliverySettings.updatedAt)).limit(1);
+
+    return NextResponse.json({ data: rates, platformSettings: settings || { urgentDeliveryFee: '0' } });
   } catch (error) {
     console.error('Error fetching vehicle rates:', error);
     return NextResponse.json({ error: 'Failed to fetch vehicle rates' }, { status: 500 });

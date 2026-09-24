@@ -18,6 +18,7 @@ export default function CheckoutPage() {
   
   const [rates, setRates] = useState<any[]>([]);
   const [selectedRate, setSelectedRate] = useState<any>(null);
+  const [globalUrgentFee, setGlobalUrgentFee] = useState(0);
 
   useEffect(() => {
     const fetchCart = async () => {
@@ -40,6 +41,7 @@ export default function CheckoutPage() {
         const ratesRes = await fetch('/api/vehicle-rates');
         if (ratesRes.ok) {
           const rData = await ratesRes.json();
+          if (rData.platformSettings) { setGlobalUrgentFee(Number(rData.platformSettings.urgentDeliveryFee || 0)); }
           setRates(rData.data || []);
           if (rData.data && rData.data.length > 0) {
             setSelectedRate(rData.data.find((r: any) => r.vehicleType.toLowerCase() === 'motorcycle') || rData.data[0]);
@@ -79,7 +81,7 @@ export default function CheckoutPage() {
   
   const itemsSubtotal = items.reduce((sum, item) => sum + (Number(item.sellingUnit?.price ?? item.product.price) * item.quantity), 0);
   const normalFee = selectedRate ? Number(selectedRate.basePrice || 0) : 50.00;
-  const urgentFee = selectedRate && priority === 'URGENT' ? Number(selectedRate.urgentAdditionalFee || 0) : 0;
+  const urgentFee = priority === 'URGENT' ? globalUrgentFee : 0;
   const shippingFee = normalFee + urgentFee;
   const grandTotal = itemsSubtotal + shippingFee;
 
