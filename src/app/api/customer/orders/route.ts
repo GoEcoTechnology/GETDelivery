@@ -46,11 +46,9 @@ export async function GET(request: Request) {
         quantity: deliveryItems.quantity,
         unit: deliveryItems.unit,
         productName: deliveryItems.productName,
-        price: productVariants.price,
+        price: deliveryItems.unitPrice,
       })
       .from(deliveryItems)
-      .innerJoin(products, eq(deliveryItems.productId, products.id))
-      .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
       .where(eq(deliveryItems.deliveryOrderId, order.id));
 
       const totalAmount = items.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
