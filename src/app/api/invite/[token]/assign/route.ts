@@ -118,7 +118,7 @@ export async function POST(
     };
     
     const driverToken = await signToken(driverPayload, '3d');
-    const driverAccessLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/driver/${driverToken}`;
+    const driverAccessLink = `${process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}/driver/${driverToken}`;
 
     return NextResponse.json({ 
       success: true, 

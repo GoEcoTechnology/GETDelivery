@@ -102,7 +102,7 @@ export async function POST(
       await tx.update(vehicles).set({ status: 'NOT AVAILABLE' }).where(eq(vehicles.id, parseInt(vehicleId)));
 
       // Send email to assigned driver (fire-and-forget)
-      const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/driver/dashboard/${order.id}`;
+      const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}/driver/dashboard/${order.id}`;
       sendDriverAssignmentNotification(
         tenantIdToUse,
         driver.id,

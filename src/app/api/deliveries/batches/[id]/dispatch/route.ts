@@ -200,7 +200,7 @@ export async function POST(
               })
             : 'As soon as possible';
 
-          const acceptUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/partner/orders/${firstOrder.id}`;
+          const acceptUrl = `${process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}/partner/orders/${firstOrder.id}`;
 
           const partnerEmailList = eligiblePartners.map((p: { id: number; email: string | null; companyName: string | null }) => ({
             id: p.id,

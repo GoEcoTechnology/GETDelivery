@@ -137,7 +137,7 @@ export async function POST(
       // Send email to assigned driver for the first order in batch (or a combined email, but currently we just use the first order for simplicity)
       if (ordersInBatch.length > 0) {
         const order = ordersInBatch[0];
-        const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/driver/dashboard/${order.id}`;
+        const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}/driver/dashboard/${order.id}`;
         sendDriverAssignmentNotification(
           tenantIdToUse,
           driver.id,
