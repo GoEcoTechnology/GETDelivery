@@ -209,12 +209,10 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching, 
               <span style={{ fontWeight: 600 }}>{formatCurrency(subtotal)}</span>
             </div>
             
-            {order.normalDeliveryFee && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#475569' }}>
-                <span>Delivery Fee</span>
-                <span style={{ fontWeight: 600 }}>{formatCurrency(order.normalDeliveryFee)}</span>
-              </div>
-            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#475569' }}>
+              <span>Delivery Fee</span>
+              <span style={{ fontWeight: 600 }}>{order.normalDeliveryFee ? formatCurrency(order.normalDeliveryFee) : 'TBD'}</span>
+            </div>
             
             {isUrgent && order.urgentAdditionalFee && (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#dc2626' }}>
@@ -225,7 +223,9 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching, 
             
             <div style={{ borderTop: '2px dashed #cbd5e1', margin: '16px 0', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '16px' }}>Total Amount</span>
-              <span style={{ fontWeight: 800, color: '#4f46e5', fontSize: '20px' }}>{formatCurrency(total)}</span>
+              <span style={{ fontWeight: 800, color: '#4f46e5', fontSize: '20px' }}>
+                {order.normalDeliveryFee ? formatCurrency(total) : `${formatCurrency(subtotal + (isUrgent ? Number(order.urgentAdditionalFee || 0) : 0))} + TBD`}
+              </span>
             </div>
           </div>
         </div>
@@ -444,26 +444,32 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
 
   const marketplaceGroups: Record<string, ProductGroup> = {};
   for (const o of marketplaceFiltered) {
-    const p = o.products[0];
-    if (!p) continue;
-    const key = p.productName;
-    if (!marketplaceGroups[key]) {
-      marketplaceGroups[key] = {
-        productName: key,
-        totalCustomers: 0,
-        totalQuantity: 0,
-        totalValue: 0,
-        urgentCount: 0,
-        quota: p.quota || 50,
-        orders: []
-      };
-    }
-    marketplaceGroups[key].orders.push(o);
-    marketplaceGroups[key].totalCustomers++;
-    marketplaceGroups[key].totalQuantity += p.quantity;
-    marketplaceGroups[key].totalValue += (Number(p.unitPrice || 0) * p.quantity);
-    if (o.deliveryPriority === 'URGENT') {
-      marketplaceGroups[key].urgentCount++;
+    for (const p of o.products) {
+      if (!p) continue;
+      const key = p.productName;
+      if (!marketplaceGroups[key]) {
+        marketplaceGroups[key] = {
+          productName: key,
+          totalCustomers: 0,
+          totalQuantity: 0,
+          totalValue: 0,
+          urgentCount: 0,
+          quota: p.quota || 50,
+          orders: []
+        };
+      }
+      
+      // Only push the order once per product group (in case same product appears multiple times in one order)
+      if (!marketplaceGroups[key].orders.find(existing => existing.id === o.id)) {
+        marketplaceGroups[key].orders.push(o);
+        marketplaceGroups[key].totalCustomers++;
+        if (o.deliveryPriority === 'URGENT') {
+          marketplaceGroups[key].urgentCount++;
+        }
+      }
+      
+      marketplaceGroups[key].totalQuantity += p.quantity;
+      marketplaceGroups[key].totalValue += (Number(p.unitPrice || 0) * p.quantity);
     }
   }
 
@@ -625,7 +631,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                           </thead>
                           <tbody>
                             {group.orders.map(order => {
-                              const p = order.products[0];
+                              const p = order.products.find(prod => prod.productName === group.productName) || order.products[0];
                               const isOrderUrgent = order.deliveryPriority === 'URGENT';
                               const rowActing = actingId?.id === order.id;
                               const isDeleting = actingId?.id === order.id && actingId?.action === 'delete';

@@ -36,9 +36,11 @@ export async function GET(request: Request) {
           productId: deliveryItems.productId,
           productName: deliveryItems.productName,
           quantity: deliveryItems.quantity,
-          unitPrice: deliveryItems.unitPrice
+          unitPrice: deliveryItems.unitPrice,
+          quota: productVariants.quota
         })
         .from(deliveryItems)
+        .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
         .where(inArray(deliveryItems.deliveryOrderId, orderIds));
     }
 

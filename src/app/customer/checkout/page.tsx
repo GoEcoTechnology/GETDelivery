@@ -301,9 +301,9 @@ export default function CheckoutPage() {
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>Not Urgent (Standard)</span>
-                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>₱{normalFee.toFixed(2)}</span>
+                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>TBD</span>
                 </div>
-                <p style={{ fontSize: '13px', color: '#64748b' }}>Normal delivery rate.</p>
+                <p style={{ fontSize: '13px', color: '#64748b' }}>Normal delivery rate will be determined by partner.</p>
               </div>
             </label>
 
@@ -355,11 +355,15 @@ export default function CheckoutPage() {
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '12px', marginTop: '12px' }}>
               <span style={{ fontWeight: 700, color: '#0f172a' }}>Total Delivery Fee</span>
-              <span style={{ color: '#0f172a', fontWeight: 700 }}>₱{shippingFee.toFixed(2)}</span>
+              <span style={{ color: '#0f172a', fontWeight: 700 }}>
+                {priority === 'URGENT' ? `₱${urgentFee.toFixed(2)} + TBD` : 'TBD'}
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, color: '#0f172a', fontSize: '16px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
               <span>Total Payment</span>
-              <span style={{ color: '#4f46e5', fontSize: '18px' }}>₱{grandTotal.toFixed(2)}</span>
+              <span style={{ color: '#4f46e5', fontSize: '18px' }}>
+                ₱{(itemsSubtotal + (priority === 'URGENT' ? urgentFee : 0)).toFixed(2)} + TBD
+              </span>
             </div>
             </div>
             
