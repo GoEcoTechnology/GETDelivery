@@ -66,7 +66,7 @@ function useToast() {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatCurrency(val: string | number) {
   const n = Number(val);
-  if (!Number.isFinite(n)) return '₱0.00';
+  if (!Number.isFinite(n)) return '₱{formatCurrency(0.00)}';
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(n);
 }
 

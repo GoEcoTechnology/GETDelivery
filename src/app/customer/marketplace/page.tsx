@@ -1,3 +1,4 @@
+import { formatCurrency } from '@/lib/formatCurrency';
 'use client';
 import { useState, useEffect } from 'react';
 import { Search, ShoppingCart, Minus, Plus, Package, X, Store, ChevronDown } from 'lucide-react';
@@ -304,7 +305,7 @@ export default function MarketplacePage() {
                             }}
                           >
                             <span>{v.variantName}</span>
-                            <span style={{ fontSize: '13px', fontWeight: 500, color: isActive ? '#4f46e5' : '#94a3b8' }}>₱{formatPrice(v.price)}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 500, color: isActive ? '#4f46e5' : '#94a3b8' }}>₱{formatCurrency(v.price)}</span>
                           </button>
                         );
                       })}
@@ -370,7 +371,7 @@ export default function MarketplacePage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>Unit Price</span>
                   <span style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-                    ₱{formatPrice(activePrice)}
+                    ₱{formatCurrency(activePrice)}
                   </span>
                 </div>
 
@@ -407,7 +408,7 @@ export default function MarketplacePage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
                   <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>Total Amount</span>
                   <span style={{ fontSize: '24px', fontWeight: 800, color: '#4f46e5' }}>
-                    ₱{formatPrice(activePrice * cartQuantity)}
+                    ₱{formatCurrency(activePrice * cartQuantity)}
                   </span>
                 </div>
               </div>

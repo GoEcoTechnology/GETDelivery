@@ -1,3 +1,4 @@
+import { formatCurrency } from '@/lib/formatCurrency';
 'use client';
 import { useState, useEffect } from 'react';
 import { Trash2, Store, Minus, Plus, ChevronRight, ShoppingCart, Search, Package } from 'lucide-react';
@@ -173,7 +174,7 @@ export default function CartPage() {
                       </div>
                       
                       <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                        <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '15px', minWidth: '80px', textAlign: 'right' }}>₱{Number(item.sellingUnit?.price ?? item.product.price).toFixed(2)}</span>
+                        <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '15px', minWidth: '80px', textAlign: 'right' }}>₱{formatCurrency(item.sellingUnit?.price ?? item.product.price)}</span>
                         
                         {/* Quantity Adjuster & Delete */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

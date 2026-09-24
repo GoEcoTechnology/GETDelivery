@@ -1,3 +1,4 @@
+import { formatCurrency } from '@/lib/formatCurrency';
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -363,7 +364,7 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
                     <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: 600 }}>Qty: {item.quantity}</p>
                   </div>
                   <div style={{ color: '#0f172a', fontWeight: 800, fontSize: '14px' }}>
-                    ₱{Math.round(Number(item.sellingUnit?.price ?? item.product.price))}
+                    ₱{formatCurrency(Number(item.sellingUnit?.price ?? item.product.price))}
                   </div>
                 </div>
               ))}
@@ -372,7 +373,7 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
           
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginTop: '8px', color: '#64748b', fontWeight: 600 }}>
             <span>Items Subtotal:</span>
-            <span style={{ color: '#0f172a', fontWeight: 800 }}>₱{Math.round(itemsSubtotal)}</span>
+            <span style={{ color: '#0f172a', fontWeight: 800 }}>₱{formatCurrency(itemsSubtotal)}</span>
           </div>
         </div>
 
@@ -420,7 +421,7 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <span style={{ fontWeight: 800, color: '#ef4444', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px' }}><AlertCircle size={16}/> Urgent</span>
-                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>+₱{Math.round(fixedUrgentFee)}</span>
+                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>+₱{formatCurrency(fixedUrgentFee)}</span>
                 </div>
                 <p style={{ fontSize: '13px', color: '#64748b' }}>Additional fee applied for urgent processing.</p>
                 
@@ -445,7 +446,7 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', color: '#64748b', fontWeight: 600 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Merchandise Subtotal</span>
-              <span style={{ color: '#0f172a' }}>₱{Math.round(itemsSubtotal)}</span>
+              <span style={{ color: '#0f172a' }}>₱{formatCurrency(itemsSubtotal)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Delivery Fee</span>
@@ -454,7 +455,7 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
             {priority === 'URGENT' && (
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Urgent Surcharge</span>
-                <span style={{ color: '#ef4444', fontWeight: 700 }}>₱{Math.round(urgentFee)}</span>
+                <span style={{ color: '#ef4444', fontWeight: 700 }}>₱{formatCurrency(urgentFee)}</span>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '12px', marginTop: '12px' }}>
@@ -463,7 +464,7 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, color: '#0f172a', fontSize: '18px', marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1' }}>
               <span>Total Payment</span>
-              <span style={{ color: '#4f46e5' }}>₱{Math.round(grandTotal)} + TBD</span>
+              <span style={{ color: '#4f46e5' }}>₱{formatCurrency(grandTotal)} + TBD</span>
             </div>
           </div>
         </div>

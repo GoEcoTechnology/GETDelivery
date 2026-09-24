@@ -1,6 +1,7 @@
 'use client';
 import { User, Settings, MapPin, CreditCard, Bell, HelpCircle, LogOut, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { formatCurrency } from '@/lib/formatCurrency';
 
 export default function CustomerProfilePage() {
   return (
@@ -47,7 +48,7 @@ export default function CustomerProfilePage() {
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)'
       }}>
         <span style={{ fontSize: '14px', fontWeight: 600, color: '#64748b' }}>My Wallet</span>
-        <span style={{ color: '#0f172a', fontSize: '28px', fontWeight: 800, marginTop: '4px' }}>₱0.00</span>
+        <span style={{ color: '#0f172a', fontSize: '28px', fontWeight: 800, marginTop: '4px' }}>₱{formatCurrency(0.00)}</span>
       </div>
 
       {/* Main Menu Options */}

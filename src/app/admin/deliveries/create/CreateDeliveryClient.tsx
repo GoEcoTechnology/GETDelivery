@@ -1,3 +1,4 @@
+import { formatCurrency } from '@/lib/formatCurrency';
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -434,7 +435,7 @@ export default function CreateDeliveryClient({ customers, products }: Props) {
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Delivery Fee Estimate</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px', color: '#374151' }}>
                     <span>Base:</span><strong style={{ color: '#15803d' }}>{formatPHP(Number(selectedRate.basePrice))}</strong>
-                    <span>Per KM:</span><strong style={{ color: '#15803d' }}>₱{Number(selectedRate.pricePerKm).toFixed(2)}/km</strong>
+                    <span>Per KM:</span><strong style={{ color: '#15803d' }}>₱{formatCurrency(selectedRate.pricePerKm)}/km</strong>
                     {distanceKm !== null && (<><span>Distance:</span><strong style={{ color: '#1d4ed8' }}>{distanceKm.toFixed(2)} km</strong><span>Total:</span><strong style={{ color: '#15803d', fontSize: '15px' }}>{deliveryFeeEstimate !== null ? formatPHP(deliveryFeeEstimate) : 'TBD'}</strong></>)}
                     {distanceKm === null && <span style={{ gridColumn: '1 / -1', color: '#94a3b8', fontStyle: 'italic' }}>Set route to see total fee</span>}
                   </div>

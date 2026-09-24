@@ -1,3 +1,4 @@
+import { formatCurrency } from '@/lib/formatCurrency';
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -244,7 +245,7 @@ export default function CustomerOrdersPage() {
                         <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 600 }}>Quantity: {item.quantity}</span>
                       </div>
                       <div style={{ color: '#0f172a', fontSize: '15px', fontWeight: 800 }}>
-                        ₱{Number(item.price || 0).toFixed(2)}
+                        ₱{formatCurrency(item.price || 0)}
                       </div>
                     </div>
                   ))}
@@ -253,7 +254,7 @@ export default function CustomerOrdersPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Products Subtotal</div>
                       <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700 }}>
-                        ₱{Number(order.totalAmount).toFixed(2)}
+                        ₱{formatCurrency(order.totalAmount)}
                       </div>
                     </div>
 
@@ -262,33 +263,33 @@ export default function CustomerOrdersPage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Vehicle Base Fee</div>
                           <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700 }}>
-                            ₱{Number(order.vehicleBasePrice || 0).toFixed(2)}
+                            ₱{formatCurrency(order.vehicleBasePrice || 0)}
                           </div>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Distance ({Number(order.distanceKm || 0).toFixed(1)} km)</div>
                           <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700 }}>
-                            ₱{(Number(order.distanceKm || 0) * Number(order.pricePerKm || 0)).toFixed(2)}
+                            ₱{formatCurrency(Number(order.distanceKm || 0) * Number(order.pricePerKm || 0))}
                           </div>
                         </div>
                         {order.deliveryPriority === 'URGENT' && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ color: '#ef4444', fontSize: '13px', fontWeight: 700 }}>Urgent Fee</div>
                             <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 800 }}>
-                              ₱{Number(order.urgentAdditionalFee || 0).toFixed(2)}
+                              ₱{formatCurrency(order.urgentAdditionalFee || 0)}
                             </div>
                           </div>
                         )}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '4px' }}>
                           <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700 }}>Shipping Total</div>
                           <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 800 }}>
-                            ₱{(Number(order.vehicleBasePrice || 0) + (Number(order.distanceKm || 0) * Number(order.pricePerKm || 0)) + (order.deliveryPriority === 'URGENT' ? Number(order.urgentAdditionalFee || 0) : 0)).toFixed(2)}
+                            ₱{formatCurrency(Number(order.vehicleBasePrice || 0) + (Number(order.distanceKm || 0) * Number(order.pricePerKm || 0)) + (order.deliveryPriority === 'URGENT' ? Number(order.urgentAdditionalFee || 0) : 0))}
                           </div>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', padding: '16px', background: '#eff6ff', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
                           <div style={{ color: '#1e3a8a', fontSize: '15px', fontWeight: 800 }}>Total Amount</div>
                           <div style={{ color: '#4f46e5', fontSize: '20px', fontWeight: 900 }}>
-                            ₱{(Number(order.totalAmount) + Number(order.vehicleBasePrice || 0) + (Number(order.distanceKm || 0) * Number(order.pricePerKm || 0)) + (order.deliveryPriority === 'URGENT' ? Number(order.urgentAdditionalFee || 0) : 0)).toFixed(2)}
+                            ₱{formatCurrency(Number(order.totalAmount) + Number(order.vehicleBasePrice || 0) + (Number(order.distanceKm || 0) * Number(order.pricePerKm || 0)) + (order.deliveryPriority === 'URGENT' ? Number(order.urgentAdditionalFee || 0) : 0))}
                           </div>
                         </div>
                       </>
@@ -298,7 +299,7 @@ export default function CustomerOrdersPage() {
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ color: '#ef4444', fontSize: '13px', fontWeight: 700 }}>Urgent Fee</div>
                             <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 800 }}>
-                              ₱{Number(order.urgentAdditionalFee || 0).toFixed(2)}
+                              ₱{formatCurrency(order.urgentAdditionalFee || 0)}
                             </div>
                           </div>
                         )}
@@ -311,7 +312,7 @@ export default function CustomerOrdersPage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', padding: '16px', background: '#eff6ff', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
                           <div style={{ color: '#1e3a8a', fontSize: '15px', fontWeight: 800 }}>Total Amount</div>
                           <div style={{ color: '#4f46e5', fontSize: '18px', fontWeight: 900 }}>
-                            ₱{(Number(order.totalAmount) + (order.deliveryPriority === 'URGENT' ? Number(order.urgentAdditionalFee || 0) : 0)).toFixed(2)} <span style={{ fontSize: '14px', color: '#6366f1', fontWeight: 700 }}>+ TBD</span>
+                            ₱{formatCurrency(Number(order.totalAmount) + (order.deliveryPriority === 'URGENT' ? Number(order.urgentAdditionalFee || 0) : 0))} <span style={{ fontSize: '14px', color: '#6366f1', fontWeight: 700 }}>+ TBD</span>
                           </div>
                         </div>
                       </>

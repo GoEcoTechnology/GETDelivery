@@ -1,3 +1,4 @@
+import { formatCurrency } from '@/lib/formatCurrency';
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -238,7 +239,7 @@ export default function CheckoutPage() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
                     <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '15px', minWidth: '80px', textAlign: 'right' }}>
-                      ₱{Number(item.sellingUnit?.price ?? item.product.price).toFixed(2)}
+                      ₱{formatCurrency(item.sellingUnit?.price ?? item.product.price)}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', background: '#fff', borderRadius: '999px', border: '1px solid #e2e8f0', padding: '2px' }}>

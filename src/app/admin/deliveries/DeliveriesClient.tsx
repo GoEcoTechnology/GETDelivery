@@ -886,7 +886,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                   <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Total Price</div>
                     <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '18px' }}>
-                      ₱{Number(item.quantity * (selectedBatchForModal.variantPrice || 0)).toFixed(2)}
+                      ₱{formatCurrency(item.quantity * (selectedBatchForModal.variantPrice || 0))}
                     </span>
                   </div>
                 </div>

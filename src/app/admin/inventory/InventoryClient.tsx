@@ -48,7 +48,7 @@ function VariantRow({ variant, productName }: { variant: any; productName: strin
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-          <span style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a', width: '100px', textAlign: 'right' }}></span>
+          <span style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a', width: '100px', textAlign: 'right' }}>{variant.price != null ? fmt(variant.price) : '—'}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '70px', justifyContent: 'flex-end' }}>
             <ActionMenu actions={[
               { label: 'Add Selling Unit', icon: <Plus size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('add-selling-unit', { detail: { variant, productName } })), color: '#8b5cf6' },
@@ -534,7 +534,7 @@ export default function InventoryClient() {
             <label className={styles.label}>Variant Name *</label>
             <input required className={styles.inputField} value={variantModal.variant.name || ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, name: e.target.value } })} style={{ marginBottom: 14 }} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              <div><label className={styles.label}>Qty *</label><input required className={styles.inputField} type="number" min="1" value={variantModal.variant.quantity ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, quantity: e.target.value } })} /></div>
+              <div><label className={styles.label}>Qty</label><input className={styles.inputField} type="number" value={variantModal.variant.quantity || 1} readOnly style={{ background: '#f8fafc' }} /></div>
               <div><label className={styles.label}>Price *</label><input required className={styles.inputField} type="number" min="0" step="0.01" value={variantModal.variant.price ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, price: e.target.value } })} /></div>
               <div><label className={styles.label}>Weight (kg) *</label><input required className={styles.inputField} type="number" min="0" step="0.001" value={variantModal.variant.weightPerPieceKg ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, weightPerPieceKg: e.target.value } })} /></div>
               <div><label className={styles.label}>Quota *</label><input required className={styles.inputField} type="number" min="0" value={variantModal.variant.quota ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, quota: e.target.value } })} /></div>
