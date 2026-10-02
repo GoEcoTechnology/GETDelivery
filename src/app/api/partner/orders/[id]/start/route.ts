@@ -23,7 +23,7 @@ export async function POST(
       const body = await request.json();
       if (body.driverName) driverName = body.driverName;
       if (body.driverContact) driverContact = body.driverContact;
-    } catch (e) {}
+    } catch (e) { }
 
     const [existingOrder] = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, orderId));
     if (!existingOrder) {
@@ -67,8 +67,8 @@ export async function POST(
     }
 
     if (!updatedOrder) {
-      return NextResponse.json({ 
-        error: 'Could not start delivery. It must be in ACCEPTED state and assigned to you.' 
+      return NextResponse.json({
+        error: 'Could not start delivery. It must be in ACCEPTED state and assigned to you.'
       }, { status: 400 });
     }
 

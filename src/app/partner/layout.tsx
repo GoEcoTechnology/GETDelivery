@@ -125,6 +125,9 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
                 if (['admin', 'partner', 'customer', 'platform-admin'].includes(lastSegment.toLowerCase())) {
                   return 'Dashboard';
                 }
+                if (lastSegment === 'orders') return 'Available Orders';
+                if (lastSegment === 'deliveries') return 'My Deliveries';
+                if (lastSegment === 'completed') return 'Completed Deliveries';
                 return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
               })()}
             </h1>

@@ -14,7 +14,7 @@ export async function POST(request: Request) {
 
     // Get customer using userId (since customerId here comes from the logged-in user session)
     let [customer] = await db.select().from(customers).where(eq(customers.userId, customerId));
-    
+
     if (!customer) {
       // Lazy create the customer record using the provided checkoutTenantId, or find any valid tenant
       let customerTenantId = checkoutTenantId;
@@ -22,14 +22,14 @@ export async function POST(request: Request) {
         const [anyTenant] = await db.select({ id: tenants.id }).from(tenants).limit(1);
         customerTenantId = anyTenant?.id || 1;
       }
-      
+
       // Fetch user details to populate customer record
       const [user] = await db.select().from(users).where(eq(users.id, customerId));
-      
+
       if (!user) {
         return NextResponse.json({ error: 'User session invalid. Please log out and log in again.' }, { status: 401 });
       }
-      
+
       const [newCustomer] = await db.insert(customers).values({
         userId: customerId,
         tenantId: customerTenantId,
@@ -38,16 +38,16 @@ export async function POST(request: Request) {
         address: addressText || 'N/A',
         status: 'ACTIVE'
       }).returning();
-      
+
       customer = newCustomer;
     }
-    
+
     // Update customer address and coordinates if provided
     if (addressText && (addressText !== customer.address || dropoffLat || dropoffLng)) {
-        await db.update(customers).set({
-            address: addressText,
-        }).where(eq(customers.id, customer.id));
-        customer.address = addressText;
+      await db.update(customers).set({
+        address: addressText,
+      }).where(eq(customers.id, customer.id));
+      customer.address = addressText;
     }
 
     let items = [];
@@ -94,18 +94,38 @@ export async function POST(request: Request) {
     for (const tenantId of Object.keys(itemsByTenant)) {
       const tId = parseInt(tenantId);
       const tenantItems = itemsByTenant[tId];
-      
+
       // Fetch exact tenant details for accurate pickup location
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tId));
       let exactPickupAddress = tenant?.address || pickupLocation || 'Business Location(s)';
-      
+
+      // Find basis product (highest quantity)
+      let basisProductId = null;
+      let basisVariantId = null;
+      let basisQuantity = 0;
+      let hasBasisTie = false;
+
+      const quantities = tenantItems.map(item => item.quantity);
+      const maxQty = Math.max(...quantities, 0);
+
+      const maxItems = tenantItems.filter(item => item.quantity === maxQty);
+      if (maxItems.length > 0) {
+        basisProductId = maxItems[0].productId;
+        basisVariantId = maxItems[0].variantId;
+        basisQuantity = maxItems[0].quantity;
+
+        if (maxItems.length > 1) {
+          hasBasisTie = true;
+        }
+      }
+
       // Compute total for this tenant
       const totalAmount = tenantItems.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
 
       // Create the deliveryOrder
       const [order] = await db.insert(deliveryOrders).values({
         tenantId: tId,
-        customerId: customer.id, // Store the customers.id, not the users.id
+        customerId: customer.id,
         customerName: customer.name,
         customerContact: customer.mobileNumber,
         pickupAddress: exactPickupAddress,
@@ -116,13 +136,17 @@ export async function POST(request: Request) {
         dropoffLng: dropoffLng ? dropoffLng.toString() : null,
         instructions: dropoffLandmark || null,
         deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
-        status: 'DRAFT', // Or 'NEW' based on existing workflow
+        status: 'DRAFT',
         deliveryPriority: deliveryPriority || 'STANDARD',
         orderSource: 'MARKETPLACE',
         urgentReason: urgentReason || null,
         normalDeliveryFee: normalDeliveryFee ? normalDeliveryFee.toString() : null,
         urgentAdditionalFee: urgentAdditionalFee ? urgentAdditionalFee.toString() : null,
         offeredAmount: totalAmount.toString(),
+        basisProductId: basisProductId,
+        basisVariantId: basisVariantId,
+        basisQuantity: basisQuantity,
+        hasBasisTie: hasBasisTie
       }).returning();
 
       // Create the deliveryItems
@@ -135,9 +159,9 @@ export async function POST(request: Request) {
         unitPrice: ti.price ? ti.price.toString() : '0',
         unit: ti.unit,
       }));
-      
+
       await db.insert(deliveryItems).values(itemsToInsert);
-      
+
       createdOrderIds.push(order.id);
 
       // Add notification for Business Owner
@@ -145,7 +169,7 @@ export async function POST(request: Request) {
         tenantId: tId,
         deliveryOrderId: order.id,
         senderId: customer.id,
-        receiverId: 0, 
+        receiverId: 0,
         receiverRole: 'BUSINESS_OWNER',
         notificationType: 'new_customer_order',
         title: 'New Customer Order',
@@ -154,103 +178,102 @@ export async function POST(request: Request) {
         status: 'UNREAD'
       });
 
-      // --- QUOTA-BASED AGGREGATION LOGIC ---
-      // For each variant ordered, check if the quota is met
-      const uniqueVariantIds = Array.from(new Set(tenantItems.map(ti => ti.variantId)));
-      for (const vId of uniqueVariantIds) {
-        if (!vId) continue;
-        
-        // Find unbatched items for this variant
+      // --- QUOTA-BASED AGGREGATION LOGIC (ONLY for Basis Product) ---
+      // If there is a tie, we don't auto-batch. Wait for owner to resolve.
+      if (!hasBasisTie && basisVariantId) {
+        const vId = basisVariantId;
+
+        // Find unbatched orders for this basis variant
         const unbatchedResult = await db.execute(sql`
-          SELECT di.id, di.delivery_order_id, di.quantity, dord.customer_id, pv.quota, pv.weight_per_piece_kg, dord.pickup_address, psu.weight as selling_unit_weight, psu.equivalent_qty
-          FROM delivery_items di
-          JOIN delivery_orders dord ON di.delivery_order_id = dord.id
-          JOIN product_variants pv ON di.variant_id = pv.id
+          SELECT dord.id as delivery_order_id, dord.customer_id, dord.basis_quantity, pv.quota, pv.weight_per_piece_kg, dord.pickup_address, psu.weight as selling_unit_weight, psu.equivalent_qty
+          FROM delivery_orders dord
+          JOIN product_variants pv ON dord.basis_variant_id = pv.id
+          LEFT JOIN delivery_items di ON di.delivery_order_id = dord.id AND di.variant_id = pv.id
           LEFT JOIN product_selling_units psu ON psu.variant_id = pv.id AND psu.unit_name = di.unit
-          WHERE di.variant_id = ${vId}
+          WHERE dord.basis_variant_id = ${vId}
+            AND dord.has_basis_tie = false
             AND dord.status != 'CANCELLED'
-            AND NOT EXISTS (
-              SELECT 1 FROM delivery_batch_items dbi
-              JOIN delivery_batches dbatch ON dbi.batch_id = dbatch.id
-              WHERE dbi.customer_order_id = di.delivery_order_id
-                AND dbatch.variant_id = ${vId}
-            )
+            AND dord.batch_id IS NULL
           ORDER BY dord.created_at ASC
         `);
 
-        if (unbatchedResult.length === 0) continue;
+        if (unbatchedResult.length > 0) {
+          const quota = Number((unbatchedResult[0] as any).quota || 50);
+          const weightPerPieceKg = Number((unbatchedResult[0] as any).weight_per_piece_kg || 0);
 
-        const quota = Number((unbatchedResult[0] as any).quota || 50);
-        const weightPerPieceKg = Number((unbatchedResult[0] as any).weight_per_piece_kg || 0);
-        
-        let totalQty = 0;
-        let totalWeight = 0;
-        const itemsToBatch = [];
-        const pickupLoc = (unbatchedResult[0] as any).pickup_address || 'TBD';
+          let totalBasisQty = 0;
+          let totalWeight = 0;
+          const itemsToBatch = [];
+          const pickupLoc = (unbatchedResult[0] as any).pickup_address || 'TBD';
 
-        for (const row of unbatchedResult as any[]) {
-          const qty = Number(row.quantity);
-          totalQty += qty;
-          
-          const explicitUnitWeight = Number(row.selling_unit_weight) || 0;
-          const equivalentQty = Number(row.equivalent_qty) || 1;
-          const cWeight = qty * explicitUnitWeight;
-          
-          totalWeight += cWeight;
-          itemsToBatch.push({
-            customerOrderId: row.delivery_order_id,
-            customerId: row.customer_id,
-            quantity: qty,
-            customerWeight: cWeight.toFixed(2)
-          });
-        }
+          // Use a set to prevent duplicate order processing due to LEFT JOINs
+          const processedOrderIds = new Set();
 
-        // If quota is reached, create a delivery batch!
-        if (totalQty >= quota) {
-          const batchNum = 'DEL-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-          
-          // Find recommended vehicle
-          const [suggestedVehicle] = await db
-            .select({ id: vehicles.id })
-            .from(vehicles)
-            .where(
-              and(
-                eq(vehicles.tenantId, tId),
-                eq(vehicles.status, 'ACTIVE'),
-                gte(vehicles.capacityKg, Math.ceil(totalWeight))
+          for (const row of unbatchedResult as any[]) {
+            if (processedOrderIds.has(row.delivery_order_id)) continue;
+            processedOrderIds.add(row.delivery_order_id);
+
+            const qty = Number(row.basis_quantity);
+            totalBasisQty += qty;
+
+            const explicitUnitWeight = Number(row.selling_unit_weight) || 0;
+            const cWeight = qty * explicitUnitWeight;
+
+            totalWeight += cWeight;
+            itemsToBatch.push({
+              customerOrderId: row.delivery_order_id,
+              customerId: row.customer_id,
+              quantity: qty,
+              customerWeight: cWeight.toFixed(2)
+            });
+          }
+
+          // If quota is reached, create a delivery batch!
+          if (totalBasisQty >= quota) {
+            const batchNum = 'DEL-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+
+            // Find recommended vehicle
+            const [suggestedVehicle] = await db
+              .select({ id: vehicles.id })
+              .from(vehicles)
+              .where(
+                and(
+                  eq(vehicles.tenantId, tId),
+                  eq(vehicles.status, 'ACTIVE'),
+                  gte(vehicles.capacityKg, Math.ceil(totalWeight))
+                )
               )
-            )
-            .orderBy(asc(vehicles.capacityKg))
-            .limit(1);
+              .orderBy(asc(vehicles.capacityKg))
+              .limit(1);
 
-          const [newBatch] = await db.insert(deliveryBatches).values({
-            tenantId: tId,
-            batchNumber: batchNum,
-            variantId: vId,
-            totalQuantity: totalQty,
-            quotaQuantity: quota,
-            totalWeight: totalWeight.toString(),
-            pickupLocation: pickupLoc,
-            suggestedVehicleId: suggestedVehicle?.id || null,
-            status: 'READY_FOR_DELIVERY'
-          }).returning();
+            const [newBatch] = await db.insert(deliveryBatches).values({
+              tenantId: tId,
+              batchNumber: batchNum,
+              variantId: vId,
+              totalQuantity: totalBasisQty,
+              quotaQuantity: quota,
+              totalWeight: totalWeight.toString(),
+              pickupLocation: pickupLoc,
+              suggestedVehicleId: suggestedVehicle?.id || null,
+              status: 'READY_FOR_DELIVERY'
+            }).returning();
 
-          await db.insert(deliveryBatchItems).values(
-            itemsToBatch.map(ib => ({
-              batchId: newBatch.id,
-              customerOrderId: ib.customerOrderId,
-              customerId: ib.customerId,
-              quantity: ib.quantity,
-              customerWeight: ib.customerWeight
-            }))
-          );
+            await db.insert(deliveryBatchItems).values(
+              itemsToBatch.map(ib => ({
+                batchId: newBatch.id,
+                customerOrderId: ib.customerOrderId,
+                customerId: ib.customerId,
+                quantity: ib.quantity,
+                customerWeight: ib.customerWeight
+              }))
+            );
 
-          // IMPORTANT: Update the actual deliveryOrders to set their batchId so they no longer appear as "waiting"
-          const orderIdsToUpdate = itemsToBatch.map(ib => ib.customerOrderId);
-          if (orderIdsToUpdate.length > 0) {
-            await db.update(deliveryOrders)
-              .set({ batchId: newBatch.id })
-              .where(inArray(deliveryOrders.id, orderIdsToUpdate));
+            const orderIdsToUpdate = itemsToBatch.map(ib => ib.customerOrderId);
+            if (orderIdsToUpdate.length > 0) {
+              await db.update(deliveryOrders)
+                .set({ batchId: newBatch.id })
+                .where(inArray(deliveryOrders.id, orderIdsToUpdate));
+            }
           }
         }
       }
@@ -262,13 +285,13 @@ export async function POST(request: Request) {
       .flat()
       .map((i: any) => i.cartItemId)
       .filter(id => id !== undefined && id !== null);
-      
+
     if (processedCartItemIds.length > 0) {
       await db.delete(cartItems).where(inArray(cartItems.id, processedCartItemIds));
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Orders placed successfully',
       orderIds: createdOrderIds
     }, { status: 201 });

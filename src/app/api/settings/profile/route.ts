@@ -61,7 +61,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   return withAuth(request, {}, async (tx, claims) => {
     const body = await request.json();
-    
+
     // User Updates
     const updates: any = {};
     if (body.name) updates.name = String(body.name).trim();
@@ -77,7 +77,7 @@ export async function PUT(request: Request) {
         if (updates.email) partnerUpdates.email = updates.email;
         if (updates.passwordHash) partnerUpdates.passwordHash = updates.passwordHash;
         if (body.businessName) partnerUpdates.companyName = String(body.businessName).trim();
-        
+
         if (Object.keys(partnerUpdates).length > 0) {
           await tx.update(deliveryPartners).set(partnerUpdates).where(eq(deliveryPartners.id, claims.partnerId as number));
         }
@@ -94,7 +94,7 @@ export async function PUT(request: Request) {
       if (body.address) tenantUpdates.address = String(body.address).trim();
       if (body.lat) tenantUpdates.lat = String(body.lat).trim();
       if (body.lng) tenantUpdates.lng = String(body.lng).trim();
-      
+
       if (Object.keys(tenantUpdates).length > 0) {
         await tx.update(tenants)
           .set(tenantUpdates)

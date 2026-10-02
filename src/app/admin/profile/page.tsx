@@ -24,7 +24,7 @@ export default function SettingsPage() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileData, setProfileData] = useState({ name: '', email: '', contactNumber: '', role: '', tenantName: '' });
-  const [tenantLocation, setTenantLocation] = useState<{lat: number; lng: number; address: string; landmark?: string} | null>(null);
+  const [tenantLocation, setTenantLocation] = useState<{ lat: number; lng: number; address: string; landmark?: string } | null>(null);
   const [passwordData, setPasswordData] = useState({ password: '', confirmPassword: '' });
   const [teamLoading, setTeamLoading] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -95,8 +95,8 @@ export default function SettingsPage() {
       }
     }
     try {
-      const payload: any = { 
-        name: profileData.name, 
+      const payload: any = {
+        name: profileData.name,
         businessName: profileData.tenantName,
         contactNumber: profileData.contactNumber
       };
@@ -208,118 +208,118 @@ export default function SettingsPage() {
             </div>
 
             {profileData.role === 'BUSINESS_OWNER' && (
-                  <div>
-                    <h3 style={{ margin: '24px 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Building2 size={20} /> Business Information
-                    </h3>
-                    <div>
-                      <label className={styles.label}>Business / Tenant Name</label>
-                      <input className={styles.inputField} value={profileData.tenantName} onChange={e => setProfileData({ ...profileData, tenantName: e.target.value })} required />
-                    </div>
-                    <div>
-                      <label className={styles.label}>Business Location</label>
-                      <div style={{ marginBottom: '8px', fontSize: '13px', color: '#64748b' }}>
-                        Update your exact business location for accurate pickups.
-                      </div>
-                      {(!profileLoading) && (
-                        <MapPicker 
-                          initialLat={tenantLocation?.lat}
-                          initialLng={tenantLocation?.lng}
-                          initialAddress={tenantLocation?.address}
-                          onLocationSelect={setTenantLocation} 
-                          height="250px"
-                        />
-                      )}
-                    </div>
-                  </div>
-                )}
+              <div>
+                <h3 style={{ margin: '24px 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Building2 size={20} /> Business Information
+                </h3>
                 <div>
-                  <h3 style={{ margin: '24px 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Lock size={20} /> Security
-                  </h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                    <div>
-                      <label className={styles.label}>New Password</label>
-                      <input autoComplete="new-password" type="password" className={styles.inputField} value={passwordData.password} onChange={e => setPasswordData({ ...passwordData, password: e.target.value })} />
-                    </div>
-                    <div>
-                      <label className={styles.label}>Confirm New Password</label>
-                      <input autoComplete="new-password" type="password" className={styles.inputField} value={passwordData.confirmPassword} onChange={e => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} />
-                    </div>
-                  </div>
+                  <label className={styles.label}>Business / Tenant Name</label>
+                  <input className={styles.inputField} value={profileData.tenantName} onChange={e => setProfileData({ ...profileData, tenantName: e.target.value })} required />
                 </div>
-                <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '16px', paddingTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="submit" className={styles.btnPrimary} disabled={profileSaving} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Save size={18} /> {profileSaving ? 'Saving...' : 'Save Changes'}
-                  </button>
+                <div>
+                  <label className={styles.label}>Business Location</label>
+                  <div style={{ marginBottom: '8px', fontSize: '13px', color: '#64748b' }}>
+                    Update your exact business location for accurate pickups.
+                  </div>
+                  {(!profileLoading) && (
+                    <MapPicker
+                      initialLat={tenantLocation?.lat}
+                      initialLng={tenantLocation?.lng}
+                      initialAddress={tenantLocation?.address}
+                      onLocationSelect={setTenantLocation}
+                      height="250px"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+            <div>
+              <h3 style={{ margin: '24px 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Lock size={20} /> Security
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div>
+                  <label className={styles.label}>New Password</label>
+                  <input autoComplete="new-password" type="password" className={styles.inputField} value={passwordData.password} onChange={e => setPasswordData({ ...passwordData, password: e.target.value })} />
+                </div>
+                <div>
+                  <label className={styles.label}>Confirm New Password</label>
+                  <input autoComplete="new-password" type="password" className={styles.inputField} value={passwordData.confirmPassword} onChange={e => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} />
+                </div>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '16px', paddingTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="submit" className={styles.btnPrimary} disabled={profileSaving} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Save size={18} /> {profileSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {activeTab === 'team' && profileData.role === 'BUSINESS_OWNER' && (
+        <div className={styles.card} style={{ padding: 0, overflow: 'hidden', borderRadius: '18px' }}>
+          <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Team Management</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>Manage employee access to your inventory and deliveries.</p>
+            </div>
+            <button onClick={() => setIsAddingUser(true)} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Plus size={16} /> Add Employee
+            </button>
+          </div>
+          {isAddingUser && (
+            <div style={{ padding: '24px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              <form onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div><label className={styles.label}>First Name</label><input className={styles.inputField} value={newUser.firstName} onChange={e => setNewUser({ ...newUser, firstName: e.target.value })} required /></div>
+                <div><label className={styles.label}>Last Name</label><input className={styles.inputField} value={newUser.lastName} onChange={e => setNewUser({ ...newUser, lastName: e.target.value })} required /></div>
+                <div><label className={styles.label}>Email Address</label><input type="email" className={styles.inputField} value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required /></div>
+                <div><label className={styles.label}>Contact Number</label><input className={styles.inputField} value={newUser.contactNumber} onChange={e => setNewUser({ ...newUser, contactNumber: e.target.value })} required /></div>
+                <div><label className={styles.label}>Role</label><select className={styles.inputField} value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}><option value="EMPLOYEE">Employee</option><option value="BUSINESS_OWNER">Business Owner / Admin</option></select></div>
+                <div><label className={styles.label}>Temporary Password</label><input type="password" className={styles.inputField} value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required minLength={6} /></div>
+                <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+                  <button type="button" onClick={() => setIsAddingUser(false)} className={styles.btnSecondary}>Cancel</button>
+                  <button type="submit" className={styles.btnPrimary}>Create Employee</button>
                 </div>
               </form>
             </div>
           )}
-
-          {activeTab === 'team' && profileData.role === 'BUSINESS_OWNER' && (
-            <div className={styles.card} style={{ padding: 0, overflow: 'hidden', borderRadius: '18px' }}>
-              <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h3 style={{ margin: 0 }}>Team Management</h3>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>Manage employee access to your inventory and deliveries.</p>
-                </div>
-                <button onClick={() => setIsAddingUser(true)} className={styles.btnPrimary} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Plus size={16} /> Add Employee
-                </button>
-              </div>
-              {isAddingUser && (
-                <div style={{ padding: '24px', backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                  <form onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                    <div><label className={styles.label}>First Name</label><input className={styles.inputField} value={newUser.firstName} onChange={e => setNewUser({ ...newUser, firstName: e.target.value })} required /></div>
-                    <div><label className={styles.label}>Last Name</label><input className={styles.inputField} value={newUser.lastName} onChange={e => setNewUser({ ...newUser, lastName: e.target.value })} required /></div>
-                    <div><label className={styles.label}>Email Address</label><input type="email" className={styles.inputField} value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required /></div>
-                    <div><label className={styles.label}>Contact Number</label><input className={styles.inputField} value={newUser.contactNumber} onChange={e => setNewUser({ ...newUser, contactNumber: e.target.value })} required /></div>
-                    <div><label className={styles.label}>Role</label><select className={styles.inputField} value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}><option value="EMPLOYEE">Employee</option><option value="BUSINESS_OWNER">Business Owner / Admin</option></select></div>
-                    <div><label className={styles.label}>Temporary Password</label><input type="password" className={styles.inputField} value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required minLength={6} /></div>
-                    <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
-                      <button type="button" onClick={() => setIsAddingUser(false)} className={styles.btnSecondary}>Cancel</button>
-                      <button type="submit" className={styles.btnPrimary}>Create Employee</button>
-                    </div>
-                  </form>
-                </div>
-              )}
-              <div className="table-responsive-wrapper">
-                <table className={styles.table} style={{ tableLayout: 'fixed', width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '20%', textAlign: 'left' }}>Name</th>
-                    <th style={{ width: '15%', textAlign: 'left' }}>Contact</th>
-                    <th style={{ width: '25%', textAlign: 'left' }}>Email</th>
-                    <th style={{ width: '18%', textAlign: 'center' }}>Role</th>
-                    <th style={{ width: '12%', textAlign: 'center' }}>Status</th>
-                    <th style={{ width: '10%', textAlign: 'right' }}>Actions</th>
+          <div className="table-responsive-wrapper">
+            <table className={styles.table} style={{ tableLayout: 'fixed', width: '100%' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: '20%', textAlign: 'left' }}>Name</th>
+                  <th style={{ width: '15%', textAlign: 'left' }}>Contact</th>
+                  <th style={{ width: '25%', textAlign: 'left' }}>Email</th>
+                  <th style={{ width: '18%', textAlign: 'center' }}>Role</th>
+                  <th style={{ width: '12%', textAlign: 'center' }}>Status</th>
+                  <th style={{ width: '10%', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamLoading ? (
+                  <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center' }}>Loading team...</td></tr>
+                ) : team.length === 0 ? (
+                  <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No team members found.</td></tr>
+                ) : team.map(member => (
+                  <tr key={member.id}>
+                    <td style={{ textAlign: 'left' }}><div style={{ fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.firstName && member.lastName ? `${member.firstName} ${member.lastName}` : member.name}</div></td>
+                    <td style={{ textAlign: 'left' }}><div style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.contactNumber || '-'}</div></td>
+                    <td style={{ textAlign: 'left' }}><div style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.email}</div></td>
+                    <td style={{ textAlign: 'center' }}><div style={{ fontSize: '11px', padding: '3px 8px', backgroundColor: '#f1f5f9', color: '#475569', borderRadius: '4px', display: 'inline-block', fontWeight: 700, letterSpacing: '0.03em' }}>{member.role.replace('_', ' ')}</div></td>
+                    <td style={{ textAlign: 'center' }}><div style={{ fontSize: '11px', padding: '3px 8px', backgroundColor: member.status === 'ACTIVE' ? '#dcfce7' : '#fef2f2', color: member.status === 'ACTIVE' ? '#16a34a' : '#ef4444', borderRadius: '4px', display: 'inline-block', fontWeight: 700 }}>{member.status}</div></td>
+                    <td style={{ textAlign: 'right' }}>
+                      <ActionMenu actions={[{ label: 'Revoke Access', icon: <Trash2 size={14} />, onClick: () => handleDeleteUser(member.id), color: '#ef4444' }]} />
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {teamLoading ? (
-                    <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center' }}>Loading team...</td></tr>
-                  ) : team.length === 0 ? (
-                    <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No team members found.</td></tr>
-                  ) : team.map(member => (
-                    <tr key={member.id}>
-                      <td style={{ textAlign: 'left' }}><div style={{ fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.firstName && member.lastName ? `${member.firstName} ${member.lastName}` : member.name}</div></td>
-                      <td style={{ textAlign: 'left' }}><div style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.contactNumber || '-'}</div></td>
-                      <td style={{ textAlign: 'left' }}><div style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.email}</div></td>
-                      <td style={{ textAlign: 'center' }}><div style={{ fontSize: '11px', padding: '3px 8px', backgroundColor: '#f1f5f9', color: '#475569', borderRadius: '4px', display: 'inline-block', fontWeight: 700, letterSpacing: '0.03em' }}>{member.role.replace('_', ' ')}</div></td>
-                      <td style={{ textAlign: 'center' }}><div style={{ fontSize: '11px', padding: '3px 8px', backgroundColor: member.status === 'ACTIVE' ? '#dcfce7' : '#fef2f2', color: member.status === 'ACTIVE' ? '#16a34a' : '#ef4444', borderRadius: '4px', display: 'inline-block', fontWeight: 700 }}>{member.status}</div></td>
-                      <td style={{ textAlign: 'right' }}>
-                        <ActionMenu actions={[{ label: 'Revoke Access', icon: <Trash2 size={14} />, onClick: () => handleDeleteUser(member.id), color: '#ef4444' }]} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
-            </div>
-          )}
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-      </div>
+    </div>
   );
 }
 

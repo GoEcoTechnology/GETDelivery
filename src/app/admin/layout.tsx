@@ -4,12 +4,12 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import styles from './admin.module.css';
 
-import { 
-  LayoutDashboard, 
-  Package, 
-  Truck, 
-  Users, 
-  Car, 
+import {
+  LayoutDashboard,
+  Package,
+  Truck,
+  Users,
+  Car,
   LogOut,
   Settings,
   UserCog,
@@ -24,7 +24,7 @@ import NotificationBell from './NotificationBell';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<{name: string, role: string, tenantId: number} | null>(null);
+  const [user, setUser] = useState<{ name: string, role: string, tenantId: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
 
@@ -56,7 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className={styles.layout}>
       <AdminNotifListener />
-      
+
       {/* Mobile Header */}
       <div className={styles.mobileHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, color: '#4f46e5' }}>
@@ -78,8 +78,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       {/* Overlay for mobile */}
-      <div 
-        className={`${styles.overlay} ${sidebarOpen ? styles.overlayOpen : ''}`} 
+      <div
+        className={`${styles.overlay} ${sidebarOpen ? styles.overlayOpen : ''}`}
         onClick={() => setSidebarOpen(false)}
       ></div>
 
@@ -106,14 +106,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Users size={18} /> Customers
           </Link>
 
-          
+
           <div style={{ marginTop: '16px', marginBottom: '4px', paddingLeft: '16px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Team
           </div>
           <Link href="/admin/employees" className={pathname.startsWith('/admin/employees') ? styles.active : ''}>
             <UserCog size={18} /> Employees
           </Link>
-          
+
           <div style={{ marginTop: '16px', marginBottom: '4px', paddingLeft: '16px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Fleet
           </div>
@@ -139,11 +139,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
       </aside>
-      
+
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh', overflow: 'hidden' }}>
         {/* Top Navbar */}
         <header className="header-responsive hide-on-mobile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 32px', backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', zIndex: 5 }}>
-          
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
               {(() => {
@@ -193,12 +193,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <X size={20} />
               </button>
             </div>
-            
+
             <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
               <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#334155', lineHeight: '1.6' }}>
                 Please be advised that the system automatically clears old records to maintain optimal performance.
               </p>
-              
+
               <ul style={{ margin: 0, paddingLeft: '20px', color: '#334155', fontSize: '14px', lineHeight: '1.6' }}>
                 <li style={{ marginBottom: '8px' }}>
                   <strong>Stock History:</strong> Automatically deleted on the last day of every month.
@@ -211,14 +211,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </li>
               </ul>
             </div>
-            
+
             <div style={{ padding: '16px', backgroundColor: '#ecfdf5', borderRadius: '12px', border: '1px solid #a7f3d0', display: 'flex', gap: '12px' }}>
               <Lightbulb size={20} color="#059669" style={{ flexShrink: 0, marginTop: '2px' }} />
               <p style={{ margin: 0, fontSize: '13.5px', color: '#065f46', lineHeight: '1.5', fontWeight: 500 }}>
                 We highly recommend exporting any records you need to keep <strong>before</strong> the automatic deletion occurs.
               </p>
             </div>
-            
+
             <div style={{ marginTop: '28px', display: 'flex', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowReminderModal(false)} style={{ backgroundColor: '#4f46e5', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '10px', fontWeight: 600, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 14px rgba(79, 70, 229, 0.3)' }}>
                 I Understand

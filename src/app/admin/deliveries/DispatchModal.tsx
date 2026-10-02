@@ -45,21 +45,21 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
 
   const internalDispatchMutation = useMutation({
     mutationFn: async () => {
-      const endpoint = type === 'batch' 
+      const endpoint = type === 'batch'
         ? `/api/deliveries/batches/${deliveryId}/dispatch-internal`
         : `/api/deliveries/${deliveryId}/dispatch-internal`;
-        
-        const headers: HeadersInit = {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
-          'Content-Type': 'application/json'
-        };
-        if (tenantId) headers['x-tenant-id'] = tenantId.toString();
-        
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ driverId, vehicleId, customFee: customFee ? parseFloat(customFee) : null })
-        });
+
+      const headers: HeadersInit = {
+        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+        'Content-Type': 'application/json'
+      };
+      if (tenantId) headers['x-tenant-id'] = tenantId.toString();
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ driverId, vehicleId, customFee: customFee ? parseFloat(customFee) : null })
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch internally');
       return data;
@@ -78,14 +78,14 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
       const endpoint = type === 'batch'
         ? `/api/deliveries/batches/${deliveryId}/dispatch`
         : `/api/deliveries/${deliveryId}/dispatch`;
-        
-        const headers: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` };
-        if (tenantId) headers['x-tenant-id'] = tenantId.toString();
 
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers
-        });
+      const headers: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` };
+      if (tenantId) headers['x-tenant-id'] = tenantId.toString();
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch to partners');
       return data;
@@ -132,7 +132,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
 
           <div className={styles.gridCols2} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
             {/* Option 1 */}
-            <div 
+            <div
               onClick={() => setSelectedOption('internal')}
               style={{
                 padding: '20px', borderRadius: '12px', border: `2px solid ${selectedOption === 'internal' ? '#3b82f6' : '#e2e8f0'}`,
@@ -150,7 +150,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
             </div>
 
             {/* Option 2 */}
-            <div 
+            <div
               onClick={() => setSelectedOption('partner')}
               style={{
                 padding: '20px', borderRadius: '12px', border: `2px solid ${selectedOption === 'partner' ? '#3b82f6' : '#e2e8f0'}`,
@@ -163,7 +163,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
                 <span style={{ fontWeight: 700, fontSize: '16px' }}>Rent Delivery Partner</span>
               </div>
               <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
-                  Broadcast a push notification to all available delivery partners. First to accept gets assigned.
+                Broadcast a push notification to all available delivery partners. First to accept gets assigned.
               </p>
             </div>
           </div>
@@ -171,11 +171,11 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
           {selectedOption === 'internal' && (
             <div style={{ padding: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
               <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>Assign Details</h3>
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>Select Driver</label>
-                  <select 
+                  <select
                     value={driverId} onChange={(e) => setDriverId(e.target.value)}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
                   >
@@ -189,7 +189,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
 
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>Select Vehicle</label>
-                  <select 
+                  <select
                     value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
                   >
@@ -203,7 +203,7 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
 
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>Delivery Fee (Optional)</label>
-                  <input 
+                  <input
                     type="number"
                     value={customFee} onChange={(e) => setCustomFee(e.target.value)}
                     placeholder="Enter fee (e.g. 150)"
@@ -225,19 +225,19 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
         </div>
 
         <div style={{ padding: '20px 24px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-          <button 
+          <button
             onClick={onClose}
             disabled={isSubmitting}
             style={{ padding: '10px 20px', backgroundColor: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, color: '#475569' }}
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={handleDispatch}
             disabled={!selectedOption || isSubmitting}
-            style={{ 
-              padding: '10px 24px', backgroundColor: '#3b82f6', border: 'none', borderRadius: '8px', 
-              cursor: (!selectedOption || isSubmitting) ? 'not-allowed' : 'pointer', 
+            style={{
+              padding: '10px 24px', backgroundColor: '#3b82f6', border: 'none', borderRadius: '8px',
+              cursor: (!selectedOption || isSubmitting) ? 'not-allowed' : 'pointer',
               fontWeight: 600, color: 'white', opacity: (!selectedOption || isSubmitting) ? 0.7 : 1
             }}
           >

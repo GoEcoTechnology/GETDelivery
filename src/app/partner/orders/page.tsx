@@ -75,9 +75,10 @@ export default async function PartnerOrdersPage() {
     const counts = await db
       .select({
         batchId: deliveryBatchItems.batchId,
-        count: sql<number>`count(${deliveryBatchItems.id})`
+        count: sql<number>`count(distinct ${deliveryOrders.dropoffAddress})`
       })
       .from(deliveryBatchItems)
+      .leftJoin(deliveryOrders, eq(deliveryBatchItems.customerOrderId, deliveryOrders.id))
       .where(inArray(deliveryBatchItems.batchId, batchIds))
       .groupBy(deliveryBatchItems.batchId);
       

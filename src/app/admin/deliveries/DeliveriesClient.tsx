@@ -62,7 +62,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
   
   // Tabs: 'CREATED' vs 'MARKETPLACE'
   const [activeTab, setActiveTab] = useState<'CREATED' | 'MARKETPLACE'>('MARKETPLACE');
-  const batches = initialData?.batches || [];
+  const batches = (initialData?.batches || []).filter((b: any) => b.status !== 'DRAFT');
 
   // State for the Delivery Details Modal
   const [viewingDelivery, setViewingDelivery] = useState<any>(null);
@@ -607,16 +607,84 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                   </div>
 
                   <div style={{ padding: '20px', background: '#f8fafc' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
-                      <span style={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customers in this Batch ({batch.items.length})</span>
-                      <span style={{ color: '#4f46e5', fontWeight: 700 }}>{batch.totalQuantity} / {batch.quotaQuantity} Quota Reached</span>
-                    </div>
+                    {(() => {
+                      return (
+                        <>
+                          {(() => {
+                            const aggregatedProducts: any[] = [];
+                            (batch.items || []).forEach((item: any) => {
+                                const hasProducts = item.products && item.products.length > 0;
+                                const productsToProcess = hasProducts ? item.products : [{ 
+                                  productName: batch.productName, 
+                                  variantName: batch.variantName,
+                                  unit: 'units',
+                                  quantity: item.quantity,
+                                  unitPrice: batch.variantPrice || 0
+                                }];
+                                
+                                productsToProcess.forEach((prod: any) => {
+                                  const variantStr = prod.variantName || batch.variantName;
+                                  const unitStr = prod.unit && prod.unit !== 'units' ? ` (${prod.unit})` : '';
+                                  
+                                  let finalProductName = prod.productName;
+                                  if (variantStr && finalProductName && !finalProductName.includes(variantStr)) {
+                                    finalProductName = `${finalProductName} - ${variantStr}`;
+                                  }
+                                  
+                                  const itemName = `${finalProductName}${unitStr}`;
+                                  const qty = hasProducts ? Number(prod.quantity) : Number(item.quantity);
+                                  const amount = hasProducts ? (qty * Number(prod.unitPrice || batch.variantPrice || 0)) : (Number(item.offeredAmount) || (qty * Number(batch.variantPrice || 0)));
+                                  
+                                  const existing = aggregatedProducts.find(p => p.itemName === itemName);
+                                  if (existing) {
+                                    existing.qty += qty;
+                                    existing.amount += amount;
+                                  } else {
+                                    aggregatedProducts.push({
+                                      itemName,
+                                      qty,
+                                      amount
+                                    });
+                                  }
+                                });
+                            });
+
+                            return (
+                              <>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '14px' }}>
+                                  <span style={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Items ({aggregatedProducts.length})</span>
+                                  <span style={{ color: '#4f46e5', fontWeight: 700 }}>{batch.totalQuantity} / {batch.quotaQuantity} Quota Reached</span>
+                                </div>
+
+                                {aggregatedProducts.length > 0 && (
+                                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px', background: 'white' }}>
+                                    {aggregatedProducts.map((agg: any, i: number) => (
+                                      <div key={i} style={{ padding: '16px', borderBottom: i < aggregatedProducts.length - 1 ? '1px solid #e2e8f0' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontWeight: 700 }}>
+                                            {agg.qty}x
+                                          </div>
+                                          <div style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a' }}>{agg.itemName}</div>
+                                        </div>
+                                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                          <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '16px' }}>₱{formatCurrency(agg.amount)}</div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </>
+                      );
+                    })()}
                     {(() => {
                       const totalProduct = batch.items.reduce((sum: number, item: any) => {
                         const amount = Number(item.offeredAmount);
                         return sum + (amount > 0 ? amount : Number(item.quantity || 0) * Number(batch.variantPrice || 0));
                       }, 0);
-                      const totalDelivery = batch.items.reduce((sum: number, item: any) => sum + Number(item.finalDeliveryPrice || 0), 0);
+                      const totalDelivery = batch.items.reduce((sum: number, item: any) => sum + (Number(item.finalDeliveryPrice) || (Number(item.normalDeliveryFee || 0) + Number(item.urgentAdditionalFee || 0))), 0);
                       const grandTotal = totalProduct + totalDelivery;
                       const hasDeliveryFee = batch.items.some((item: any) => item.finalDeliveryPrice !== null && item.finalDeliveryPrice !== undefined);
                       
@@ -850,47 +918,74 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
             </div>
 
             <div style={{ padding: '24px 32px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {selectedBatchForModal.items.map((item: any) => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <MapPin size={20} color="#64748b" />
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '16px' }}>{item.customerName}</div>
-                        {item.deliveryPriority === 'URGENT' && (
-                          <span style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>URGENT</span>
-                        )}
-                      </div>
-                      
-                      <div style={{ fontSize: '14px', color: '#475569', marginBottom: '8px', lineHeight: 1.5, maxWidth: '450px' }}>{item.dropoffAddress}</div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                        {item.customerContact && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748b', fontWeight: 600, background: '#f8fafc', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                            <Phone size={14} /> {item.customerContact}
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#4f46e5', fontWeight: 600, background: '#eef2ff', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e0e7ff' }}>
-                          <Package size={14} /> {item.quantity} units
+              {(() => {
+                 const groupedItems = Object.values(
+                   selectedBatchForModal.items.reduce((acc: any, item: any) => {
+                     const key = item.customerName;
+                     if (!acc[key]) {
+                       acc[key] = {
+                         ...item, // keep the first item's details (address, contact, priority)
+                         totalQuantity: 0,
+                         totalAmount: 0
+                       };
+                     }
+                     const qty = Number(item.quantity) || 0;
+                     const amount = qty * (selectedBatchForModal.variantPrice || 0);
+                     acc[key].totalQuantity += qty;
+                     acc[key].totalAmount += amount;
+                     
+                     // Keep URGENT priority if any item is urgent
+                     if (item.deliveryPriority === 'URGENT') {
+                       acc[key].deliveryPriority = 'URGENT';
+                       acc[key].deliveryDate = item.deliveryDate || acc[key].deliveryDate;
+                     }
+                     
+                     return acc;
+                   }, {})
+                 );
+
+                 return groupedItems.map((item: any) => (
+                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <MapPin size={20} color="#64748b" />
                         </div>
-                        {item.deliveryPriority === 'URGENT' && item.deliveryDate && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#dc2626', fontWeight: 600, background: '#fef2f2', padding: '4px 10px', borderRadius: '8px', border: '1px solid #fecaca' }}>
-                            <Calendar size={14} /> {new Date(item.deliveryDate).toLocaleDateString()}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '16px' }}>{item.customerName}</div>
+                            {item.deliveryPriority === 'URGENT' && (
+                              <span style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>URGENT</span>
+                            )}
                           </div>
-                        )}
+                          
+                          <div style={{ fontSize: '14px', color: '#475569', marginBottom: '8px', lineHeight: 1.5, maxWidth: '450px' }}>{item.dropoffAddress}</div>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                            {item.customerContact && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748b', fontWeight: 600, background: '#f8fafc', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                <Phone size={14} /> {item.customerContact}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#4f46e5', fontWeight: 600, background: '#eef2ff', padding: '4px 10px', borderRadius: '8px', border: '1px solid #e0e7ff' }}>
+                              <Package size={14} /> {item.totalQuantity} units
+                            </div>
+                            {item.deliveryPriority === 'URGENT' && item.deliveryDate && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#dc2626', fontWeight: 600, background: '#fef2f2', padding: '4px 10px', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                                <Calendar size={14} /> {new Date(item.deliveryDate).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Total Price</div>
+                        <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '18px' }}>
+                          ₱{formatCurrency(item.totalAmount)}
+                        </span>
                       </div>
                     </div>
-                  </div>
-                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Total Price</div>
-                    <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '18px' }}>
-                      ₱{formatCurrency(item.quantity * (selectedBatchForModal.variantPrice || 0))}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                 ));
+              })()}
             </div>
           </div>
         </div>

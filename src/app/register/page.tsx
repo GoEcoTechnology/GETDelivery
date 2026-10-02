@@ -22,7 +22,7 @@ export default function RegisterPage() {
   const [contactPerson, setContactPerson] = useState('');
   const [tenantEmail, setTenantEmail] = useState('');
   const [tenantPassword, setTenantPassword] = useState('');
-  const [tenantLocation, setTenantLocation] = useState<{lat: number; lng: number; address: string; landmark?: string} | null>(null);
+  const [tenantLocation, setTenantLocation] = useState<{ lat: number; lng: number; address: string; landmark?: string } | null>(null);
 
   // Partner fields
   const [companyName, setCompanyName] = useState('');
@@ -41,11 +41,11 @@ export default function RegisterPage() {
         if (!tenantLocation) {
           throw new Error('Please select your business location on the map.');
         }
-        payload = { 
-          type: 'tenant', 
-          businessName, 
-          contactPerson, 
-          email: tenantEmail, 
+        payload = {
+          type: 'tenant',
+          businessName,
+          contactPerson,
+          email: tenantEmail,
           password: tenantPassword,
           address: tenantLocation.address + (tenantLocation.landmark ? ` (${tenantLocation.landmark})` : ''),
           lat: tenantLocation.lat,
@@ -261,8 +261,8 @@ export default function RegisterPage() {
                 <div style={{ marginBottom: '8px', fontSize: '13px', color: '#64748b' }}>
                   Search for your business address and click on the map to drop a pin.
                 </div>
-                <MapPicker 
-                  onLocationSelect={setTenantLocation} 
+                <MapPicker
+                  onLocationSelect={setTenantLocation}
                   height="250px"
                 />
                 {!tenantLocation && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>* Location is required</div>}

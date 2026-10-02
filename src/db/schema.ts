@@ -233,6 +233,7 @@ export const deliveryBatches = pgTable('delivery_batches', {
   totalWeight: decimal('total_weight', { precision: 10, scale: 2 }).default('0').notNull(),
   pickupLocation: varchar('pickup_location', { length: 255 }).notNull(),
   suggestedVehicleId: integer('suggested_vehicle_id').references(() => vehicles.id),
+  deliveryFee: decimal('delivery_fee', { precision: 10, scale: 2 }),
   status: varchar('status', { length: 50 }).default('READY_FOR_DELIVERY').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => [
@@ -295,6 +296,12 @@ export const deliveryOrders = pgTable('delivery_orders', {
   urgentAdditionalFee: decimal('urgent_additional_fee', { precision: 10, scale: 2 }),
   quota: integer('quota').default(10).notNull(),
   currentOrdersCount: integer('current_orders_count').default(0).notNull(),
+  
+  basisProductId: integer('basis_product_id').references(() => products.id),
+  basisVariantId: integer('basis_variant_id').references(() => productVariants.id),
+  basisQuantity: integer('basis_quantity').default(0).notNull(),
+  hasBasisTie: boolean('has_basis_tie').default(false).notNull(),
+  
   acceptedAt: timestamp('accepted_at'),
   startedAt: timestamp('started_at'),
   completedAt: timestamp('completed_at'),

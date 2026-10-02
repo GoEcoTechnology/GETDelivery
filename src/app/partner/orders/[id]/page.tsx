@@ -20,6 +20,18 @@ async function getAddressFromCoords(lat: string, lng: string, fallback: string):
   return 'Location Pinned on Map';
 }
 
+function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; 
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; 
+}
+
 function DetailRow({ label, value, chip = false, boldValue = false, color }: { label: string; value: string; chip?: boolean; boldValue?: boolean; color?: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'start' }}>
@@ -56,6 +68,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
       status: deliveryOrders.status,
       deliveryDate: deliveryOrders.deliveryDate,
       pickupAddress: deliveryOrders.pickupAddress,
+      distanceKm: deliveryOrders.distanceKm,
       requiredVehicleType: deliveryOrders.requiredVehicleType,
       partnerDriverName: deliveryOrders.partnerDriverName,
       partnerDriverContact: deliveryOrders.partnerDriverContact,
@@ -124,7 +137,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
   let grandTotal = 0;
   let distanceKm = 0;
 
-  const customerStops = [];
+  const customerStops: any[] = [];
 
   for (let i = 0; i < allOrders.length; i++) {
     const o = allOrders[i];
@@ -176,26 +189,69 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
         weightKg: itemWeight
       };
     });
+    let mergedMappedProducts: any[] = [];
+    mappedProducts.forEach(newP => {
+      const match = mergedMappedProducts.find(p => p.name === newP.name && p.unit === newP.unit);
+      if (match) {
+        match.quantity += newP.quantity;
+      } else {
+        mergedMappedProducts.push({ ...newP });
+      }
+    });
 
     totalDeliveryFee += Number(o.normalDeliveryFee || o.vehicleBasePrice) || 0;
     totalUrgentFee += Number(o.urgentAdditionalFee) || 0;
     distanceKm += Number.parseFloat(String(o.distanceKm || o.routeDistance || '0').replace(/[^\d.]/g, '')) || 0;
 
-    customerStops.push({
-      stopNumber: i + 1,
-      orderId: o.id,
-      fullName: customerName,
-      contactNumber,
-      address,
-      lat: o.dropoffLat,
-      lng: o.dropoffLng,
-      products: mappedProducts,
-      instructions: o.instructions,
-      status: o.status
-    });
+    const existingStopIndex = customerStops.findIndex(s => s.address === address && s.fullName === customerName);
+    
+    if (existingStopIndex !== -1) {
+      mergedMappedProducts.forEach(newP => {
+        const match = customerStops[existingStopIndex].products.find((p: any) => p.name === newP.name && p.unit === newP.unit);
+        if (match) {
+          match.quantity += newP.quantity;
+        } else {
+          customerStops[existingStopIndex].products.push(newP);
+        }
+      });
+      if (o.instructions && !customerStops[existingStopIndex].instructions?.includes(o.instructions)) {
+        customerStops[existingStopIndex].instructions = [customerStops[existingStopIndex].instructions, o.instructions].filter(Boolean).join(' | ');
+      }
+    } else {
+      customerStops.push({
+        stopNumber: customerStops.length + 1,
+        orderId: o.id,
+        fullName: customerName,
+        contactNumber,
+        address,
+        lat: o.dropoffLat,
+        lng: o.dropoffLng,
+        products: mergedMappedProducts,
+        instructions: o.instructions,
+        status: o.status
+      });
+    }
   }
 
-  grandTotal = totalDeliveryFee + totalUrgentFee + totalOrderAmount;
+  if (distanceKm === 0) {
+    let pickupLat = isBatch && tenant.lat ? parseFloat(tenant.lat as any) : (baseOrder.pickupLat ? parseFloat(baseOrder.pickupLat) : 0);
+    let pickupLng = isBatch && tenant.lng ? parseFloat(tenant.lng as any) : (baseOrder.pickupLng ? parseFloat(baseOrder.pickupLng) : 0);
+    
+    if (pickupLat && pickupLng) {
+      let currentLat = pickupLat;
+      let currentLng = pickupLng;
+      customerStops.forEach(stop => {
+        if (stop.lat && stop.lng) {
+          distanceKm += getDistanceFromLatLonInKm(currentLat, currentLng, parseFloat(stop.lat), parseFloat(stop.lng)) * 1.3;
+          currentLat = parseFloat(stop.lat);
+          currentLng = parseFloat(stop.lng);
+        }
+      });
+    }
+  }
+
+  const calculatedKmCharge = distanceKm * Number(baseOrder.pricePerKm || 0);
+  grandTotal = totalDeliveryFee + calculatedKmCharge + totalUrgentFee + totalOrderAmount;
 
   const [businessOwner] = await db.select({ name: users.name, contactNumber: users.contactNumber, email: users.email })
     .from(users)
@@ -261,7 +317,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
                     <div style={{ marginTop: '8px' }}>
                       <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Products</div>
                       <div style={{ display: 'grid', gap: '4px' }}>
-                        {stop.products.map((p, i) => (
+                        {stop.products.map((p: any, i: number) => (
                           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#334155', padding: '6px 8px', background: '#f1f5f9', borderRadius: '6px' }}>
                             <span>{p.name}</span>
                             <span style={{ fontWeight: 600 }}>x{p.quantity} {p.unit}</span>
@@ -341,23 +397,19 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
               
               <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
               
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>Totals</div>
-              <DetailRow label="Total Customers" value={String(customerStops.length)} boldValue />
-              <DetailRow label="Total Items" value={String(totalItemsCount)} />
-              <DetailRow label="Total Quantity" value={String(totalQuantity)} />
-              <DetailRow label="Total Cases / Bottles / Pcs" value={`${totalCases} / ${totalBottles} / ${totalPieces}`} />
-              
               <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '8px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Vehicle Details</div>
                 <DetailRow label="Suggested Vehicle" value={baseOrder.preferredVehicle || 'Motorcycle'} />
                 {totalWeightKg > 0 && <DetailRow label="Total Delivery Weight" value={`${totalWeightKg} kg`} />}
-                <DetailRow label="Distance (KM)" value={`${distanceKm.toFixed(2)} km`} />
+                {((distanceKm || Number(baseOrder.distanceKm) || 0) > 0) && (
+                  <DetailRow label="Distance (KM)" value={`${(distanceKm || Number(baseOrder.distanceKm) || 0).toFixed(2)} km`} />
+                )}
                 <div style={{ height: '1px', background: '#cbd5e1', margin: '12px 0' }} />
                 
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Pricing Breakdown</div>
-                {Number(baseOrder.vehicleBasePrice) > 0 && <DetailRow label="Vehicle Base Fee" value={formatCurrency(Number(baseOrder.vehicleBasePrice))} />}
-                {Number(baseOrder.pricePerKm) > 0 && <DetailRow label="KM Charge" value={formatCurrency(distanceKm * Number(baseOrder.pricePerKm))} />}
-                {!baseOrder.vehicleBasePrice && !baseOrder.pricePerKm && (
+                {Number(baseOrder.vehicleBasePrice || totalDeliveryFee) > 0 && <DetailRow label="Vehicle Base Fee" value={formatCurrency(Number(baseOrder.vehicleBasePrice || totalDeliveryFee))} />}
+                {Number(baseOrder.pricePerKm) > 0 && ((distanceKm || Number(baseOrder.distanceKm) || 0) > 0) && <DetailRow label="KM Charge" value={formatCurrency((distanceKm || Number(baseOrder.distanceKm) || 0) * Number(baseOrder.pricePerKm))} />}
+                {!baseOrder.vehicleBasePrice && !baseOrder.pricePerKm && !totalDeliveryFee && (
                   <DetailRow label="Delivery Fee" value={formatCurrency(totalDeliveryFee)} />
                 )}
                 <DetailRow label="Total Product Amount" value={formatCurrency(totalOrderAmount)} />

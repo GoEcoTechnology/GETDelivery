@@ -12,6 +12,7 @@ type DeliveryItem = {
   pickupAddress: string;
   dropoffAddress: string;
   status?: string;
+  partnerName?: string | null;
 };
 
 export default function DashboardCalendar({ deliveries }: { deliveries: DeliveryItem[] }) {
@@ -101,9 +102,9 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
                   overflow: 'hidden',
                   textOverflow: 'ellipsis'
                 }}
-                title={`Delivery for ${d.tenantName}\nStatus: ${(d.status || 'Scheduled').replace(/_/g, ' ')}\nPickup: ${d.pickupAddress}\nDrop-off: ${d.dropoffAddress}`}
+                title={`Delivery for ${d.tenantName}\nStatus: ${(d.status || 'Scheduled').replace(/_/g, ' ')}\nPartner: ${d.partnerName || 'Unassigned'}\nPickup: ${d.pickupAddress}\nDrop-off: ${d.dropoffAddress}`}
               >
-                {d.tenantName}
+                {d.tenantName} {d.partnerName ? `(${d.partnerName})` : ''}
               </div>
               );
             })}
@@ -139,6 +140,9 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
       </div>
       
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: '#475569' }}>
+          <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#f1f5f9', border: '1px solid #e2e8f0', flexShrink: 0 }}></div> Pending
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, color: '#475569' }}>
           <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#e0e7ff', border: '1px solid #c7d2fe', flexShrink: 0 }}></div> Accepted
         </div>
@@ -192,6 +196,11 @@ export default function DashboardCalendar({ deliveries }: { deliveries: Delivery
                         {(d.status || 'Scheduled').replace(/_/g, ' ')}
                       </span>
                     </div>
+                    {d.partnerName && (
+                      <div style={{ fontSize: '13px', color: textColor, opacity: 0.9, marginBottom: '4px' }}>
+                        <strong style={{ opacity: 0.8 }}>Partner:</strong> {d.partnerName}
+                      </div>
+                    )}
                     <div style={{ fontSize: '13px', color: textColor, opacity: 0.9 }}>
                       <div style={{ marginBottom: '4px' }}><strong style={{ opacity: 0.8 }}>Pickup:</strong> {d.pickupAddress}</div>
                       <div><strong style={{ opacity: 0.8 }}>Drop-off:</strong> {d.dropoffAddress}</div>

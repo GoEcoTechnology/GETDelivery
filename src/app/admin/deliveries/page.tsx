@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import DeliveriesClient from './DeliveriesClient';
 import { db } from '@/db';
 import { deliveryOrders, deliveryItems, products, productVariants, quotaAccumulations, deliveryPartners, deliveryBatches, deliveryBatchItems, customers, deliveryAssignments } from '@/db/schema';
-import { eq, desc, inArray, and } from 'drizzle-orm';
+import { eq, desc, inArray, and, sql } from 'drizzle-orm';
 
 export default async function DeliveriesPage() {
   const cookieStore = await cookies();
@@ -89,8 +89,11 @@ export default async function DeliveriesPage() {
           partnerDriverContact: deliveryOrders.partnerDriverContact,
           finalDeliveryPrice: deliveryOrders.finalDeliveryPrice,
           offeredAmount: deliveryOrders.offeredAmount,
+          normalDeliveryFee: deliveryOrders.normalDeliveryFee,
+          urgentAdditionalFee: deliveryOrders.urgentAdditionalFee,
           deliveryPriority: deliveryOrders.deliveryPriority,
           deliveryDate: deliveryOrders.deliveryDate,
+          customerOrderId: deliveryBatchItems.customerOrderId,
         })
         .from(deliveryBatchItems)
         .leftJoin(customers, eq(deliveryBatchItems.customerId, customers.id))
@@ -98,8 +101,32 @@ export default async function DeliveriesPage() {
         .where(inArray(deliveryBatchItems.batchId, batchIds));
     }
     
+    let allDeliveryItems: any[] = [];
+    if (batchIds.length > 0) {
+      const orderIds = Array.from(new Set(allBatchItems.map(i => i.customerOrderId).filter(id => id)));
+      if (orderIds.length > 0) {
+        allDeliveryItems = await db
+          .select({
+            itemId: deliveryItems.id,
+            deliveryOrderId: deliveryItems.deliveryOrderId,
+            productName: sql<string>`COALESCE(${deliveryItems.productName}, ${products.name})`.as('productName'),
+            variantName: productVariants.name,
+            quantity: deliveryItems.quantity,
+            unitPrice: deliveryItems.unitPrice,
+            unit: deliveryItems.unit,
+          })
+          .from(deliveryItems)
+          .leftJoin(products, eq(deliveryItems.productId, products.id))
+          .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
+          .where(inArray(deliveryItems.deliveryOrderId, orderIds));
+      }
+    }
+    
     const enrichedBatches = batchesData.map(batch => {
-      const items = allBatchItems.filter(item => item.batchId === batch.id);
+      const items = allBatchItems.filter(item => item.batchId === batch.id).map(item => ({
+        ...item,
+        products: allDeliveryItems.filter(i => Number(i.deliveryOrderId) === Number(item.customerOrderId))
+      }));
       return {
         ...batch,
         items,

@@ -40,22 +40,22 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     'COMPLETED',
     'CANCELLED',
   ]);
-  const finalWhere = isPlatformOwner 
-    ? baseWhere 
+  const finalWhere = isPlatformOwner
+    ? baseWhere
     : and(baseWhere, eq(deliveryOrders.tenantId, tenantId));
 
   const rawDeliveries = await db
-  .select({
-    id: deliveryOrders.id,
-    deliveryDate: deliveryOrders.deliveryDate,
-    dropoffAddress: deliveryOrders.dropoffAddress,
-    pickupAddress: deliveryOrders.pickupAddress,
-    customerName: customers.name,
-    status: deliveryOrders.status,
-  })
-  .from(deliveryOrders)
-  .leftJoin(customers, eq(deliveryOrders.customerId, customers.id))
-  .where(finalWhere);
+    .select({
+      id: deliveryOrders.id,
+      deliveryDate: deliveryOrders.deliveryDate,
+      dropoffAddress: deliveryOrders.dropoffAddress,
+      pickupAddress: deliveryOrders.pickupAddress,
+      customerName: customers.name,
+      status: deliveryOrders.status,
+    })
+    .from(deliveryOrders)
+    .leftJoin(customers, eq(deliveryOrders.customerId, customers.id))
+    .where(finalWhere);
 
   const calendarDeliveries = rawDeliveries.map((d: any) => ({
     id: d.id,

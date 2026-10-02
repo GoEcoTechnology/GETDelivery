@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryItems } from '@/db/schema';
+import { deliveryOrders, deliveryItems, quotaAccumulations, deliveryBatchItems, deliveryInvitations, deliveryAssignments, notifications } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyToken } from '@/lib/auth';
 
@@ -35,8 +35,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    // Delete items first if there's a constraint, but drizzle with cascade usually handles it.
-    // Assuming no strict constraint or cascade is enabled, but manual deletion is safer.
+    // Manual deletion of related records in case cascade is missing in DB
+    await db.delete(quotaAccumulations).where(eq(quotaAccumulations.sourceOrderId, orderId));
+    await db.delete(deliveryBatchItems).where(eq(deliveryBatchItems.customerOrderId, orderId));
+    await db.delete(deliveryInvitations).where(eq(deliveryInvitations.deliveryOrderId, orderId));
+    await db.delete(deliveryAssignments).where(eq(deliveryAssignments.deliveryOrderId, orderId));
+    await db.delete(notifications).where(eq(notifications.deliveryOrderId, orderId));
     await db.delete(deliveryItems).where(eq(deliveryItems.deliveryOrderId, orderId));
     await db.delete(deliveryOrders).where(eq(deliveryOrders.id, orderId));
 

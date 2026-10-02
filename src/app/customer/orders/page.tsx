@@ -2,13 +2,14 @@
 import { formatCurrency } from '@/lib/formatCurrency';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Package, Store, Truck, CheckCircle2, ChevronRight, RotateCcw, Info, Clock } from 'lucide-react';
+import { Package, Store, Truck, CheckCircle2, ChevronRight, RotateCcw, Info, Clock, X, UserCircle, Car, Phone } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 
 export default function CustomerOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('All');
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<any>(null);
 
   const tabs = ['All', 'Pending', 'To Receive', 'Completed', 'Cancelled'];
 
@@ -90,31 +91,12 @@ export default function CustomerOrdersPage() {
   };
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '64px', maxWidth: '1000px', margin: '0 auto' }}>
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '64px', margin: '0 auto' }}>
 
-      {/* Modern Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '0 8px' }}>
-        <div>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', margin: '0 0 8px 0', letterSpacing: '-0.5px' }}>My Orders</h1>
-          <p style={{ color: '#64748b', fontSize: '15px', margin: 0 }}>Track, manage, and view your order history.</p>
-        </div>
-        <div 
-          style={{ position: 'relative' }} 
-          onMouseEnter={() => document.getElementById('cancel-tooltip')!.style.display = 'block'}
-          onMouseLeave={() => document.getElementById('cancel-tooltip')!.style.display = 'none'}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: '#f1f5f9', padding: '8px 12px', borderRadius: '999px' }}>
-            <Info size={16} /> Cancellation Policy
-          </div>
-          <div id="cancel-tooltip" style={{ position: 'absolute', right: 0, top: '40px', background: '#1e293b', color: 'white', padding: '12px', borderRadius: '8px', fontSize: '13px', width: '220px', zIndex: 50, display: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' }}>
-            Orders cannot be cancelled once they have been accepted or dispatched by the Business Owner.
-          </div>
-        </div>
-      </div>
-
-      {/* Premium Tabs */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflowX: 'auto', paddingBottom: '16px', borderBottom: '1px solid #e2e8f0', WebkitOverflowScrolling: 'touch' }}>
-        {tabs.map(tab => {
+      {/* Premium Tabs & Policy */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          {tabs.map(tab => {
           const isActive = activeTab === tab;
           return (
             <button
@@ -146,6 +128,19 @@ export default function CustomerOrdersPage() {
             </button>
           );
         })}
+        </div>
+        <div 
+          style={{ position: 'relative' }} 
+          onMouseEnter={() => document.getElementById('cancel-tooltip')!.style.display = 'block'}
+          onMouseLeave={() => document.getElementById('cancel-tooltip')!.style.display = 'none'}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: '#f1f5f9', padding: '8px 12px', borderRadius: '999px', whiteSpace: 'nowrap' }}>
+            <Info size={16} /> Cancellation Policy
+          </div>
+          <div id="cancel-tooltip" style={{ position: 'absolute', right: 0, top: '40px', background: '#1e293b', color: 'white', padding: '12px', borderRadius: '8px', fontSize: '13px', width: '280px', zIndex: 50, display: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' }}>
+            Orders cannot be cancelled once they have been accepted or dispatched by the Business Owner. <br/><br/><strong>Note:</strong> Cancelled orders will be removed after a day.
+          </div>
+        </div>
       </div>
 
       <div style={{ width: '100%' }}>
@@ -178,7 +173,7 @@ export default function CustomerOrdersPage() {
                   boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.03), 0 2px 8px -2px rgba(15, 23, 42, 0.02)',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   position: 'relative',
-                  overflow: 'hidden'
+                  overflow: 'hidden', height: '100%'
                 }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-4px)';
@@ -217,9 +212,6 @@ export default function CustomerOrdersPage() {
                         {['ACCEPTED', 'IN_TRANSIT'].includes(order.status) && <Truck size={14} />}
                         {getStatusText(order.status)}
                       </span>
-                      <div style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        ID: <span style={{ color: '#64748b' }}>#{order.id}</span>
-                      </div>
                     </div>
                     
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
@@ -240,7 +232,7 @@ export default function CustomerOrdersPage() {
                   {order.items && order.items.map((item: any, idx: number) => (
                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: idx < order.items.length - 1 ? '1px dashed #e2e8f0' : 'none', paddingBottom: idx < order.items.length - 1 ? '12px' : '0' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
+                        <span style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', height: '100%', textOverflow: 'ellipsis', maxWidth: '200px' }}>
                           {item.productName}
                         </span>
                         <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 600 }}>Quantity: {item.quantity}</span>
@@ -259,7 +251,7 @@ export default function CustomerOrdersPage() {
                       </div>
                     </div>
 
-                    {['ACCEPTED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status) ? (
+                    {['WAITING_FOR_PARTNER', 'ACCEPTED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status) || order.finalDeliveryPrice ? (
                       <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Vehicle Base Fee</div>
@@ -366,25 +358,27 @@ export default function CustomerOrdersPage() {
                     )}
                   </div>
                   {order.status !== 'CANCELLED' && (
-                  <button style={{
-                    color: order.status === 'COMPLETED' ? '#4f46e5' : '#fff',
-                    fontWeight: 700,
-                    background: order.status === 'COMPLETED' ? '#e0e7ff' : '#4f46e5',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    padding: '8px 24px',
-                    borderRadius: '999px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s',
-                    boxShadow: order.status === 'COMPLETED' ? 'none' : '0 4px 12px rgba(79, 70, 229, 0.3)'
-                  }}
+                  <button 
+                    onClick={() => setSelectedOrderDetails(order)}
+                    style={{
+                      color: order.status === 'COMPLETED' ? '#4f46e5' : '#fff',
+                      fontWeight: 700,
+                      background: order.status === 'COMPLETED' ? '#e0e7ff' : '#4f46e5',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      padding: '8px 24px',
+                      borderRadius: '999px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s',
+                      boxShadow: order.status === 'COMPLETED' ? 'none' : '0 4px 12px rgba(79, 70, 229, 0.3)'
+                    }}
                     onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
                     onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                   >
-                    {order.status === 'COMPLETED' ? 'Buy Again' : 'Track'} <ChevronRight size={16} />
+                    View Details <ChevronRight size={16} />
                   </button>
                   )}
                 </div>
@@ -394,6 +388,87 @@ export default function CustomerOrdersPage() {
           </div>
         )}
       </div>
+
+      {selectedOrderDetails && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 50,
+          padding: '24px'
+        }} onClick={() => setSelectedOrderDetails(null)}>
+          <div style={{
+            background: 'white',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '500px',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            animation: 'modalFadeIn 0.2s ease-out'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ background: '#f8fafc', padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>Order Assignment Details</h2>
+              <button onClick={() => setSelectedOrderDetails(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              
+              {/* Business Owner Section */}
+              {selectedOrderDetails.businessOwner && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Store size={16} /> Business Owner
+                  </div>
+                  <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{selectedOrderDetails.businessOwner.name}</div>
+                    <div style={{ fontSize: '14px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={14} /> {selectedOrderDetails.businessOwner.contactNumber}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Partner Details Section */}
+              {selectedOrderDetails.partnerDetails ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Truck size={16} /> Delivery Partner
+                  </div>
+                  <div style={{ background: '#eff6ff', padding: '16px', borderRadius: '16px', border: '1px solid #bfdbfe', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#1e3a8a' }}>{selectedOrderDetails.partnerDetails.name}</div>
+                      {selectedOrderDetails.partnerDetails.contact && (
+                        <div style={{ fontSize: '14px', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}><Phone size={14} /> {selectedOrderDetails.partnerDetails.contact}</div>
+                      )}
+                    </div>
+                    
+                    <div style={{ borderTop: '1px dashed #93c5fd', margin: '4px 0' }}></div>
+                    
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#60a5fa', textTransform: 'uppercase', marginBottom: '4px' }}>Assigned Driver / Fleet</div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '6px' }}><UserCircle size={16} /> {selectedOrderDetails.partnerDetails.driverName || 'N/A'}</div>
+                      <div style={{ fontSize: '14px', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}><Car size={14} /> {selectedOrderDetails.partnerDetails.vehicleDetails || selectedOrderDetails.partnerDetails.driverContact || 'N/A'}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '24px', background: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b', fontSize: '14px', fontWeight: 500 }}>
+                  No delivery partner assigned yet.
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

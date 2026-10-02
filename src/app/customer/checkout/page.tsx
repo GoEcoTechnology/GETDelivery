@@ -316,7 +316,7 @@ export default function CheckoutPage() {
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <span style={{ fontWeight: 800, color: '#ef4444', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px' }}><AlertCircle size={16}/> Urgent Delivery</span>
-                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>+₱{(selectedRate?.urgentAdditionalFee || 0)}</span>
+                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>+₱{formatCurrency(globalUrgentFee)}</span>
                 </div>
                 <p style={{ fontSize: '13px', color: '#64748b' }}>Additional fee applied for urgent processing.</p>
                 

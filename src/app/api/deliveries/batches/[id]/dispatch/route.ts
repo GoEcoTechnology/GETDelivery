@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryOrders, deliveryBatches, deliveryBatchItems, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates } from '@/db/schema';
-import { eq, and, or, isNotNull, desc, inArray, gte } from 'drizzle-orm';
+import { eq, and, or, isNotNull, desc, inArray, gte, ilike } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 import { deductOrderStock } from '@/lib/inventory-helper';
@@ -19,6 +19,8 @@ export async function POST(
     if (isNaN(batchId)) {
       return NextResponse.json({ error: 'Invalid batch ID' }, { status: 400 });
     }
+    const body = await request.json();
+    const { requiredVehicleType } = body || {};
 
     const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
@@ -41,8 +43,8 @@ export async function POST(
       return NextResponse.json({ error: 'Delivery batch not found' }, { status: 404 });
     }
 
-    if (batch.status !== 'READY_FOR_DELIVERY') {
-      return NextResponse.json({ error: `Only READY_FOR_DELIVERY batches can be dispatched. Current status: ${batch.status}` }, { status: 400 });
+    if (batch.status !== 'READY_FOR_DELIVERY' && batch.status !== 'DRAFT') {
+      return NextResponse.json({ error: `Cannot dispatch batch in current status: ${batch.status}` }, { status: 400 });
     }
 
     // Get all orders in this batch
@@ -97,57 +99,49 @@ export async function POST(
         }
 
         // Determine the vehicle and pricing
-        let totalWeight = Number(batch.totalWeight) || 0;
-        
-        // Find recommended vehicle based on capacity
-        const { vehicles } = await import('@/db/schema');
-        const [suggestedVehicle] = await innerTx
-          .select({ id: vehicles.id, vehicleType: vehicles.vehicleType })
-          .from(vehicles)
-          .where(
-            and(
-              eq(vehicles.tenantId, tenantIdToUse),
-              eq(vehicles.status, 'ACTIVE'),
-              gte(vehicles.capacityKg, Math.ceil(totalWeight))
-            )
-          )
-          .orderBy(vehicles.capacityKg)
-          .limit(1);
-
+        let finalVehicleType = requiredVehicleType || 'Motorcycle';
         let basePrice = 0;
         let pricePerKm = 0;
-        let finalVehicleType = 'Motorcycle';
 
-        if (suggestedVehicle) {
-          finalVehicleType = suggestedVehicle.vehicleType;
-          const [rate] = await innerTx
-            .select()
-            .from(vehicleDeliveryRates)
-            .where(eq(vehicleDeliveryRates.vehicleType, finalVehicleType))
-            .limit(1);
+        const [rate] = await innerTx
+          .select()
+          .from(vehicleDeliveryRates)
+          .where(ilike(vehicleDeliveryRates.vehicleType, finalVehicleType))
+          .limit(1);
 
-          if (rate) {
-            basePrice = Number(rate.basePrice) || 0;
-            pricePerKm = Number(rate.pricePerKm) || 0;
-          }
+        if (rate) {
+          basePrice = Number(rate.basePrice) || 0;
+          pricePerKm = Number(rate.pricePerKm) || 0;
         } else if (settings) {
           pricePerKm = Number(settings.pricePerKm) || 0;
         }
 
         // 1. Update all order statuses and pricing
         for (const order of ordersInBatch) {
-          const distanceKm = Number.parseFloat(String(order.routeDistance || '0').replace(/[^\d.]/g, '')) || 0;
-          const finalDeliveryPrice = basePrice + (distanceKm * pricePerKm);
+          const distanceKm = Number.parseFloat(String(order.routeDistance || order.distanceKm || '0').replace(/[^\d.]/g, '')) || 0;
+          
+          let finalBasePrice = basePrice;
+          let finalPricePerKm = pricePerKm;
+          
+          if (finalBasePrice === 0) {
+            finalBasePrice = Number(order.vehicleBasePrice) || (order.normalDeliveryFee ? Number(order.normalDeliveryFee) : 50);
+          }
+          if (finalPricePerKm === 0) {
+            finalPricePerKm = Number(order.pricePerKm) || 10;
+          }
+          
+          const finalDeliveryPrice = finalBasePrice + (distanceKm * finalPricePerKm);
           
           await innerTx
             .update(deliveryOrders)
             .set({
               status: 'WAITING_FOR_PARTNER',
               pricingFrozenAt: new Date(),
-              vehicleBasePrice: basePrice.toString(),
-              pricePerKm: pricePerKm.toString(),
+              vehicleBasePrice: finalBasePrice.toString(),
+              pricePerKm: finalPricePerKm.toString(),
               distanceKm: distanceKm.toString(),
               finalDeliveryPrice: finalDeliveryPrice.toString(),
+              requiredVehicleType: finalVehicleType,
               preferredVehicle: finalVehicleType,
             })
             .where(eq(deliveryOrders.id, order.id));
@@ -157,8 +151,7 @@ export async function POST(
         await innerTx
           .update(deliveryBatches)
           .set({ 
-            status: 'WAITING_FOR_PARTNER',
-            suggestedVehicleId: suggestedVehicle?.id || null
+            status: 'WAITING_FOR_PARTNER'
           })
           .where(eq(deliveryBatches.id, batchId));
       }); // End of transaction

@@ -16,7 +16,7 @@ export async function POST(
 ) {
   return withAuth(request, { requiredPermissions: ['delivery.dispatch'] }, async (tx, claims) => {
     const orderId = parseInt((await params).id, 10);
-    
+
     if (isNaN(orderId)) {
       return NextResponse.json({ error: 'Invalid delivery ID' }, { status: 400 });
     }
@@ -56,8 +56,8 @@ export async function POST(
 
     // Find eligible ACTIVE delivery partners
     const eligiblePartners = await tx
-      .select({ 
-        id: deliveryPartners.id, 
+      .select({
+        id: deliveryPartners.id,
         mobileNumber: deliveryPartners.mobileNumber,
         companyName: deliveryPartners.companyName,
         email: deliveryPartners.email
@@ -67,14 +67,14 @@ export async function POST(
         or(eq(deliveryPartners.status, 'ACTIVE'), eq(deliveryPartners.status, 'AVAILABLE')),
         isNotNull(deliveryPartners.email)
       ));
-      
+
     if (eligiblePartners.length === 0) {
       return NextResponse.json({ error: 'No active delivery partners available with a valid email address' }, { status: 400 });
     }
 
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1); // Token expires in 1 hour
-    
+
     const partnerIds = eligiblePartners.map((p: { id: number }) => p.id);
 
     // Create invitations and send Emails synchronously in the DB transaction
@@ -124,15 +124,15 @@ export async function POST(
             .returning();
 
           const newNotifsToInsert: any[] = [];
-          
+
           // Get delivery date for email
           const deliveryDate = order.deliveryDate
             ? new Date(order.deliveryDate).toLocaleDateString('en-PH', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })
             : 'As soon as possible';
 
           const acceptUrl = `${process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}/partner/orders/${order.id}`;
@@ -215,12 +215,12 @@ export async function POST(
         }
       })();
 
-    // The broadcast emails and tokens are processed in the background.
+      // The broadcast emails and tokens are processed in the background.
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Dispatched to ${eligiblePartners.length} partners. Broadcast emails sent successfully.`
-    });
+      return NextResponse.json({
+        success: true,
+        message: `Dispatched to ${eligiblePartners.length} partners. Broadcast emails sent successfully.`
+      });
     } catch (error: any) {
       return NextResponse.json({ error: error.message || 'Failed to dispatch order due to inventory constraints' }, { status: 400 });
     }

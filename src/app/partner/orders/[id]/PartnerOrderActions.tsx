@@ -73,7 +73,7 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
     const finalReason = cancelReason === 'Other' ? otherReason : cancelReason;
     if (!finalReason) return alert('Please provide a reason');
     if (!confirm('Are you sure you want to cancel this delivery assignment? The business owner will be notified and this action cannot be undone.')) return;
-    
+
     setIsDeclining(true);
     try {
       const res = await fetch(`/api/partner/orders/${orderId}/cancel`, {
@@ -99,10 +99,10 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
       alert('Please provide both the driver name and contact number.');
       return;
     }
-    
+
     setIsStarting(true);
     try {
-      const res = await fetch(`/api/partner/orders/${orderId}/start`, { 
+      const res = await fetch(`/api/partner/orders/${orderId}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ driverName, driverContact })
@@ -177,7 +177,7 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
             <div style={{ background: '#fff', borderRadius: '20px', width: 'min(400px, 100%)', padding: '24px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
               <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', color: '#0f172a' }}>Decline Request</h3>
               <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '14px' }}>Please select a reason for declining this delivery request.</p>
-              
+
               <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
                 {declineReasons.map(r => (
                   <label key={r} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#334155', fontWeight: 500 }}>
@@ -186,12 +186,12 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
                   </label>
                 ))}
                 {declineReason === 'Other' && (
-                  <input 
-                    type="text" 
-                    placeholder="Please specify..." 
-                    value={otherReason} 
-                    onChange={e => setOtherReason(e.target.value)} 
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }} 
+                  <input
+                    type="text"
+                    placeholder="Please specify..."
+                    value={otherReason}
+                    onChange={e => setOtherReason(e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                   />
                 )}
               </div>
@@ -219,18 +219,18 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
         {localStatus === 'EXPIRED' && <StateMessage icon={<Clock size={18} />} color="#94a3b8" text="This invitation has expired" />}
         {!isAssigned && !['DECLINED', 'CANCELLED', 'EXPIRED', 'DELIVERED'].includes(localStatus) && <StateMessage icon={<AlertTriangle size={18} />} color="#64748b" text="Request is closed" />}
       </div>
-      
+
       {['ACCEPTED', 'TEMPORARY_WINNER'].includes(localStatus) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <button 
-            onClick={() => setShowStartModal(true)} 
+          <button
+            onClick={() => setShowStartModal(true)}
             disabled={isStarting}
             style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 800, cursor: isStarting ? 'not-allowed' : 'pointer', opacity: isStarting ? 0.7 : 1 }}
           >
             {isStarting ? 'Starting...' : 'Start Delivery'}
           </button>
-          <button 
-            onClick={() => setShowCancelModal(true)} 
+          <button
+            onClick={() => setShowCancelModal(true)}
             style={{ width: '100%', padding: '12px 18px', borderRadius: '14px', border: '1px solid #dc2626', background: 'transparent', color: '#dc2626', fontWeight: 800, cursor: 'pointer' }}
           >
             Cancel Assignment
@@ -240,8 +240,8 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
 
       {localStatus === 'IN_TRANSIT' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <button 
-            onClick={() => setShowCompleteModal(true)} 
+          <button
+            onClick={() => setShowCompleteModal(true)}
             style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: 'none', background: '#16a34a', color: 'white', fontWeight: 800, cursor: 'pointer' }}
           >
             Complete Delivery
@@ -254,26 +254,26 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
           <div style={{ background: '#fff', borderRadius: '20px', width: 'min(400px, 100%)', padding: '24px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
             <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', color: '#0f172a' }}>Start Delivery</h3>
             <p style={{ margin: '0 0 20px', color: '#475569', fontSize: '14px', lineHeight: 1.5 }}>Please provide the details of the driver assigned to this delivery.</p>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Driver Name</label>
-                <input 
-                  type="text" 
-                  value={driverName} 
-                  onChange={e => setDriverName(e.target.value)} 
+                <input
+                  type="text"
+                  value={driverName}
+                  onChange={e => setDriverName(e.target.value)}
                   placeholder="e.g. John Doe"
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }} 
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                 />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>Driver Contact Number</label>
-                <input 
-                  type="text" 
-                  value={driverContact} 
-                  onChange={e => setDriverContact(e.target.value)} 
+                <input
+                  type="text"
+                  value={driverContact}
+                  onChange={e => setDriverContact(e.target.value)}
                   placeholder="e.g. 09123456789"
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }} 
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                 />
               </div>
             </div>
@@ -291,7 +291,7 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
           <div style={{ background: '#fff', borderRadius: '20px', width: 'min(400px, 100%)', padding: '24px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
             <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', color: '#0f172a' }}>Complete Delivery?</h3>
             <p style={{ margin: '0 0 20px', color: '#475569', fontSize: '15px', lineHeight: 1.5 }}>Are you sure this delivery has been successfully completed? The business owner will be notified.</p>
-            
+
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setShowCompleteModal(false)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#f1f5f9', color: '#475569', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
               <button onClick={handleCompleteSubmit} disabled={isCompleting} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, cursor: isCompleting ? 'not-allowed' : 'pointer', opacity: isCompleting ? 0.7 : 1 }}>{isCompleting ? 'Completing...' : 'Confirm Completion'}</button>
@@ -305,7 +305,7 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
           <div style={{ background: '#fff', borderRadius: '20px', width: 'min(400px, 100%)', padding: '24px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
             <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', color: '#0f172a' }}>Cancel Assignment</h3>
             <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '14px' }}>Please select a reason for cancelling this delivery assignment.</p>
-            
+
             <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
               {cancelReasons.map(r => (
                 <label key={r} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#334155', fontWeight: 500 }}>
@@ -314,12 +314,12 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
                 </label>
               ))}
               {cancelReason === 'Other' && (
-                <input 
-                  type="text" 
-                  placeholder="Please specify..." 
-                  value={otherReason} 
-                  onChange={e => setOtherReason(e.target.value)} 
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }} 
+                <input
+                  type="text"
+                  placeholder="Please specify..."
+                  value={otherReason}
+                  onChange={e => setOtherReason(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}
                 />
               )}
             </div>

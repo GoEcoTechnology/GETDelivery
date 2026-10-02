@@ -44,8 +44,8 @@ export async function POST(
       return NextResponse.json({ error: 'Delivery batch not found' }, { status: 404 });
     }
 
-    if (batch.status !== 'READY_FOR_DELIVERY') {
-      return NextResponse.json({ error: `Only READY_FOR_DELIVERY batches can be dispatched. Current status: ${batch.status}` }, { status: 400 });
+    if (batch.status !== 'READY_FOR_DELIVERY' && batch.status !== 'DRAFT') {
+      return NextResponse.json({ error: `Cannot dispatch batch in current status: ${batch.status}` }, { status: 400 });
     }
 
     // Validate Driver

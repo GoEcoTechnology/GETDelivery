@@ -41,9 +41,11 @@ export default async function AdminOrdersPage() {
         itemId: deliveryItems.id,
         deliveryOrderId: deliveryItems.deliveryOrderId,
         productId: deliveryItems.productId,
+        variantId: deliveryItems.variantId,
         productName: deliveryItems.productName,
         quantity: deliveryItems.quantity,
         unitPrice: deliveryItems.unitPrice,
+        unit: deliveryItems.unit,
         quota: productVariants.quota,
       })
       .from(deliveryItems)

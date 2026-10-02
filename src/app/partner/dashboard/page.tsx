@@ -88,7 +88,7 @@ export default async function PartnerDashboard() {
 
   const calendarDeliveries = invitations
     .filter(inv => {
-      if (['ACCEPTED', 'IN_TRANSIT'].includes(inv.status)) return true;
+      if (['PENDING', 'WAITING_FOR_PARTNER', 'ACCEPTED', 'IN_TRANSIT'].includes(inv.status)) return true;
       if (['DELIVERED', 'COMPLETED'].includes(inv.status)) {
         const completedDate = new Date(inv.updatedAt || inv.createdAt || 0);
         const oneDayAgo = new Date();
@@ -99,7 +99,7 @@ export default async function PartnerDashboard() {
     })
     .map(inv => ({
       id: inv.order.id,
-      deliveryDate: inv.order.deliveryDate,
+      deliveryDate: inv.order.deliveryDate || inv.createdAt || null,
       tenantName: inv.tenantName,
       pickupAddress: inv.order.pickupAddress,
       dropoffAddress: inv.order.dropoffAddress,

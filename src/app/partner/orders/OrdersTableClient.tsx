@@ -89,6 +89,12 @@ export default function OrdersTableClient({ invitations, partnerCompanyName = 'Y
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: '#f8fafc', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <MapPin size={16} color="#64748b" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.4 }}>
+                    <span style={{ fontWeight: 600, color: '#0f172a' }}>From: </span>{item.order.pickupAddress}
+                  </div>
+                </div>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                   <Navigation size={16} color="#64748b" style={{ flexShrink: 0, marginTop: '2px' }} />
                   <div style={{ color: '#334155', fontSize: '14px', lineHeight: 1.4 }}>
@@ -104,7 +110,13 @@ export default function OrdersTableClient({ invitations, partnerCompanyName = 'Y
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
-                <button style={{
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`${basePath}/${item.order.id}`);
+                  }}
+                  style={{
                   color: '#4f46e5',
                   fontWeight: 700,
                   background: '#eff6ff',

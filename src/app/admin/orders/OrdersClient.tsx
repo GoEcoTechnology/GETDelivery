@@ -1,7 +1,7 @@
 'use client';
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, XCircle, Clock, ShoppingBag, MapPin, Package, X, ChevronDown, ChevronUp, AlertCircle, Calendar, Zap, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, ShoppingBag, MapPin, Package, X, ChevronDown, ChevronUp, AlertCircle, Calendar, Zap, Trash2, Phone, Truck, Edit2 } from 'lucide-react';
 import styles from '../admin.module.css';
 import { ActionMenu } from '@/components/ActionMenu';
 import { EmptyState } from '@/components/EmptyState';
@@ -11,15 +11,6 @@ const DispatchModal = dynamic(() => import('../deliveries/DispatchModal').then(m
   ssr: false
 });
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-interface OrderProduct {
-  itemId: number;
-  deliveryOrderId: number;
-  productId: number;
-  productName: string;
-  quantity: number;
-  unitPrice: string | number;
-}
 
 interface CustomerOrder {
   id: number;
@@ -39,6 +30,7 @@ interface CustomerOrder {
   instructions?: string | null;
 }
 
+// ── Types ──────────────────────────────────────────────────────────────────────
 interface OrderProduct {
   itemId: number;
   deliveryOrderId: number;
@@ -46,7 +38,9 @@ interface OrderProduct {
   productName: string;
   quantity: number;
   unitPrice: string | number;
+  unit?: string | null;
   quota?: number;
+  equivalentQty?: number;
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -78,11 +72,11 @@ function getToken() {
 // ── Status Badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; color: string; bg: string }> = {
-    DRAFT:       { label: 'Pending',    color: '#d97706', bg: '#fef3c7' },
-    WAITING:     { label: 'Waiting',    color: '#d97706', bg: '#fef3c7' },
-    PROCESSING:  { label: 'Accepted',   color: '#2563eb', bg: '#dbeafe' },
-    COMPLETED:   { label: 'Completed',  color: '#16a34a', bg: '#dcfce7' },
-    CANCELLED:   { label: 'Rejected',   color: '#ef4444', bg: '#fee2e2' },
+    DRAFT: { label: 'Pending', color: '#d97706', bg: '#fef3c7' },
+    WAITING: { label: 'Waiting', color: '#d97706', bg: '#fef3c7' },
+    PROCESSING: { label: 'Accepted', color: '#2563eb', bg: '#dbeafe' },
+    COMPLETED: { label: 'Completed', color: '#16a34a', bg: '#dcfce7' },
+    CANCELLED: { label: 'Rejected', color: '#ef4444', bg: '#fee2e2' },
   };
   const s = map[status] || { label: status, color: '#475569', bg: '#f1f5f9' };
   return (
@@ -187,8 +181,12 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching, 
                         <Package size={20} color="#4f46e5" />
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px' }}>{p.productName}</div>
-                        <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>Qty: {p.quantity} &times; {formatCurrency(p.unitPrice)}</div>
+                        <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px' }}>
+                          {p.productName}
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
+                          Qty: {p.quantity} {p.unit ? `(${p.unit})` : ''} &times; {formatCurrency(p.unitPrice)}
+                        </div>
                       </div>
                     </div>
                     <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '15px' }}>
@@ -203,24 +201,24 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching, 
           {/* Right Column (Summary) */}
           <div style={{ flex: 1, background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '20px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', marginTop: 0 }}>Order Summary</h3>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#475569' }}>
               <span>Subtotal</span>
               <span style={{ fontWeight: 600 }}>{formatCurrency(subtotal)}</span>
             </div>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#475569' }}>
               <span>Delivery Fee</span>
               <span style={{ fontWeight: 600 }}>{order.normalDeliveryFee ? formatCurrency(order.normalDeliveryFee) : 'TBD'}</span>
             </div>
-            
+
             {isUrgent && order.urgentAdditionalFee && (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#dc2626' }}>
                 <span>Urgent Surcharge</span>
                 <span style={{ fontWeight: 600 }}>+{formatCurrency(order.urgentAdditionalFee)}</span>
               </div>
             )}
-            
+
             <div style={{ borderTop: '2px dashed #cbd5e1', margin: '16px 0', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '16px' }}>Total Amount</span>
               <span style={{ fontWeight: 800, color: '#4f46e5', fontSize: '20px' }}>
@@ -240,10 +238,17 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
   const queryClient = useQueryClient();
   const { toasts, show: showToast } = useToast();
   const [actingId, setActingId] = useState<{ id: number; action: 'accept' | 'reject' | 'dispatch' | 'delete' } | null>(null);
+
+  const [draggedOrderId, setDraggedOrderId] = useState<number | null>(null);
+  const [newBatchPrompt, setNewBatchPrompt] = useState<{ isOpen: boolean, orderIds: number[], defaultBatchName: string, basisVariantId: number | null }>({ isOpen: false, orderIds: [], defaultBatchName: '', basisVariantId: null });
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [viewingOrder, setViewingOrder] = useState<CustomerOrder | null>(null);
   const [dispatchModalBatchId, setDispatchModalBatchId] = useState<number | null>(null);
   const [selectedOrders, setSelectedOrders] = useState<Record<number, boolean>>({});
+  const [editingGroup, setEditingGroup] = useState<string | null>(null);
+  const [groupNameOverrides, setGroupNameOverrides] = useState<Record<string, string>>({});
+  const [dragOverBatchId, setDragOverBatchId] = useState<number | null>(null);
+  const [dragOverGroupName, setDragOverGroupName] = useState<string | null>(null);
 
   const toggleOrderSelection = (orderId: number) => {
     setSelectedOrders(prev => ({
@@ -317,7 +322,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
       showToast('Order batched successfully!', 'success');
       setViewingOrder(null);
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
-      
+
       if (data.batchIds && data.batchIds.length > 0) {
         setDispatchModalBatchId(data.batchIds[0]);
       }
@@ -327,40 +332,91 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
   });
 
   const [isBatchDispatching, setIsBatchDispatching] = useState(false);
-  
+
   const batchDispatchMutation = useMutation({
-    mutationFn: async (orderIds: number[]) => {
+    mutationFn: async ({ orderIds, batchName, basisVariantId }: { orderIds: number[], batchName?: string, basisVariantId?: number }) => {
       const res = await fetch(`/api/admin/orders/batch-dispatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ orderIds })
+        body: JSON.stringify({ orderIds, batchName, basisVariantId })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch batch');
       return data;
     },
     onMutate: () => setIsBatchDispatching(true),
-    onSuccess: (data, orderIds) => {
+    onSuccess: (data, { orderIds }) => {
       queryClient.setQueryData<CustomerOrder[]>(['admin-orders'], prev =>
         prev ? prev.map(o => orderIds.includes(o.id) ? { ...o, status: 'PROCESSING' } : o) : prev
       );
       showToast('Selected orders batched successfully!', 'success');
-      
-      // Clear selection for dispatched orders
+
       setSelectedOrders(prev => {
         const next = { ...prev };
         orderIds.forEach(id => delete next[id]);
         return next;
       });
-      
+
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
-      
-      if (data.batchIds && data.batchIds.length > 0) {
-        setDispatchModalBatchId(data.batchIds[0]);
-      }
+      queryClient.invalidateQueries({ queryKey: ['marketplace-batches'] });
     },
     onError: (err: any) => showToast(err.message || 'Failed to dispatch orders', 'error'),
     onSettled: () => setIsBatchDispatching(false),
+  });
+
+  const addToBatchMutation = useMutation({
+    mutationFn: async ({ orderIds, targetBatchId }: { orderIds: number[], targetBatchId: number }) => {
+      const res = await fetch(`/api/admin/orders/add-to-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ orderIds, targetBatchId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to add to batch');
+      return data;
+    },
+    onSuccess: () => {
+      showToast('Customers added to batch successfully!', 'success');
+      setSelectedOrders({});
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['marketplace-batches'] });
+    },
+    onError: (err: any) => showToast(err.message || 'Failed to add to batch', 'error'),
+  });
+
+  const { data: batches = [] } = useQuery({
+    queryKey: ['marketplace-batches'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/deliveries/marketplace', {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch marketplace batches');
+      return await res.json();
+    },
+    refetchInterval: 30_000,
+  });
+
+  const removeFromBatchMutation = useMutation({
+    mutationFn: async ({ batchItemId, orderId, batchId }: { batchItemId: number, orderId: number, batchId: number }) => {
+      // We can just call an API endpoint to remove the item from the batch.
+      // But wait! Do we have this endpoint? The user earlier said "when i drag it says internal server and remove number 2"
+      // They probably mean "tell here that removing will deduct the quota etc"
+      // Wait, there is no remove endpoint yet? Let's check!
+      const res = await fetch(`/api/admin/orders/${orderId}/remove-from-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ batchItemId, batchId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to remove from batch');
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['marketplace-batches'] });
+      showToast('Order removed from batch.', 'success');
+    },
+    onError: (err: any) => showToast(err.message || 'Failed to remove from batch', 'error'),
   });
 
   const rejectMutation = useMutation({
@@ -417,7 +473,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
 
   const filtered = (orders || []).filter(o => (filterStatus === 'ALL' ? o.status !== 'CANCELLED' : o.status === filterStatus));
   const pendingCount = (orders || []).filter(o => o.status === 'DRAFT').length;
-  
+
   // Separate orders
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
@@ -444,33 +500,42 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
 
   const marketplaceGroups: Record<string, ProductGroup> = {};
   for (const o of marketplaceFiltered) {
-    for (const p of o.products) {
-      if (!p) continue;
-      const key = p.productName;
-      if (!marketplaceGroups[key]) {
-        marketplaceGroups[key] = {
-          productName: key,
-          totalCustomers: 0,
-          totalQuantity: 0,
-          totalValue: 0,
-          urgentCount: 0,
-          quota: p.quota || 50,
-          orders: []
-        };
-      }
-      
-      // Only push the order once per product group (in case same product appears multiple times in one order)
-      if (!marketplaceGroups[key].orders.find(existing => existing.id === o.id)) {
-        marketplaceGroups[key].orders.push(o);
-        marketplaceGroups[key].totalCustomers++;
-        if (o.deliveryPriority === 'URGENT') {
-          marketplaceGroups[key].urgentCount++;
-        }
-      }
-      
-      marketplaceGroups[key].totalQuantity += p.quantity;
-      marketplaceGroups[key].totalValue += (Number(p.unitPrice || 0) * p.quantity);
+    if (!o.products || o.products.length === 0) continue;
+
+    // Use the primary product (first one) as the group to avoid splitting a single order
+    const p = o.products[0];
+    const unitSuffix = p.unit && !['piece', 'pcs', 'piece (s)', 'pieces'].includes(p.unit.toLowerCase()) ? ` - ${p.unit}` : '';
+    const key = p.productName + unitSuffix;
+
+    if (!marketplaceGroups[key]) {
+      marketplaceGroups[key] = {
+        productName: key,
+        totalCustomers: 0,
+        totalQuantity: 0,
+        totalValue: 0,
+        urgentCount: 0,
+        quota: p.quota || 50,
+        orders: []
+      };
     }
+
+    marketplaceGroups[key].orders.push(o);
+    marketplaceGroups[key].totalCustomers++;
+    if (o.deliveryPriority === 'URGENT') {
+      marketplaceGroups[key].urgentCount++;
+    }
+
+    // Sum up the quantities and values of all products in this single order
+    let orderQty = 0;
+    let orderValue = 0;
+    for (const prod of o.products) {
+      const eqQty = prod.equivalentQty ? Number(prod.equivalentQty) : 1;
+      orderQty += prod.quantity * eqQty;
+      orderValue += (Number(prod.unitPrice || 0) * prod.quantity);
+    }
+
+    marketplaceGroups[key].totalQuantity += orderQty;
+    marketplaceGroups[key].totalValue += orderValue;
   }
 
   // Sort orders within each group so URGENT is at the top
@@ -497,10 +562,10 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
         ))}
       </div>
 
-      <OrderDetailsModal 
-        isOpen={!!viewingOrder} 
-        onClose={() => setViewingOrder(null)} 
-        order={viewingOrder} 
+      <OrderDetailsModal
+        isOpen={!!viewingOrder}
+        onClose={() => setViewingOrder(null)}
+        order={viewingOrder}
         onDispatch={(id) => dispatchMutation.mutate(id)}
         isDispatching={actingId?.id === viewingOrder?.id && actingId?.action === 'dispatch'}
         onDelete={(id) => deleteMutation.mutate(id)}
@@ -531,7 +596,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
 
 
         {/* MARKETPLACE SECTION (Waiting for Quota) */}
-        {marketplaceFiltered.length === 0 ? (
+        {marketplaceFiltered.length === 0 && batches.length === 0 ? (
           <EmptyState
             icon={Package}
             title="NO ORDERS WAITING"
@@ -552,22 +617,58 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                 const isExpanded = expandedGroups[group.productName];
                 const hasUrgent = group.urgentCount > 0;
                 const percentage = Math.min(100, Math.round((group.totalQuantity / group.quota) * 100));
-                
+
                 return (
-                  <div key={group.productName} style={{ 
-                    background: '#fff', 
-                    borderRadius: '16px', 
-                    border: hasUrgent ? '1px solid #fca5a5' : '1px solid #e2e8f0',
-                    boxShadow: hasUrgent ? '0 4px 12px rgba(239, 68, 68, 0.1)' : '0 2px 8px rgba(15, 23, 42, 0.04)',
-                    overflow: 'hidden'
-                  }}>
+                  <div key={group.productName}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverGroupName !== group.productName) setDragOverGroupName(group.productName);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverGroupName === group.productName) setDragOverGroupName(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverGroupName(null);
+                      const oIdsStr = e.dataTransfer.getData('orderIds');
+                      const oId = e.dataTransfer.getData('orderId');
+
+                      let draggedOrderIds: number[] = [];
+                      if (oIdsStr) {
+                        try { draggedOrderIds = JSON.parse(oIdsStr); } catch (err) { }
+                      }
+                      if (draggedOrderIds.length === 0 && oId) {
+                        draggedOrderIds = [Number(oId)];
+                      }
+
+                      if (draggedOrderIds.length > 0) {
+                        const existingGroupOrderIds = group.orders.map(o => o.id);
+                        const combinedOrderIds = Array.from(new Set([...draggedOrderIds, ...existingGroupOrderIds]));
+
+                        // Automatically create batch without popup as requested by the user for non-"Create New Batch" areas
+                        batchDispatchMutation.mutate({
+                          orderIds: combinedOrderIds,
+                          batchName: groupNameOverrides[group.productName] || group.productName,
+                          basisVariantId: undefined
+                        });
+                      }
+                    }}
+                    style={{
+                      background: dragOverGroupName === group.productName ? '#eff6ff' : '#fff',
+                      borderRadius: '16px',
+                      border: dragOverGroupName === group.productName ? '2px dashed #3b82f6' : (hasUrgent ? '1px solid #fca5a5' : '1px solid #e2e8f0'),
+                      boxShadow: hasUrgent ? '0 4px 12px rgba(239, 68, 68, 0.1)' : '0 2px 8px rgba(15, 23, 42, 0.04)',
+                      overflow: 'hidden',
+                      transition: 'all 0.2s'
+                    }}>
                     {/* Header Summary */}
-                    <div 
+                    <div
                       onClick={() => toggleGroup(group.productName)}
-                      style={{ 
-                        padding: '16px', 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
+                      style={{
+                        padding: '16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
                         alignItems: 'center',
                         cursor: 'pointer',
                         background: hasUrgent ? '#fef2f2' : '#f8fafc',
@@ -577,7 +678,36 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{group.productName}</h4>
+                          {editingGroup === group.productName ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              defaultValue={groupNameOverrides[group.productName] || group.productName}
+                              onClick={(e) => e.stopPropagation()}
+                              onBlur={(e) => {
+                                setGroupNameOverrides(prev => ({ ...prev, [group.productName]: e.target.value }));
+                                setEditingGroup(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  setGroupNameOverrides(prev => ({ ...prev, [group.productName]: e.currentTarget.value }));
+                                  setEditingGroup(null);
+                                }
+                              }}
+                              style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a', border: '1px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', outline: 'none' }}
+                            />
+                          ) : (
+                            <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {groupNameOverrides[group.productName] || group.productName}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingGroup(group.productName); }}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '4px' }}
+                                title="Rename group"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                            </h4>
+                          )}
                           {hasUrgent && (
                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 800 }}>
                               <Zap size={12} fill="white" /> URGENT ×{group.urgentCount}
@@ -594,7 +724,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                           <span style={{ fontWeight: 600, color: '#16a34a' }}>{formatCurrency(group.totalValue)}</span>
                         </div>
                       </div>
-                      
+
                       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                           <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Quota Progress</div>
@@ -614,15 +744,9 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                         <table className={styles.table} style={{ margin: 0, width: '100%' }}>
                           <thead style={{ background: '#f1f5f9' }}>
                             <tr>
-                              <th style={{ padding: '12px 16px', textAlign: 'center', width: '40px' }}>
-                                <input 
-                                  type="checkbox"
-                                  style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                                  checked={group.orders.every(o => selectedOrders[o.id]) && group.orders.length > 0}
-                                  onChange={(e) => toggleGroupSelection(group.orders.map(o => o.id), e.target.checked)}
-                                />
-                              </th>
+
                               <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Customer</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Items</th>
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Quantity</th>
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Amount</th>
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Status</th>
@@ -637,23 +761,31 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                               const isDeleting = actingId?.id === order.id && actingId?.action === 'delete';
 
                               return (
-                                <tr 
-                                  key={order.id} 
-                                  style={{ 
+                                <tr
+                                  key={order.id}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    const selectedIdsAll = Object.keys(selectedOrders).filter(id => selectedOrders[Number(id)]).map(Number);
+                                    let idsToDrag = [order.id];
+                                    if (selectedOrders[order.id] && selectedIdsAll.length > 1) {
+                                      idsToDrag = selectedIdsAll;
+                                    }
+                                    e.dataTransfer.setData('orderIds', JSON.stringify(idsToDrag));
+                                    e.dataTransfer.setData('orderId', order.id.toString());
+                                    e.dataTransfer.setData('variantId', p?.productId?.toString() || '');
+                                    e.dataTransfer.setData('variantName', groupNameOverrides[group.productName] || group.productName);
+                                    setDraggedOrderId(order.id);
+                                  }}
+                                  onDragEnd={() => setDraggedOrderId(null)}
+                                  style={{
                                     background: isOrderUrgent ? '#fff5f5' : 'white',
-                                    opacity: rowActing ? 0.75 : 1, 
-                                    borderBottom: '1px solid #f1f5f9'
-                                  }} 
+                                    opacity: rowActing || draggedOrderId === order.id ? 0.5 : 1,
+                                    borderBottom: '1px solid #f1f5f9',
+                                    cursor: 'grab'
+                                  }}
                                   className={styles.clickableRow}
                                 >
-                                  <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle' }} onClick={(e) => e.stopPropagation()}>
-                                    <input 
-                                      type="checkbox"
-                                      style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                                      checked={!!selectedOrders[order.id]}
-                                      onChange={() => toggleOrderSelection(order.id)}
-                                    />
-                                  </td>
+
                                   <td style={{ padding: '16px', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                       <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -669,11 +801,30 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                                       )}
                                     </div>
                                   </td>
-                                  <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
-                                    <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>{p.quantity}</div>
+                                  <td style={{ padding: '16px', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                      {Object.values((order.products || []).reduce((acc: any, prod: any) => {
+                                        const unitSuffix = prod.unit ? `(${prod.unit}) ` : '';
+                                        const key = prod.productName + unitSuffix;
+                                        if (!acc[key]) acc[key] = { ...prod, unitSuffix };
+                                        else acc[key].quantity += prod.quantity;
+                                        return acc;
+                                      }, {})).map((prod: any) => (
+                                        <div key={prod.itemId} style={{ fontSize: '12px', color: '#475569' }}>
+                                          x{prod.quantity}
+                                        </div>
+                                      ))}
+                                    </div>
                                   </td>
                                   <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
-                                    <div style={{ fontWeight: 600, color: '#475569', fontSize: '14px' }}>{formatCurrency(Number(p.unitPrice || 0) * p.quantity)}</div>
+                                    <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>
+                                      {order.products.reduce((acc, prod) => acc + (prod.quantity * (prod.equivalentQty ? Number(prod.equivalentQty) : 1)), 0)}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
+                                    <div style={{ fontWeight: 600, color: '#475569', fontSize: '14px' }}>
+                                      {formatCurrency(order.products.reduce((acc, prod) => acc + (Number(prod.unitPrice || 0) * prod.quantity), 0))}
+                                    </div>
                                   </td>
                                   <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
                                     <StatusBadge status="WAITING" />
@@ -711,44 +862,311 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                             })}
                           </tbody>
                         </table>
-                        
+
                         {/* Footer Action Buttons */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>
-                            {group.orders.filter(o => selectedOrders[o.id]).length} of {group.orders.length} customers selected
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                          <div
+                            style={{
+                              padding: '8px 16px',
+                              borderRadius: '8px',
+                              border: '1px dashed #cbd5e1',
+                              background: 'white',
+                              color: '#334155',
+                              fontWeight: 600,
+                              fontSize: '13px'
+                            }}
+                          >
+                            Drag customer to Create New Batch &rarr;
                           </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {batches.map((batch: any) => {
+                const isExpanded = expandedGroups[batch.batchNumber];
+                const totalCustomers = new Set((batch.items || []).map((it: any) => it.customerName)).size;
+                const urgentCount = batch.items?.filter((it: any) => it.deliveryPriority === 'URGENT').length || 0;
+                const hasUrgent = urgentCount > 0;
+                const percentage = batch.quotaQuantity ? Math.min(100, Math.round((batch.totalQuantity / batch.quotaQuantity) * 100)) : 100;
+
+                return (
+                  <div key={batch.id}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverBatchId !== batch.id) setDragOverBatchId(batch.id);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverBatchId === batch.id) setDragOverBatchId(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverBatchId(null);
+                      const oIdsStr = e.dataTransfer.getData('orderIds');
+                      const oId = e.dataTransfer.getData('orderId');
+
+                      let orderIds: number[] = [];
+                      if (oIdsStr) {
+                        try {
+                          orderIds = JSON.parse(oIdsStr);
+                        } catch (err) { }
+                      }
+                      if (orderIds.length === 0 && oId) {
+                        orderIds = [Number(oId)];
+                      }
+                      if (orderIds.length > 0) {
+                        addToBatchMutation.mutate({ orderIds, targetBatchId: batch.id });
+                      }
+                    }}
+                    style={{
+                      background: dragOverBatchId === batch.id ? '#eff6ff' : '#fff',
+                      borderRadius: '16px',
+                      border: dragOverBatchId === batch.id ? '2px dashed #3b82f6' : (hasUrgent ? '1px solid #fca5a5' : '1px solid #e2e8f0'),
+                      boxShadow: hasUrgent ? '0 4px 12px rgba(239, 68, 68, 0.1)' : '0 2px 8px rgba(15, 23, 42, 0.04)',
+                      overflow: 'hidden',
+                      transition: 'all 0.2s'
+                    }}>
+                    {/* Header Summary */}
+                    <div
+                      onClick={() => toggleGroup(batch.batchNumber)}
+                      style={{
+                        padding: '16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        background: hasUrgent ? '#fef2f2' : '#f8fafc',
+                        borderBottom: isExpanded ? '1px solid #e2e8f0' : 'none',
+                        transition: 'background 0.2s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+                            {batch.batchNumber && !batch.batchNumber.startsWith('DEL-')
+                              ? batch.batchNumber
+                              : (batch.productName ? `${batch.productName} - ${batch.variantName}` : (batch.variantName || 'Batch ' + batch.batchNumber))}
+                          </h4>
+                          {hasUrgent && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 800 }}>
+                              <Zap size={12} fill="white" /> URGENT ×{urgentCount}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span>{totalCustomers} Customers</span>
+                          <span style={{ color: '#cbd5e1' }}>•</span>
+                          <span>{batch.totalQuantity} Ordered</span>
+                          <span style={{ color: '#cbd5e1' }}>•</span>
+                          <span>Quota: {batch.quotaQuantity}</span>
+                          <span style={{ color: '#cbd5e1' }}>•</span>
+                          <span style={{ fontWeight: 600, color: '#16a34a' }}>
+                            {formatCurrency(batch.items?.reduce((sum: number, it: any) => sum + (Number(it.offeredAmount || 0) + Number(it.finalDeliveryPrice || 0)), 0) || 0)}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Quota Progress</div>
+                          <div style={{ width: '120px', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${percentage}%`, background: percentage >= 100 ? '#10b981' : '#3b82f6', transition: 'width 0.3s ease' }}></div>
+                          </div>
+                        </div>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'white', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div style={{ padding: '0', display: 'flex', flexDirection: 'column' }} className={styles.fadeIn}>
+                        <table className={styles.table} style={{ margin: 0, width: '100%' }}>
+                          <thead style={{ background: '#f1f5f9' }}>
+                            <tr>
+                              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Customer</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Items Included</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Quantity</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Amount</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Status</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              const grouped = Object.values(
+                                (batch.items || []).reduce((acc: any, it: any) => {
+                                  const key = it.customerName;
+                                  if (!acc[key]) {
+                                    acc[key] = {
+                                      id: it.id,
+                                      customerName: it.customerName,
+                                      customerContact: it.customerContact,
+                                      deliveryPriority: it.deliveryPriority,
+                                      status: it.status,
+                                      customerOrderIds: [],
+                                      quantity: 0,
+                                      amount: 0,
+                                      products: [],
+                                      rawItems: []
+                                    };
+                                  }
+                                  acc[key].customerOrderIds.push(it.customerOrderId);
+                                  acc[key].quantity += Number(it.quantity || 0);
+                                  acc[key].amount += (it.products || []).reduce((sum: number, curr: any) => sum + (Number(curr.unitPrice) * curr.quantity), 0);
+                                  if (it.products) acc[key].products.push(...it.products);
+                                  acc[key].rawItems.push(it);
+                                  if (it.deliveryPriority === 'URGENT') acc[key].deliveryPriority = 'URGENT';
+                                  return acc;
+                                }, {})
+                              );
+
+                              return grouped.map((it: any) => {
+                                const p = (it.products || [])[0] || {};
+                                const isOrderUrgent = it.deliveryPriority === 'URGENT';
+                                return (
+                                  <tr
+                                    key={it.id}
+                                    className={styles.clickableRow}
+                                    draggable
+                                    onDragStart={(e) => {
+                                      const selectedIdsAll = Object.keys(selectedOrders).filter(id => selectedOrders[Number(id)]).map(Number);
+                                      let idsToDrag = it.customerOrderIds;
+                                      if (it.customerOrderIds.some((id: number) => selectedOrders[id]) && selectedIdsAll.length > 1) {
+                                        idsToDrag = selectedIdsAll;
+                                      }
+                                      e.dataTransfer.setData('orderIds', JSON.stringify(idsToDrag));
+                                      e.dataTransfer.setData('orderId', it.customerOrderIds[0].toString());
+                                      e.dataTransfer.setData('variantId', p?.productId?.toString() || '');
+                                      e.dataTransfer.setData('variantName', batch.variantName || 'Batch');
+                                      setDraggedOrderId(it.customerOrderIds[0]);
+                                    }}
+                                    onDragEnd={() => setDraggedOrderId(null)}
+                                    style={{
+                                      background: isOrderUrgent ? '#fff5f5' : 'white',
+                                      opacity: draggedOrderId && it.customerOrderIds.includes(draggedOrderId) ? 0.5 : 1,
+                                      borderBottom: '1px solid #f1f5f9',
+                                      cursor: 'grab'
+                                    }}
+                                  >
+                                    <td
+                                      style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', verticalAlign: 'middle', cursor: 'pointer' }}
+                                      onClick={() => {
+                                        const actualOrder = orders?.find(o => o.id === it.customerOrderIds[0]);
+                                        if (actualOrder) setViewingOrder(actualOrder);
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '13px' }}>{it.customerName}</div>
+                                      {it.deliveryPriority === 'URGENT' && (
+                                        <span style={{ display: 'inline-block', marginTop: '4px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>URGENT</span>
+                                      )}
+                                    </td>
+                                    <td
+                                      style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', verticalAlign: 'middle', cursor: 'pointer' }}
+                                      onClick={() => {
+                                        const actualOrder = orders?.find(o => o.id === it.customerOrderIds[0]);
+                                        if (actualOrder) setViewingOrder(actualOrder);
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        {Object.values((it.products || []).reduce((acc: any, p: any) => {
+                                          const unitSuffix = p.unit ? `(${p.unit}) ` : '';
+                                          const key = p.productName + unitSuffix;
+                                          if (!acc[key]) acc[key] = { ...p, unitSuffix };
+                                          else acc[key].quantity += p.quantity;
+                                          return acc;
+                                        }, {})).map((p: any, idx: number) => (
+                                          <div key={idx} style={{ fontSize: '12px', color: '#475569' }}>
+                                            x{p.quantity}
+                                          </div>
+                                        ))}
+                                        {(!it.products || it.products.length === 0) && (
+                                          <div style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>No items found</div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td
+                                      style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }}
+                                      onClick={() => {
+                                        const actualOrder = orders?.find(o => o.id === it.customerOrderIds[0]);
+                                        if (actualOrder) setViewingOrder(actualOrder);
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '13px' }}>{it.quantity}</div>
+                                    </td>
+                                    <td
+                                      style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }}
+                                      onClick={() => {
+                                        const actualOrder = orders?.find(o => o.id === it.customerOrderIds[0]);
+                                        if (actualOrder) setViewingOrder(actualOrder);
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 600, color: '#10b981', fontSize: '13px' }}>
+                                        {formatCurrency(it.amount)}
+                                      </div>
+                                    </td>
+                                    <td
+                                      style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }}
+                                      onClick={() => {
+                                        const actualOrder = orders?.find(o => o.id === it.customerOrderIds[0]);
+                                        if (actualOrder) setViewingOrder(actualOrder);
+                                      }}
+                                    >
+                                      <StatusBadge status="WAITING" />
+                                    </td>
+                                    <td style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', textAlign: 'center', verticalAlign: 'middle' }} onClick={(e) => e.stopPropagation()}>
+                                      <button
+                                        onClick={() => {
+                                          if (confirm('Are you sure you want to completely delete this customer and all their orders? This cannot be undone.')) {
+                                            it.customerOrderIds.forEach((orderId: number) => {
+                                              deleteMutation.mutate(orderId);
+                                            });
+                                          }
+                                        }}
+                                        style={{
+                                          background: 'transparent',
+                                          color: '#dc2626',
+                                          border: 'none',
+                                          padding: '8px',
+                                          borderRadius: '8px',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          transition: 'background 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                        title="Delete Order"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              });
+                            })()}
+                          </tbody>
+                        </table>
+                        {/* Footer Action Buttons */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
                           <div style={{ display: 'flex', gap: '12px' }}>
                             <button
-                              onClick={() => batchDispatchMutation.mutate(group.orders.filter(o => selectedOrders[o.id]).map(o => o.id))}
-                              disabled={group.orders.filter(o => selectedOrders[o.id]).length === 0 || isBatchDispatching}
-                              style={{ 
-                                padding: '8px 16px', 
-                                borderRadius: '8px', 
-                                border: '1px solid #cbd5e1', 
-                                background: 'white', 
-                                color: group.orders.filter(o => selectedOrders[o.id]).length === 0 ? '#94a3b8' : '#334155', 
-                                fontWeight: 600, 
-                                fontSize: '13px', 
-                                cursor: group.orders.filter(o => selectedOrders[o.id]).length === 0 ? 'not-allowed' : 'pointer'
+                              onClick={() => setDispatchModalBatchId(batch.id)}
+                              style={{
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                background: '#3b82f6',
+                                color: 'white',
+                                fontWeight: 600,
+                                fontSize: '13px',
+                                cursor: 'pointer',
+                                border: 'none'
                               }}
                             >
-                              Dispatch Selected ({group.orders.filter(o => selectedOrders[o.id]).length})
-                            </button>
-                            <button
-                              onClick={() => batchDispatchMutation.mutate(group.orders.map(o => o.id))}
-                              disabled={isBatchDispatching}
-                              style={{ 
-                                padding: '8px 16px', 
-                                borderRadius: '8px', 
-                                border: 'none', 
-                                background: '#3b82f6', 
-                                color: 'white', 
-                                fontWeight: 600, 
-                                fontSize: '13px', 
-                                cursor: isBatchDispatching ? 'not-allowed' : 'pointer'
-                              }}
-                            >
-                              Dispatch All ({group.orders.length})
+                              Dispatch Delivery
                             </button>
                           </div>
                         </div>
@@ -758,12 +1176,122 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                 );
               })}
             </div>
-            
+
+            <div
+              style={{
+                margin: '12px',
+                padding: '32px',
+                border: '2px dashed #cbd5e1',
+                borderRadius: '16px',
+                background: '#f8fafc',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#64748b'
+              }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const oIdsStr = e.dataTransfer.getData('orderIds');
+                const oId = e.dataTransfer.getData('orderId');
+                const vId = e.dataTransfer.getData('variantId');
+                const vName = e.dataTransfer.getData('variantName');
+
+                let orderIds: number[] = [];
+                if (oIdsStr) {
+                  try {
+                    orderIds = JSON.parse(oIdsStr);
+                  } catch (err) { }
+                }
+                if (orderIds.length === 0 && oId) {
+                  orderIds = [Number(oId)];
+                }
+
+                if (orderIds.length > 0) {
+                  setNewBatchPrompt({
+                    isOpen: true,
+                    orderIds: orderIds,
+                    defaultBatchName: vName || 'New Batch',
+                    basisVariantId: null
+                  });
+                }
+              }}
+            >
+              <Package size={32} color="#94a3b8" style={{ marginBottom: '12px' }} />
+              <div style={{ fontWeight: 600, fontSize: '15px', color: '#334155' }}>Create New Batch</div>
+              <div style={{ fontSize: '13px', marginTop: '4px' }}>Drag and drop a customer order here</div>
+            </div>
+
             <div style={{ borderBottom: '1px solid #e2e8f0', margin: '24px 12px 12px' }}></div>
           </div>
         )}
 
       </div>
+
+      {/* Create Batch Prompt Modal */}
+      {newBatchPrompt.isOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '440px', padding: '32px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Package size={24} color="#3b82f6" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>Create New Batch</h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#64748b' }}>Move customer to a new delivery batch.</p>
+              </div>
+            </div>
+
+            <p style={{ margin: '0 0 24px 0', fontSize: '13px', color: '#475569', lineHeight: 1.5, background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <strong>Note:</strong> Creating this batch will remove it from the quota pool and deduct the quota progress for the remaining customers waiting for this product.
+            </p>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>Batch Name (Optional)</label>
+              <input
+                type="text"
+                value={newBatchPrompt.defaultBatchName}
+                onChange={(e) => setNewBatchPrompt(prev => ({ ...prev, defaultBatchName: e.target.value }))}
+                placeholder="e.g. North Route Delivery"
+                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box' }}
+                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
+              <button
+                onClick={() => setNewBatchPrompt({ isOpen: false, orderIds: [], defaultBatchName: '', basisVariantId: null })}
+                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isBatchDispatching}
+                onClick={() => {
+                  batchDispatchMutation.mutate({ orderIds: newBatchPrompt.orderIds, batchName: newBatchPrompt.defaultBatchName || undefined, basisVariantId: newBatchPrompt.basisVariantId || undefined });
+                  setNewBatchPrompt({ isOpen: false, orderIds: [], defaultBatchName: '', basisVariantId: null });
+                }}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: '#3b82f6',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  opacity: isBatchDispatching ? 0.7 : 1
+                }}
+              >
+                {isBatchDispatching ? 'Creating...' : 'Create Batch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

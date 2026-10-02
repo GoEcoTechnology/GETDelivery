@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems, products, productVariants, users } from '@/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems, products, productVariants, users, deliveryBatchItems } from '@/db/schema';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import PartnerOrderActions from './PartnerOrderActions';
 import RouteMap from '@/components/RouteMap';
 import { MapPin, User, Package, Navigation } from 'lucide-react';
@@ -12,6 +12,18 @@ async function getAddressFromCoords(lat: string, lng: string, fallback: string):
   // OpenStreetMap Nominatim often returns incorrect or distant road names (e.g. Sorsogon-Bacon-Manito Road)
   // for these coordinates. We'll show a friendly fallback instead.
   return 'Location Pinned on Map';
+}
+
+function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; 
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 export default async function PartnerOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -43,12 +55,15 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
       dropoffLat: deliveryOrders.dropoffLat,
       dropoffLng: deliveryOrders.dropoffLng,
       routePolyline: deliveryOrders.routePolyline,
-      instructions: deliveryOrders.instructions
+      instructions: deliveryOrders.instructions,
+      batchId: deliveryOrders.batchId
     },
     tenant: {
       id: tenants.id,
       name: tenants.name,
       contactPerson: tenants.contactPerson,
+      lat: tenants.lat,
+      lng: tenants.lng,
     },
     customer: {
       id: customers.id,
@@ -77,18 +92,35 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
   }
 
   const { order, customer, invitation: invite, tenant } = invitation;
-  const items = await db.select({ 
+
+  let orderIds = [order.id];
+  if (order.batchId) {
+    const bItems = await db.select().from(deliveryBatchItems).where(eq(deliveryBatchItems.batchId, order.batchId));
+    orderIds = bItems.map(i => i.customerOrderId);
+  }
+
+  const rawItems = await db.select({ 
     id: deliveryItems.id, 
     quantity: deliveryItems.quantity,
-    accumulated: sql<number>`COALESCE((SELECT SUM(quantity_added)::int FROM quota_accumulations WHERE source_order_id = ${order.id} AND product_id = ${deliveryItems.productId}), 0)`.mapWith(Number),
+    accumulated: sql<number>`COALESCE((SELECT SUM(quantity_added)::int FROM quota_accumulations WHERE source_order_id = delivery_items.delivery_order_id AND product_id = ${deliveryItems.productId}), 0)`.mapWith(Number),
     unit: deliveryItems.unit, 
-    productName: products.name,
-    price: productVariants.price
+    productName: deliveryItems.productName,
+    price: deliveryItems.unitPrice
   })
   .from(deliveryItems)
   .innerJoin(products, eq(deliveryItems.productId, products.id))
   .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
-  .where(eq(deliveryItems.deliveryOrderId, order.id));
+  .where(inArray(deliveryItems.deliveryOrderId, orderIds));
+
+  const items: typeof rawItems = [];
+  rawItems.forEach(newP => {
+    const match = items.find(p => p.productName === newP.productName && p.unit === newP.unit);
+    if (match) {
+      match.quantity = (match.quantity || 0) + (newP.quantity || 0);
+    } else {
+      items.push({ ...newP });
+    }
+  });
 
   const [businessOwner] = await db.select({ name: users.name, contactNumber: users.contactNumber, email: users.email })
     .from(users)
@@ -105,10 +137,64 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     pickupAddress = await getAddressFromCoords(lat.trim(), lng.trim(), pickupAddress);
   }
 
-  let dropoffAddress = order.dropoffAddress || '';
-  if (dropoffAddress && /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(dropoffAddress.trim())) {
-    const [lat, lng] = dropoffAddress.split(',');
-    dropoffAddress = await getAddressFromCoords(lat.trim(), lng.trim(), dropoffAddress);
+  let allOrders: any[] = [];
+  if (order.batchId) {
+    allOrders = await db.select().from(deliveryOrders).where(inArray(deliveryOrders.id, orderIds));
+  } else {
+    allOrders = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, order.id));
+  }
+
+  const customerStops = [];
+  let distanceKm = 0;
+  for (let i = 0; i < allOrders.length; i++) {
+    const o = allOrders[i];
+    let customerName = o.customerName;
+    let contactNumber = o.customerContact || '';
+    let address = o.dropoffAddress || '';
+
+    if (o.customerId) {
+      const [cust] = await db.select().from(customers).where(eq(customers.id, o.customerId));
+      if (cust) {
+        customerName = cust.name;
+        contactNumber = cust.mobileNumber || contactNumber;
+        address = cust.address || address;
+      }
+    }
+
+    if (address && /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(address.trim())) {
+      const [lat, lng] = address.split(',');
+      address = await getAddressFromCoords(lat.trim(), lng.trim(), address);
+    }
+    
+    distanceKm += Number.parseFloat(String(o.distanceKm || o.routeDistance || '0').replace(/[^\d.]/g, '')) || 0;
+
+    customerStops.push({
+      id: o.id,
+      stopNumber: customerStops.length + 1,
+      orderId: o.id,
+      customerName: customerName,
+      contactNumber,
+      address,
+      lat: o.dropoffLat ? parseFloat(o.dropoffLat) : undefined,
+      lng: o.dropoffLng ? parseFloat(o.dropoffLng) : undefined,
+    });
+  }
+  
+  if (distanceKm === 0) {
+    let pickupLat = order.batchId && tenant.lat ? parseFloat(tenant.lat as any) : (order.pickupLat ? parseFloat(order.pickupLat) : 0);
+    let pickupLng = order.batchId && tenant.lng ? parseFloat(tenant.lng as any) : (order.pickupLng ? parseFloat(order.pickupLng) : 0);
+    
+    if (pickupLat && pickupLng) {
+      let currentLat = pickupLat;
+      let currentLng = pickupLng;
+      customerStops.forEach(stop => {
+        if (stop.lat && stop.lng) {
+          distanceKm += getDistanceFromLatLonInKm(currentLat, currentLng, stop.lat, stop.lng) * 1.3;
+          currentLat = stop.lat;
+          currentLng = stop.lng;
+        }
+      });
+    }
   }
 
   return (
@@ -127,15 +213,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
                   pickupAddress={pickupAddress || 'Unknown'} 
                   pickupLat={order.pickupLat ? parseFloat(order.pickupLat) : undefined} 
                   pickupLng={order.pickupLng ? parseFloat(order.pickupLng) : undefined} 
-                  customerStops={[{
-                    id: customer?.id || 1,
-                    stopNumber: 1,
-                    address: dropoffAddress || 'Unknown',
-                    lat: order.dropoffLat ? parseFloat(order.dropoffLat) : undefined,
-                    lng: order.dropoffLng ? parseFloat(order.dropoffLng) : undefined,
-                    customerName: customer?.name || 'Customer',
-                    contactNumber: customer?.mobileNumber || ''
-                  }]} 
+                  customerStops={customerStops} 
                 />
               </div>
             </div>
@@ -158,9 +236,13 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
                 );
               })()}
               <DetailRow label="Pickup" value={pickupAddress} />
-              <DetailRow label="Dropoff" value={dropoffAddress} />
+              {customerStops.length === 1 ? (
+                <DetailRow label="Dropoff" value={customerStops[0].address} />
+              ) : (
+                <DetailRow label="Dropoffs" value={`${customerStops.length} Locations`} />
+              )}
               {order.requiredVehicleType && <DetailRow label="Required Vehicle" value={order.requiredVehicleType} chip />}
-              {order.distanceKm && <DetailRow label="Distance" value={`${order.distanceKm} km`} />}
+              {distanceKm > 0 && <DetailRow label="Distance" value={`${distanceKm.toFixed(2)} km`} />}
               {order.deliveryDate && <DetailRow label="Delivery Date" value={new Date(order.deliveryDate).toLocaleDateString()} />}
               <div style={{ borderTop: '1px solid #e2e8f0', margin: '4px 0' }} />
               <DetailRow label="Product Total" value={formatCurrency(productTotal)} />
