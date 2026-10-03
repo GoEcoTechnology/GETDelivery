@@ -35,6 +35,8 @@ interface OrderProduct {
   itemId: number;
   deliveryOrderId: number;
   productId: number;
+  variantId?: number;
+  variantName?: string | null;
   productName: string;
   quantity: number;
   unitPrice: string | number;

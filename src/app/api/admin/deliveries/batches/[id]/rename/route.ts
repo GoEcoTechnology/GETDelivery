@@ -4,7 +4,7 @@ import { deliveryBatches } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyToken } from '@/lib/auth';
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -16,7 +16,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
     const tenantId = claims.tenantId as number;
-    const batchId = parseInt(params.id);
+    const { id } = await params;
+    const batchId = parseInt(id);
 
     const { batchName } = await request.json();
 
