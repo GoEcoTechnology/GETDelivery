@@ -55,14 +55,35 @@ export async function POST(
         }, { status: 400 });
       }
 
+      const body = await request.json().catch(() => ({}));
+      const vehicleType = body.vehicleType;
+
+      let vRate = null;
+      if (vehicleType) {
+        const { vehicleDeliveryRates } = await import('@/db/schema');
+        const [rate] = await db.select().from(vehicleDeliveryRates).where(eq(vehicleDeliveryRates.vehicleType, vehicleType));
+        vRate = rate;
+      }
+
+      const { sql } = await import('drizzle-orm');
+
+      let updatePayload: any = {
+        status: 'ACCEPTED',
+        temporaryWinnerId: partnerId,
+        acceptedAt: new Date()
+      };
+
+      if (vRate) {
+        updatePayload.preferredVehicle = vRate.vehicleType;
+        updatePayload.vehicleBasePrice = vRate.basePrice;
+        updatePayload.pricePerKm = vRate.pricePerKm;
+        updatePayload.finalDeliveryPrice = sql`${vRate.basePrice} + (distance_km * ${vRate.pricePerKm}) + COALESCE(urgent_additional_fee, 0)`;
+      }
+
       // Perform updates using admin connection to bypass RLS restrictions on deliveryOrders for partners
       const updatedOrders = await db
         .update(deliveryOrders)
-        .set({
-          status: 'ACCEPTED',
-          temporaryWinnerId: partnerId,
-          acceptedAt: new Date()
-        })
+        .set(updatePayload)
         .where(
           and(
             inArray(deliveryOrders.id, relatedOrderIds),

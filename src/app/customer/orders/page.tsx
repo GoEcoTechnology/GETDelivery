@@ -251,7 +251,7 @@ export default function CustomerOrdersPage() {
                       </div>
                     </div>
 
-                    {['WAITING_FOR_PARTNER', 'ACCEPTED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status) || order.finalDeliveryPrice ? (
+                    {['ACCEPTED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status) ? (
                       <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Vehicle Base Fee</div>
@@ -288,6 +288,14 @@ export default function CustomerOrdersPage() {
                       </>
                     ) : (
                       <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Vehicle Base Fee</div>
+                          <div style={{ color: '#64748b', fontSize: '14px', fontWeight: 700 }}>TBD</div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Distance ({Number(order.distanceKm || 0).toFixed(1)} km)</div>
+                          <div style={{ color: '#64748b', fontSize: '14px', fontWeight: 700 }}>TBD</div>
+                        </div>
                         {order.deliveryPriority === 'URGENT' && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ color: '#ef4444', fontSize: '13px', fontWeight: 700 }}>Urgent Fee</div>

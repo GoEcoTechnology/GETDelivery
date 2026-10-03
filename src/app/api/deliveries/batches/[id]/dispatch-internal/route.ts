@@ -17,7 +17,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid batch ID' }, { status: 400 });
     }
 
-    const { driverId, vehicleId, customFee } = await request.json();
+    const { driverId, vehicleId } = await request.json();
 
     if (!driverId || !vehicleId) {
       return NextResponse.json({ error: 'Driver and Vehicle must be provided' }, { status: 400 });
@@ -102,9 +102,15 @@ export async function POST(
       }
 
       // 1. Update all order statuses
-      const updateData: any = { status: 'IN_TRANSIT' };
-      if (customFee !== undefined && customFee !== null) {
-        updateData.finalDeliveryPrice = customFee.toString();
+      const { vehicleDeliveryRates } = await import('@/db/schema');
+      const [vRate] = await tx.select().from(vehicleDeliveryRates).where(eq(vehicleDeliveryRates.vehicleType, vehicle.vehicleType));
+      const { sql } = await import('drizzle-orm');
+
+      const updateData: any = { status: 'IN_TRANSIT', preferredVehicle: vehicle.vehicleType };
+      if (vRate) {
+        updateData.vehicleBasePrice = vRate.basePrice;
+        updateData.pricePerKm = vRate.pricePerKm;
+        updateData.finalDeliveryPrice = sql`${vRate.basePrice} + (distance_km * ${vRate.pricePerKm}) + COALESCE(urgent_additional_fee, 0)`;
       }
 
       await tx

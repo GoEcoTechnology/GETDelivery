@@ -223,6 +223,7 @@ export default function CheckoutModal({ isOpen, onClose, tenantId, directItems }
           urgentReason: priority === 'URGENT' ? urgentReason : null,
           normalDeliveryFee: normalFee,
           urgentAdditionalFee: urgentFee,
+          distanceKm: distanceKm,
           checkoutItems
         })
       });

@@ -110,11 +110,7 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
 
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=5&countrycodes=ph`, {
-          headers: {
-            'User-Agent': 'GETDeliveryApp/1.0 (contact@getdelivery.app)'
-          }
-        });
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=5&countrycodes=ph`);
         const data = await res.json();
         setPredictions(Array.isArray(data) ? data : []);
       } catch (err) {

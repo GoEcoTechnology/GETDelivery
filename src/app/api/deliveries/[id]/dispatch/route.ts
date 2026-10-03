@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates } from '@/db/schema';
+import { deliveryOrders, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates, users } from '@/db/schema';
 import { eq, and, or, isNotNull, desc } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
@@ -192,6 +192,12 @@ export async function POST(
             await db.insert(notifications).values(newNotifsToInsert);
           }
 
+          const [businessOwnerUser] = await db.select({ contact: users.contactNumber })
+            .from(users)
+            .where(and(eq(users.tenantId, tenantIdToUse), eq(users.role, 'BUSINESS_OWNER')))
+            .limit(1);
+          const ownerContact = businessOwnerUser?.contact || undefined;
+
           // Send broadcast emails asynchronously (non-blocking)
           if (partnerEmailList && partnerEmailList.length > 0) {
             await sendBroadcastDeliveryNotification(
@@ -201,7 +207,7 @@ export async function POST(
               order.pickupAddress,
               order.dropoffAddress,
               deliveryDate,
-              order.customerContact || undefined,
+              ownerContact,
               order.instructions || undefined,
               partnerEmailList,
               acceptUrl,

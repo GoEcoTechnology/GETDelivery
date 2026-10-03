@@ -35,6 +35,7 @@ export async function GET(request: Request) {
           deliveryOrderId: deliveryItems.deliveryOrderId,
           productId: deliveryItems.productId,
           variantId: deliveryItems.variantId,
+          variantName: productVariants.name,
           productName: deliveryItems.productName,
           quantity: deliveryItems.quantity,
           unitPrice: deliveryItems.unitPrice,
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
         })
         .from(deliveryItems)
         .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
-        .leftJoin(productSellingUnits, sql`${productSellingUnits.variantId} = ${productVariants.id} AND TRIM(${productSellingUnits.unitName}) ILIKE TRIM(${deliveryItems.unit})`)
+        .leftJoin(productSellingUnits, sql`${productSellingUnits.productId} = ${deliveryItems.productId} AND (${productSellingUnits.variantId} IS NULL OR ${productSellingUnits.variantId} = ${deliveryItems.variantId}) AND TRIM(${productSellingUnits.unitName}) ILIKE TRIM(${deliveryItems.unit})`)
         .where(inArray(deliveryItems.deliveryOrderId, orderIds));
     }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryBatches, deliveryBatchItems, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates } from '@/db/schema';
+import { deliveryOrders, deliveryBatches, deliveryBatchItems, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates, users } from '@/db/schema';
 import { eq, and, or, isNotNull, desc, inArray, gte, ilike } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
@@ -19,8 +19,13 @@ export async function POST(
     if (isNaN(batchId)) {
       return NextResponse.json({ error: 'Invalid batch ID' }, { status: 400 });
     }
-    const body = await request.json();
-    const { requiredVehicleType } = body || {};
+    let body = {};
+    try {
+      body = await request.json();
+    } catch (e) {
+      // Body might be empty
+    }
+    const { requiredVehicleType } = body as any;
 
     const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
@@ -248,15 +253,22 @@ export async function POST(
             await db.insert(notifications).values(newNotifsToInsert);
           }
 
+          const [businessOwnerUser] = await db.select({ contact: users.contactNumber })
+            .from(users)
+            .where(and(eq(users.tenantId, tenantIdToUse), eq(users.role, 'BUSINESS_OWNER')))
+            .limit(1);
+          const ownerContact = businessOwnerUser?.contact || undefined;
+          const dropoffAddr = ordersInBatch.length > 1 ? 'Multiple Drop Offs' : firstOrder.dropoffAddress;
+
           if (partnerEmailList && partnerEmailList.length > 0) {
             await sendBroadcastDeliveryNotification(
               tenantIdToUse,
               firstOrder.id,
-              firstOrder.customerName,
+              firstOrder.customerName, // Removed in template, but still part of function signature
               firstOrder.pickupAddress,
-              firstOrder.dropoffAddress,
+              dropoffAddr,
               deliveryDate,
-              firstOrder.customerContact || undefined,
+              ownerContact,
               firstOrder.instructions || undefined,
               partnerEmailList,
               acceptUrl,

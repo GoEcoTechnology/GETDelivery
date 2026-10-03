@@ -64,7 +64,9 @@ export async function GET(request: Request) {
           urgentAdditionalFee: deliveryOrders.urgentAdditionalFee,
           deliveryPriority: deliveryOrders.deliveryPriority,
           deliveryDate: deliveryOrders.deliveryDate,
-          orderStatus: deliveryOrders.status
+          orderStatus: deliveryOrders.status,
+          routeDistance: deliveryOrders.routeDistance,
+          distanceKm: deliveryOrders.distanceKm
         })
         .from(deliveryBatchItems)
         .leftJoin(customers, eq(deliveryBatchItems.customerId, customers.id))

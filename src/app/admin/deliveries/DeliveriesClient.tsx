@@ -568,117 +568,100 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
             ) : (
               batches.map((batch: any) => (
                 <div key={batch.id} className={styles.card} style={{ padding: 0, overflow: 'hidden', border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
-                  <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '4px' }}>
                         <Truck size={24} color="#4f46e5" />
                       </div>
                       <div>
-                        <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{batch.productName}</h3>
+                        <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase' }}>{batch.productName}</h3>
                         <div style={{ fontSize: '14px', color: '#64748b', display: 'flex', gap: '12px', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 600, color: '#4f46e5' }}>{batch.variantName}</span>
-                          <span>•</span>
-                          <span>Created {new Date(batch.createdAt).toLocaleDateString()}</span>
+                          <span style={{ fontWeight: 700, color: '#4f46e5' }}>{batch.variantName}</span>
                         </div>
                         {(batch.partnerDriverName || batch.partnerDriverContact) && (
-                          <div style={{ fontSize: '13px', color: '#334155', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' }}>
+                          <div style={{ fontSize: '13px', color: '#334155', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px' }}>
                               <Truck size={12} color="#64748b" />
                               <span style={{ fontWeight: 600 }}>Driver: {batch.partnerDriverName || 'Not specified'}</span>
                             </div>
                             {batch.partnerDriverContact && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px' }}>
                                 <Phone size={12} color="#64748b" />
-                                <span>{batch.partnerDriverContact}</span>
+                                <span style={{ fontWeight: 600 }}>{batch.partnerDriverContact}</span>
                               </div>
                             )}
                           </div>
                         )}
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-end' }}>
                       <StatusBadge status={batch.status} />
+                      <div style={{ color: '#4f46e5', fontWeight: 800, fontSize: '15px' }}>{batch.totalQuantity} / {batch.quotaQuantity} Quota Reached</div>
                       {Number(batch.totalWeight) > 0 && (
-                        <div style={{ fontSize: '14px', color: '#475569', fontWeight: 600, marginTop: '8px' }}>
+                        <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px' }}>
                           Total: {batch.totalWeight} kg
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div style={{ padding: '20px', background: '#f8fafc' }}>
-                    {(() => {
-                      return (
-                        <>
-                          {(() => {
-                            const aggregatedProducts: any[] = [];
-                            (batch.items || []).forEach((item: any) => {
-                                const hasProducts = item.products && item.products.length > 0;
-                                const productsToProcess = hasProducts ? item.products : [{ 
-                                  productName: batch.productName, 
-                                  variantName: batch.variantName,
-                                  unit: 'units',
-                                  quantity: item.quantity,
-                                  unitPrice: batch.variantPrice || 0
-                                }];
-                                
-                                productsToProcess.forEach((prod: any) => {
-                                  const variantStr = prod.variantName || batch.variantName;
-                                  const unitStr = prod.unit && prod.unit !== 'units' ? ` (${prod.unit})` : '';
-                                  
-                                  let finalProductName = prod.productName;
-                                  if (variantStr && finalProductName && !finalProductName.includes(variantStr)) {
-                                    finalProductName = `${finalProductName} - ${variantStr}`;
-                                  }
-                                  
-                                  const itemName = `${finalProductName}${unitStr}`;
-                                  const qty = hasProducts ? Number(prod.quantity) : Number(item.quantity);
-                                  const amount = hasProducts ? (qty * Number(prod.unitPrice || batch.variantPrice || 0)) : (Number(item.offeredAmount) || (qty * Number(batch.variantPrice || 0)));
-                                  
-                                  const existing = aggregatedProducts.find(p => p.itemName === itemName);
-                                  if (existing) {
-                                    existing.qty += qty;
-                                    existing.amount += amount;
-                                  } else {
-                                    aggregatedProducts.push({
-                                      itemName,
-                                      qty,
-                                      amount
-                                    });
-                                  }
-                                });
-                            });
+                  <div style={{ padding: '24px', background: '#f8fafc' }}>
+                    <div style={{ width: '100%', overflowX: 'auto', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
+                            <th style={{ padding: '14px 16px', fontWeight: 700, color: '#475569', fontSize: '12px', letterSpacing: '0.05em' }}>CUSTOMER</th>
+                            <th style={{ padding: '14px 16px', fontWeight: 700, color: '#475569', fontSize: '12px', letterSpacing: '0.05em' }}>DROP OFF</th>
+                            <th style={{ padding: '14px 16px', fontWeight: 700, color: '#475569', fontSize: '12px', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>DISTANCE</th>
+                            <th style={{ padding: '14px 16px', fontWeight: 700, color: '#475569', fontSize: '12px', letterSpacing: '0.05em', textAlign: 'center' }}>QTY</th>
+                            <th style={{ padding: '14px 16px', fontWeight: 700, color: '#475569', fontSize: '12px', letterSpacing: '0.05em', textAlign: 'right' }}>AMOUNT AND FEE</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {batch.items.map((item: any, idx: number) => {
+                             const qty = Number(item.quantity) || 1;
+                             let productAmount = Number(item.offeredAmount);
+                             if (!productAmount) {
+                                 productAmount = qty * Number(batch.variantPrice || 0);
+                             }
+                             const fee = Number(item.finalDeliveryPrice) || (Number(item.normalDeliveryFee || 0) + Number(item.urgentAdditionalFee || 0));
+                             const isUnassigned = batch.status === 'READY_FOR_DELIVERY' || batch.status === 'WAITING_FOR_PARTNER' || batch.status === 'DRAFT';
+                             const distanceVal = item.routeDistance || item.distanceKm;
+                             const distanceStr = distanceVal ? (distanceVal.toString().toLowerCase().includes('km') ? distanceVal : `${distanceVal} km`) : 'N/A';
+                             
+                             return (
+                               <tr key={item.id || idx} style={{ borderBottom: idx < batch.items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                                 <td style={{ padding: '16px', fontWeight: 700, color: '#0f172a' }}>
+                                   {item.customerName || 'Unknown'}
+                                   <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{item.customerContact || ''}</div>
+                                 </td>
+                                 <td style={{ padding: '16px', color: '#475569', maxWidth: '300px' }}>
+                                   <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '6px' }} title={item.dropoffAddress}>
+                                     <MapPin size={14} color="#94a3b8" style={{ flexShrink: 0 }} />
+                                     {item.dropoffAddress || 'No Address provided'}
+                                   </div>
+                                 </td>
+                                 <td style={{ padding: '16px', color: '#4f46e5', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                    {distanceStr}
+                                 </td>
+                                 <td style={{ padding: '16px', fontWeight: 800, color: '#0f172a', textAlign: 'center' }}>
+                                   <div style={{ display: 'inline-flex', background: '#f1f5f9', padding: '4px 12px', borderRadius: '12px' }}>{qty}</div>
+                                 </td>
+                                 <td style={{ padding: '16px', textAlign: 'right' }}>
+                                    <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '15px' }}>₱{formatCurrency(productAmount)}</div>
+                                    <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, marginTop: '4px' }}>
+                                      Fee: {isUnassigned ? 'TBD' : `₱${formatCurrency(fee)}`}
+                                      {item.deliveryPriority === 'URGENT' && <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px', background: '#fef2f2', padding: '2px 6px', borderRadius: '4px' }}>URGENT</span>}
+                                    </div>
+                                 </td>
+                               </tr>
+                             );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
 
-                            return (
-                              <>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '14px' }}>
-                                  <span style={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Items ({aggregatedProducts.length})</span>
-                                  <span style={{ color: '#4f46e5', fontWeight: 700 }}>{batch.totalQuantity} / {batch.quotaQuantity} Quota Reached</span>
-                                </div>
-
-                                {aggregatedProducts.length > 0 && (
-                                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px', background: 'white' }}>
-                                    {aggregatedProducts.map((agg: any, i: number) => (
-                                      <div key={i} style={{ padding: '16px', borderBottom: i < aggregatedProducts.length - 1 ? '1px solid #e2e8f0' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontWeight: 700 }}>
-                                            {agg.qty}x
-                                          </div>
-                                          <div style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a' }}>{agg.itemName}</div>
-                                        </div>
-                                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                          <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '16px' }}>₱{formatCurrency(agg.amount)}</div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </>
-                      );
-                    })()}
+                    {/* Grand totals */}
                     {(() => {
                       const totalProduct = batch.items.reduce((sum: number, item: any) => {
                         const amount = Number(item.offeredAmount);
@@ -686,25 +669,24 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                       }, 0);
                       const totalDelivery = batch.items.reduce((sum: number, item: any) => sum + (Number(item.finalDeliveryPrice) || (Number(item.normalDeliveryFee || 0) + Number(item.urgentAdditionalFee || 0))), 0);
                       const grandTotal = totalProduct + totalDelivery;
-                      const hasDeliveryFee = batch.items.some((item: any) => item.finalDeliveryPrice !== null && item.finalDeliveryPrice !== undefined);
+                      const isUnassigned = batch.status === 'READY_FOR_DELIVERY' || batch.status === 'WAITING_FOR_PARTNER' || batch.status === 'DRAFT';
                       
                       return (
-                        <div style={{ marginTop: '16px', borderTop: '1px dashed #cbd5e1', paddingTop: '16px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b', marginBottom: '6px' }}>
-                            <span>Product Total</span>
-                            <span style={{ fontWeight: 600, color: '#1e293b' }}>{formatCurrency(totalProduct)}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b', marginBottom: '8px' }}>
-                            <span>Delivery Fee</span>
-                            <span style={{ fontWeight: 600, color: '#1e293b' }}>
-                              {hasDeliveryFee ? formatCurrency(totalDelivery) : 'TBD'}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#0f172a', fontWeight: 700 }}>
-                            <span>Grand Total</span>
-                            <span style={{ color: '#4f46e5' }}>
-                              {hasDeliveryFee ? formatCurrency(grandTotal) : formatCurrency(totalProduct)}
-                            </span>
+                        <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                          <div style={{ width: '320px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#64748b', marginBottom: '12px' }}>
+                              <span>Product Amount</span>
+                              <span style={{ fontWeight: 600, color: '#1e293b' }}>₱{formatCurrency(totalProduct)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#64748b', marginBottom: '16px' }}>
+                              <span>Batch Delivery Fee</span>
+                              <span style={{ fontWeight: 600, color: '#1e293b' }}>{isUnassigned ? 'TBD' : `₱${formatCurrency(totalDelivery)}`}</span>
+                            </div>
+                            <div style={{ height: '1px', background: '#e2e8f0', margin: '0 -20px 16px -20px' }}></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Grand Total</span>
+                              <span style={{ color: '#4f46e5', fontWeight: 800, fontSize: '20px' }}>{isUnassigned ? `₱${formatCurrency(totalProduct)} + TBD` : `₱${formatCurrency(grandTotal)}`}</span>
+                            </div>
                           </div>
                         </div>
                       );
@@ -712,15 +694,7 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                   </div>
                   
                   {/* Actions for Batch */}
-                  <div style={{ padding: '16px 20px', background: 'white', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <button 
-                      onClick={() => setSelectedBatchForModal(batch)}
-                      style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', cursor: 'pointer', transition: 'all 0.2s' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
-                    >
-                      Show Customers
-                    </button>
+                  <div style={{ padding: '16px 24px', background: 'white', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                     
                     {batch.status === 'READY_FOR_DELIVERY' && (
                       <button 
@@ -1033,6 +1007,6 @@ function HistoryIcon() {
 function formatCurrency(value: string | number) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return String(value);
-  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
 }
 

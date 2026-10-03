@@ -6,7 +6,7 @@ import { eq, inArray, sql, and, gte, asc } from 'drizzle-orm';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { customerId, tenantId: checkoutTenantId, addressText, dropoffLat, dropoffLng, dropoffLandmark, deliveryPriority, urgentReason, pickupLocation, deliveryDate, normalDeliveryFee, urgentAdditionalFee, checkoutItems } = body;
+    const { customerId, tenantId: checkoutTenantId, addressText, dropoffLat, dropoffLng, dropoffLandmark, deliveryPriority, urgentReason, pickupLocation, deliveryDate, normalDeliveryFee, urgentAdditionalFee, distanceKm, checkoutItems } = body;
 
     if (!customerId) {
       return NextResponse.json({ error: 'customerId is required' }, { status: 400 });
@@ -142,6 +142,8 @@ export async function POST(request: Request) {
         urgentReason: urgentReason || null,
         normalDeliveryFee: normalDeliveryFee ? normalDeliveryFee.toString() : null,
         urgentAdditionalFee: urgentAdditionalFee ? urgentAdditionalFee.toString() : null,
+        distanceKm: distanceKm ? distanceKm.toString() : null,
+        routeDistance: distanceKm ? `${distanceKm.toFixed(2)} km` : null,
         offeredAmount: totalAmount.toString(),
         basisProductId: basisProductId,
         basisVariantId: basisVariantId,
@@ -189,7 +191,7 @@ export async function POST(request: Request) {
           FROM delivery_orders dord
           JOIN product_variants pv ON dord.basis_variant_id = pv.id
           LEFT JOIN delivery_items di ON di.delivery_order_id = dord.id AND di.variant_id = pv.id
-          LEFT JOIN product_selling_units psu ON psu.variant_id = pv.id AND psu.unit_name = di.unit
+          LEFT JOIN product_selling_units psu ON psu.product_id = di.product_id AND (psu.variant_id IS NULL OR psu.variant_id = pv.id) AND TRIM(psu.unit_name) ILIKE TRIM(di.unit)
           WHERE dord.basis_variant_id = ${vId}
             AND dord.has_basis_tie = false
             AND dord.status != 'CANCELLED'

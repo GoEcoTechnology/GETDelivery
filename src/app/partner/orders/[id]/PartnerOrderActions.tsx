@@ -8,18 +8,20 @@ type ApiError = {
   error?: string;
 };
 
-export default function PartnerOrderActions({ orderId, status }: { orderId: number; status: string }) {
+export default function PartnerOrderActions({ orderId, status, availableVehicles = [] }: { orderId: number; status: string; availableVehicles?: any[] }) {
   const router = useRouter();
   // localStatus allows immediate UI update after accept without waiting for router.refresh()
   const [localStatus, setLocalStatus] = useState(status);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
+  const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [selectedVehicleType, setSelectedVehicleType] = useState(availableVehicles[0]?.vehicleType || '');
   const [declineReason, setDeclineReason] = useState('Too far');
   const [cancelReason, setCancelReason] = useState('Vehicle breakdown');
   const [otherReason, setOtherReason] = useState('');
@@ -30,11 +32,17 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
   const cancelReasons = ['Vehicle breakdown', 'Personal emergency', 'Package too large', 'Accident', 'Other'];
 
   const handleAccept = async () => {
+    if (!selectedVehicleType) return alert('Please select a vehicle type first');
     setIsAccepting(true);
     try {
-      const res = await fetch(`/api/partner/orders/${orderId}/accept`, { method: 'POST' });
+      const res = await fetch(`/api/partner/orders/${orderId}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicleType: selectedVehicleType })
+      });
       const data = (await res.json()) as ApiError;
       if (!res.ok) throw new Error(data.error || 'Failed to accept');
+      setShowAcceptModal(false);
       // Immediately update local state so button stays "Accepted" without flicker
       setLocalStatus('ACCEPTED');
       router.refresh();
@@ -142,24 +150,15 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
         <button
-          onClick={handleAccept}
-          disabled={isAccepting}
+          onClick={() => setShowAcceptModal(true)}
           style={{
             width: '100%', padding: '14px 18px', borderRadius: '14px', border: 'none',
             background: '#16a34a', color: 'white', fontWeight: 800,
-            cursor: isAccepting ? 'not-allowed' : 'pointer',
-            opacity: isAccepting ? 0.7 : 1,
+            cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
           }}
         >
-          {isAccepting ? (
-            <>
-              <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-              Accepting...
-            </>
-          ) : (
-            <><CheckCircle2 size={18} /> Accept Request</>
-          )}
+          <CheckCircle2 size={18} /> Accept Request
         </button>
         <button
           onClick={() => setShowDeclineModal(true)}
@@ -171,6 +170,34 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
         >
           Decline Request
         </button>
+
+        {showAcceptModal && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+            <div style={{ background: '#fff', borderRadius: '20px', width: 'min(400px, 100%)', padding: '24px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', color: '#0f172a' }}>Accept Delivery Assignment</h3>
+              <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '14px' }}>Please select the vehicle you will use for this delivery. The delivery fee will be calculated automatically based on your selection.</p>
+
+              <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
+                {availableVehicles?.map(v => (
+                  <label key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', border: selectedVehicleType === v.vehicleType ? '2px solid #4f46e5' : '1px solid #e2e8f0', borderRadius: '12px', background: selectedVehicleType === v.vehicleType ? '#eff6ff' : '#fff' }}>
+                    <input type="radio" name="accept_vehicle" value={v.vehicleType} checked={selectedVehicleType === v.vehicleType} onChange={(e) => setSelectedVehicleType(e.target.value)} style={{ display: 'none' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontWeight: 700, color: '#0f172a' }}>{v.vehicleType}</span>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>Base: ₱{v.basePrice} | Per KM: ₱{v.pricePerKm}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button onClick={() => setShowAcceptModal(false)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#f1f5f9', color: '#475569', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+                <button onClick={handleAccept} disabled={isAccepting} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, cursor: isAccepting ? 'not-allowed' : 'pointer', opacity: isAccepting ? 0.7 : 1 }}>
+                  {isAccepting ? 'Accepting...' : 'Confirm Vehicle & Accept'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showDeclineModal && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>

@@ -139,12 +139,6 @@ export default function CustomersClient() {
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-            <button
-              onClick={() => { resetForm(); setAddModal(true); }}
-              className={`${styles.btnPrimary} ${styles.toolbarBtn}`}
-            >
-              <Plus size={16} style={{ marginRight: '6px' }} /> New Customer
-            </button>
           </div>
         </div>
 
@@ -166,8 +160,7 @@ export default function CustomersClient() {
                   <EmptyState
                     icon={Users}
                     title="No Customers Found"
-                    description="No customers found. Add your first customer."
-                    actionButton={<button onClick={() => setAddModal(true)} className={styles.btnPrimary}>+ Add Customer</button>}
+                    description="Customers will appear here when they order your products."
                   />
                 </td>
               </tr>
@@ -215,7 +208,6 @@ export default function CustomersClient() {
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
                       <ActionMenu actions={[
                         { label: 'View Details', icon: <Eye size={14} />, onClick: () => setViewModal(c), color: '#0f172a' },
-                        { label: 'Edit', icon: <Edit2 size={14} />, onClick: () => openEdit(c), color: '#3b82f6' },
                         { label: 'Delete', icon: <Trash2 size={14} />, onClick: () => handleDelete(c.id), color: '#ef4444' }
                       ]} />
                     </div>
@@ -235,65 +227,7 @@ export default function CustomersClient() {
       </div>
 
 
-      {/* Add / Edit Modal */}
-      {(addModal || editModal) && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
-          <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ margin: 0, fontSize: '20px' }}>{editModal ? 'Edit Customer' : 'Add Customer'}</h2>
-              <button onClick={() => { setAddModal(false); setEditModal(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
-            </div>
-
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label className={styles.label}>Business / Full Name*</label>
-                <input required type="text" className={styles.inputField} value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-                <div>
-                  <label className={styles.label}>Mobile Number*</label>
-                  <input required type="text" className={styles.inputField} value={formData.mobileNumber || ''} onChange={e => setFormData({ ...formData, mobileNumber: e.target.value })} />
-                </div>
-              </div>
-              <div>
-                <label className={styles.label}>Email Address</label>
-                <input type="email" className={styles.inputField} value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
-              </div>
-              <div style={{ marginBottom: '8px' }}>
-                <label className={styles.label}>Complete Address & Landmark*</label>
-                <div style={{ marginTop: '8px' }}>
-                  <MapPicker
-                    initialAddress={formData.address || undefined}
-                    initialLandmark={formData.notes || undefined}
-                    onLocationSelect={(res) => {
-                      setFormData({ 
-                        ...formData, 
-                        address: res.address,
-                        notes: res.landmark !== undefined ? res.landmark : formData.notes
-                      });
-                    }}
-                  />
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label className={styles.label}>Municipality</label>
-                  <input type="text" className={styles.inputField} value={formData.municipality || ''} onChange={e => setFormData({ ...formData, municipality: e.target.value })} />
-                </div>
-                <div>
-                  <label className={styles.label}>Barangay</label>
-                  <input type="text" className={styles.inputField} value={formData.barangay || ''} onChange={e => setFormData({ ...formData, barangay: e.target.value })} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-                <button type="button" className={styles.btnSecondary} onClick={() => { setAddModal(false); setEditModal(null); }}>Cancel</button>
-                <button type="submit" className={styles.btnPrimary}>{editModal ? 'Save Changes' : 'Create Customer'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
+      {/* Add / Edit Modal removed */}
       {/* View Modal */}
       {viewModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>

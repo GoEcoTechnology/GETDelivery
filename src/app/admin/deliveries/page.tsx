@@ -70,7 +70,10 @@ export default async function DeliveriesPage() {
       .from(deliveryBatches)
       .leftJoin(productVariants, eq(deliveryBatches.variantId, productVariants.id))
       .leftJoin(products, eq(productVariants.productId, products.id))
-      .where(eq(deliveryBatches.tenantId, tenantId))
+      .where(and(
+        eq(deliveryBatches.tenantId, tenantId),
+        sql`${deliveryBatches.status} NOT IN ('READY_FOR_DELIVERY', 'DRAFT')`
+      ))
       .orderBy(desc(deliveryBatches.createdAt));
       
     const batchIds = batchesData.map(b => b.id);

@@ -60,8 +60,8 @@ function useToast() {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatCurrency(val: string | number) {
   const n = Number(val);
-  if (!Number.isFinite(n)) return '₱{formatCurrency(0.00)}';
-  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(n);
+  if (!Number.isFinite(n)) return '0.00';
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
 function getToken() {
@@ -209,7 +209,9 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching, 
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#475569' }}>
               <span>Delivery Fee</span>
-              <span style={{ fontWeight: 600 }}>{order.normalDeliveryFee ? formatCurrency(order.normalDeliveryFee) : 'TBD'}</span>
+              <span style={{ fontWeight: 600 }}>
+                {(order.orderSource === 'MARKETPLACE' && !order.batchId) ? 'TBD' : (order.normalDeliveryFee ? formatCurrency(order.normalDeliveryFee) : 'TBD')}
+              </span>
             </div>
 
             {isUrgent && order.urgentAdditionalFee && (
@@ -222,7 +224,9 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching, 
             <div style={{ borderTop: '2px dashed #cbd5e1', margin: '16px 0', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '16px' }}>Total Amount</span>
               <span style={{ fontWeight: 800, color: '#4f46e5', fontSize: '20px' }}>
-                {order.normalDeliveryFee ? formatCurrency(total) : `${formatCurrency(subtotal + (isUrgent ? Number(order.urgentAdditionalFee || 0) : 0))} + TBD`}
+                {(order.orderSource === 'MARKETPLACE' && !order.batchId) 
+                  ? `${formatCurrency(subtotal + (isUrgent ? Number(order.urgentAdditionalFee || 0) : 0))} + TBD` 
+                  : (order.normalDeliveryFee ? formatCurrency(total) : `${formatCurrency(subtotal + (isUrgent ? Number(order.urgentAdditionalFee || 0) : 0))} + TBD`)}
               </span>
             </div>
           </div>
@@ -249,6 +253,8 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
   const [groupNameOverrides, setGroupNameOverrides] = useState<Record<string, string>>({});
   const [dragOverBatchId, setDragOverBatchId] = useState<number | null>(null);
   const [dragOverGroupName, setDragOverGroupName] = useState<string | null>(null);
+  const [editingBatchId, setEditingBatchId] = useState<number | null>(null);
+  const [batchNameOverrides, setBatchNameOverrides] = useState<Record<number, string>>({});
 
   const toggleOrderSelection = (orderId: number) => {
     setSelectedOrders(prev => ({
@@ -359,6 +365,10 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
 
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['marketplace-batches'] });
+      
+      if (data.batchIds && data.batchIds.length > 0) {
+        setDispatchModalBatchId(data.batchIds[0]);
+      }
     },
     onError: (err: any) => showToast(err.message || 'Failed to dispatch orders', 'error'),
     onSettled: () => setIsBatchDispatching(false),
@@ -391,7 +401,8 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error('Failed to fetch marketplace batches');
-      return await res.json();
+      const allBatches = await res.json();
+      return allBatches.filter((b: any) => b.status === 'DRAFT' || b.status === 'READY_FOR_DELIVERY');
     },
     refetchInterval: 30_000,
   });
@@ -417,6 +428,24 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
       showToast('Order removed from batch.', 'success');
     },
     onError: (err: any) => showToast(err.message || 'Failed to remove from batch', 'error'),
+  });
+
+  const renameBatchMutation = useMutation({
+    mutationFn: async ({ batchId, batchName }: { batchId: number, batchName: string }) => {
+      const res = await fetch(`/api/admin/deliveries/batches/${batchId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ batchName })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to rename batch');
+      return data;
+    },
+    onSuccess: () => {
+      showToast('Batch renamed successfully.', 'success');
+      queryClient.invalidateQueries({ queryKey: ['marketplace-batches'] });
+    },
+    onError: (err: any) => showToast(err.message || 'Failed to rename batch', 'error'),
   });
 
   const rejectMutation = useMutation({
@@ -805,13 +834,14 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                       {Object.values((order.products || []).reduce((acc: any, prod: any) => {
                                         const unitSuffix = prod.unit ? `(${prod.unit}) ` : '';
-                                        const key = prod.productName + unitSuffix;
-                                        if (!acc[key]) acc[key] = { ...prod, unitSuffix };
+                                        const variantStr = prod.variantName ? ` - ${prod.variantName}` : '';
+                                        const key = prod.productName + variantStr + unitSuffix;
+                                        if (!acc[key]) acc[key] = { ...prod, unitSuffix, variantStr };
                                         else acc[key].quantity += prod.quantity;
                                         return acc;
                                       }, {})).map((prod: any) => (
-                                        <div key={prod.itemId} style={{ fontSize: '12px', color: '#475569' }}>
-                                          x{prod.quantity}
+                                        <div key={prod.itemId} style={{ fontSize: '12px', color: '#475569', marginBottom: '2px' }}>
+                                          {prod.productName}{prod.variantStr} {prod.unitSuffix}x{prod.quantity}
                                         </div>
                                       ))}
                                     </div>
@@ -865,19 +895,28 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
 
                         {/* Footer Action Buttons */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
-                          <div
+                          <button
+                            disabled={isBatchDispatching}
+                            onClick={() => {
+                              const orderIds = group.orders.map((o: any) => o.id);
+                              if (orderIds.length > 0) {
+                                batchDispatchMutation.mutate({ orderIds, batchName: groupNameOverrides[group.productName] || group.productName, basisVariantId: group.orders[0]?.products?.[0]?.variantId });
+                              }
+                            }}
                             style={{
                               padding: '8px 16px',
                               borderRadius: '8px',
-                              border: '1px dashed #cbd5e1',
-                              background: 'white',
-                              color: '#334155',
+                              background: '#3b82f6',
+                              color: 'white',
                               fontWeight: 600,
-                              fontSize: '13px'
+                              fontSize: '13px',
+                              cursor: 'pointer',
+                              border: 'none',
+                              opacity: isBatchDispatching ? 0.7 : 1
                             }}
                           >
-                            Drag customer to Create New Batch &rarr;
-                          </div>
+                            Dispatch Delivery
+                          </button>
                         </div>
                       </div>
                     )}
@@ -945,11 +984,44 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
-                            {batch.batchNumber && !batch.batchNumber.startsWith('DEL-')
-                              ? batch.batchNumber
-                              : (batch.productName ? `${batch.productName} - ${batch.variantName}` : (batch.variantName || 'Batch ' + batch.batchNumber))}
-                          </h4>
+                          {editingBatchId === batch.id ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              defaultValue={batchNameOverrides[batch.id] || batch.batchNumber}
+                              onClick={(e) => e.stopPropagation()}
+                              onBlur={(e) => {
+                                const newName = e.target.value.trim();
+                                if (newName && newName !== batch.batchNumber) {
+                                  renameBatchMutation.mutate({ batchId: batch.id, batchName: newName });
+                                }
+                                setEditingBatchId(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const newName = e.currentTarget.value.trim();
+                                  if (newName && newName !== batch.batchNumber) {
+                                    renameBatchMutation.mutate({ batchId: batch.id, batchName: newName });
+                                  }
+                                  setEditingBatchId(null);
+                                }
+                              }}
+                              style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a', border: '1px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', outline: 'none' }}
+                            />
+                          ) : (
+                            <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {batch.batchNumber && !batch.batchNumber.startsWith('DEL-')
+                                ? batch.batchNumber
+                                : (batch.productName ? `${batch.productName} - ${batch.variantName}` : (batch.variantName || 'Batch ' + batch.batchNumber))}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingBatchId(batch.id); setBatchNameOverrides(prev => ({...prev, [batch.id]: batch.batchNumber})); }}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '4px' }}
+                                title="Rename batch"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                            </h4>
+                          )}
                           {hasUrgent && (
                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 800 }}>
                               <Zap size={12} fill="white" /> URGENT ×{urgentCount}
@@ -1073,13 +1145,14 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         {Object.values((it.products || []).reduce((acc: any, p: any) => {
                                           const unitSuffix = p.unit ? `(${p.unit}) ` : '';
-                                          const key = p.productName + unitSuffix;
-                                          if (!acc[key]) acc[key] = { ...p, unitSuffix };
+                                          const variantStr = p.variantName ? ` - ${p.variantName}` : '';
+                                          const key = p.productName + variantStr + unitSuffix;
+                                          if (!acc[key]) acc[key] = { ...p, unitSuffix, variantStr };
                                           else acc[key].quantity += p.quantity;
                                           return acc;
                                         }, {})).map((p: any, idx: number) => (
-                                          <div key={idx} style={{ fontSize: '12px', color: '#475569' }}>
-                                            x{p.quantity}
+                                          <div key={idx} style={{ fontSize: '12px', color: '#475569', marginBottom: '2px' }}>
+                                            {p.productName}{p.variantStr} {p.unitSuffix}x{p.quantity}
                                           </div>
                                         ))}
                                         {(!it.products || it.products.length === 0) && (

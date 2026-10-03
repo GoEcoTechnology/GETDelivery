@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { deliveryInvitations, deliveryOrders, deliveryBatches, deliveryBatchItems, tenants, customers, deliveryItems, products, users } from '@/db/schema';
+import { deliveryInvitations, deliveryOrders, deliveryBatches, deliveryBatchItems, tenants, customers, deliveryItems, products, users, vehicleDeliveryRates } from '@/db/schema';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import PartnerOrderActions from './PartnerOrderActions';
 import RouteMap from '@/components/RouteMap';
@@ -150,7 +150,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
       if (cust) {
         customerName = cust.name;
         contactNumber = cust.mobileNumber || contactNumber;
-        address = cust.address || address;
+        address = address || cust.address || '';
       }
     }
 
@@ -346,7 +346,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
           <section className={styles.card} style={{ marginBottom: 0 }}>
             <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MapPin size={20} color="#4f46e5" /> Request Actions</h3></div>
             <div className={styles.cardContent}>
-              <PartnerOrderActions orderId={baseOrder.id} status={['ACCEPTED', 'TEMPORARY_WINNER'].includes(invite.status) ? baseOrder.status : invite.status} />
+              <PartnerOrderActions orderId={baseOrder.id} status={['ACCEPTED', 'TEMPORARY_WINNER'].includes(invite.status) ? baseOrder.status : invite.status} availableVehicles={await db.select().from(vehicleDeliveryRates).where(eq(vehicleDeliveryRates.isActive, true))} />
             </div>
           </section>
 

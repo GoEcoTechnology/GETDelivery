@@ -223,10 +223,6 @@ export function newDeliveryRequestTemplate(options: {
           <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;width:35%;vertical-align:top;">Business Owner</td>
           <td style="padding:12px 0;color:${COLORS.text};font-weight:600;vertical-align:top;">${escapeHtml(options.businessOwnerName)}</td>
         </tr>
-        <tr>
-          <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;width:35%;vertical-align:top;">Customer Name</td>
-          <td style="padding:12px 0;color:${COLORS.text};font-weight:600;vertical-align:top;">${escapeHtml(options.customerName)}</td>
-        </tr>
         ${options.contactNumber ? `
         <tr>
           <td style="padding:12px 0;color:${COLORS.muted};font-weight:600;vertical-align:top;">Contact Number</td>
@@ -281,7 +277,6 @@ DELIVERY INFORMATION
 ====================
 
 Business Owner: ${escapeHtml(options.businessOwnerName)}
-Customer: ${escapeHtml(options.customerName)}
 ${options.contactNumber ? `Contact: ${escapeHtml(options.contactNumber)}\n` : ''}
 Pickup Address:
 ${escapeHtml(options.pickupAddress)}

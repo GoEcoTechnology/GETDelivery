@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       FROM delivery_items di
       JOIN delivery_orders dord ON di.delivery_order_id = dord.id
       JOIN product_variants pv ON di.variant_id = pv.id
-      LEFT JOIN product_selling_units psu ON psu.variant_id = pv.id AND TRIM(psu.unit_name) ILIKE TRIM(di.unit)
+      LEFT JOIN product_selling_units psu ON psu.product_id = di.product_id AND (psu.variant_id IS NULL OR psu.variant_id = pv.id) AND TRIM(psu.unit_name) ILIKE TRIM(di.unit)
       WHERE dord.status != 'CANCELLED'
         AND dord.id IN (${sql.raw(orderIdsCsv)})
     `);
