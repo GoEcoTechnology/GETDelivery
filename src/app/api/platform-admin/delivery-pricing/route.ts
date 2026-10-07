@@ -85,3 +85,24 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true, data: savedSettings });
   });
 }
+
+export async function DELETE(request: Request) {
+  return withAuth(request, async (tx, claims) => {
+    if (claims.role !== 'PLATFORM_OWNER') {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const vehicleType = searchParams.get('vehicleType');
+
+    if (!vehicleType) {
+      return NextResponse.json({ error: 'Vehicle type is required' }, { status: 400 });
+    }
+    
+    const { eq } = await import('drizzle-orm');
+    
+    await tx.delete(vehicleDeliveryRates).where(eq(vehicleDeliveryRates.vehicleType, vehicleType));
+    
+    return NextResponse.json({ success: true });
+  });
+}

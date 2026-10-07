@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Save, Truck, Plus, DollarSign, Activity, Settings, Zap, CheckCircle2 } from 'lucide-react';
+import { Save, Truck, Plus, DollarSign, Activity, Settings, Zap, CheckCircle2, Search, Trash2 } from 'lucide-react';
 
 type RateRow = { vehicleType: string; basePrice: string | number; pricePerKm: string | number; isActive: boolean };
 
@@ -15,6 +15,7 @@ export default function DeliveryPricingPage() {
   const [rates, setRates] = useState<RateRow[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
   const [newVehicle, setNewVehicle] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -45,8 +46,13 @@ export default function DeliveryPricingPage() {
         map.set(type, { vehicleType: type, basePrice: '0', pricePerKm: '0', isActive: true });
       }
     });
-    return Array.from(map.values()).sort((a, b) => a.vehicleType.localeCompare(b.vehicleType));
-  }, [rates, vehicleTypes]);
+    const allRates = Array.from(map.values()).sort((a, b) => a.vehicleType.localeCompare(b.vehicleType));
+    
+    if (searchQuery.trim()) {
+      return allRates.filter(r => r.vehicleType.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    return allRates;
+  }, [rates, vehicleTypes, searchQuery]);
 
   const updateRate = (vehicleType: string, patch: Partial<RateRow>) => {
     setRates(prev => {
@@ -58,9 +64,27 @@ export default function DeliveryPricingPage() {
 
   const handleAddVehicle = () => {
     const trimmed = newVehicle.trim();
-    if (trimmed && !mergedRates.some(r => r.vehicleType.toLowerCase() === trimmed.toLowerCase())) {
+    if (trimmed && !rates.some(r => r.vehicleType.toLowerCase() === trimmed.toLowerCase()) && !vehicleTypes.some(v => v.toLowerCase() === trimmed.toLowerCase())) {
       setRates(prev => [...prev, { vehicleType: trimmed, basePrice: '0', pricePerKm: '0', isActive: true }]);
       setNewVehicle('');
+    }
+  };
+
+  const handleRemoveVehicle = async (vehicleType: string) => {
+    if (!confirm(`Are you sure you want to remove the class "${vehicleType}"?`)) return;
+    try {
+      const res = await fetch(`/api/platform-admin/delivery-pricing?vehicleType=${encodeURIComponent(vehicleType)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` }
+      });
+      if (res.ok) {
+        setRates(prev => prev.filter(r => r.vehicleType !== vehicleType));
+        setVehicleTypes(prev => prev.filter(v => v !== vehicleType));
+      } else {
+        alert('Failed to remove class');
+      }
+    } catch (e) {
+      alert('Failed to remove class');
     }
   };
 
@@ -177,12 +201,26 @@ export default function DeliveryPricingPage() {
           </h2>
           
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
+                <Search size={16} />
+              </span>
+              <input 
+                placeholder="Search classes..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{ padding: '10px 16px 10px 36px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', width: '200px', outline: 'none', background: '#fff' }}
+                onFocus={e => e.target.style.borderColor = '#9333ea'}
+                onBlur={e => e.target.style.borderColor = '#cbd5e1'}
+              />
+            </div>
+            <div style={{ width: '1px', height: '24px', background: '#cbd5e1', margin: '0 4px' }} />
             <input 
-              placeholder="E.g. Refrigerated Van" 
+              placeholder="New Class Name..." 
               value={newVehicle}
               onChange={e => setNewVehicle(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAddVehicle()}
-              style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', width: '220px', outline: 'none', background: '#f8fafc', flex: '1 1 160px' }}
+              style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', width: '180px', outline: 'none', background: '#f8fafc' }}
               onFocus={e => e.target.style.borderColor = '#9333ea'}
               onBlur={e => e.target.style.borderColor = '#cbd5e1'}
             />
@@ -206,6 +244,7 @@ export default function DeliveryPricingPage() {
                 <th style={{ padding: '16px 32px', fontWeight: 700, color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Base Price</th>
                 <th style={{ padding: '16px 32px', fontWeight: 700, color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Per KM Rate</th>
                 <th style={{ padding: '16px 32px', fontWeight: 700, color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Status</th>
+                <th style={{ padding: '16px 32px', width: '60px' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -259,6 +298,17 @@ export default function DeliveryPricingPage() {
                         style={{ accentColor: '#16a34a', width: '18px', height: '18px', cursor: 'pointer', margin: 0 }} 
                       />
                     </label>
+                  </td>
+                  <td style={{ padding: '20px 16px', textAlign: 'right' }}>
+                    <button
+                      onClick={() => handleRemoveVehicle(rate.vehicleType)}
+                      title="Remove Class"
+                      style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onMouseOver={e => e.currentTarget.style.background = '#fef2f2'}
+                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </td>
                 </tr>
               ))}
