@@ -776,8 +776,8 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                           <thead style={{ background: '#f1f5f9' }}>
                             <tr>
 
-                              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Customer</th>
-                              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Items</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Customer & Drop Off</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Items Included</th>
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Quantity</th>
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Amount</th>
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Status</th>
@@ -821,6 +821,12 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                       <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         {order.customerName}
+                                        {order.dropoffAddress && (
+                                          <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 500, maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={order.dropoffAddress}>
+                                            <MapPin size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                                            {order.dropoffAddress}
+                                          </div>
+                                        )}
                                         {isOrderUrgent && (
                                           <span style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>URGENT</span>
                                         )}
@@ -1060,7 +1066,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                         <table className={styles.table} style={{ margin: 0, width: '100%' }}>
                           <thead style={{ background: '#f1f5f9' }}>
                             <tr>
-                              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Customer</th>
+                              <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Customer & Drop Off</th>
                               <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px' }}>Items Included</th>
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Quantity</th>
                               <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px' }}>Amount</th>
@@ -1078,6 +1084,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                                       id: it.id,
                                       customerName: it.customerName,
                                       customerContact: it.customerContact,
+                                      dropoffAddress: it.dropoffAddress,
                                       deliveryPriority: it.deliveryPriority,
                                       status: it.status,
                                       customerOrderIds: [],
@@ -1133,6 +1140,12 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                                       }}
                                     >
                                       <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '13px' }}>{it.customerName}</div>
+                                      {it.dropoffAddress && (
+                                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 500, marginTop: '2px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={it.dropoffAddress}>
+                                          <MapPin size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                                          {it.dropoffAddress}
+                                        </div>
+                                      )}
                                       {it.deliveryPriority === 'URGENT' && (
                                         <span style={{ display: 'inline-block', marginTop: '4px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>URGENT</span>
                                       )}

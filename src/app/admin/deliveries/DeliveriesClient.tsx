@@ -612,51 +612,66 @@ export default function DeliveriesClient({ initialData }: { initialData?: any })
                           <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
                             <th style={{ padding: '14px 16px', fontWeight: 700, color: '#475569', fontSize: '12px', letterSpacing: '0.05em' }}>CUSTOMER</th>
                             <th style={{ padding: '14px 16px', fontWeight: 700, color: '#475569', fontSize: '12px', letterSpacing: '0.05em' }}>DROP OFF</th>
-                            <th style={{ padding: '14px 16px', fontWeight: 700, color: '#475569', fontSize: '12px', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>DISTANCE</th>
                             <th style={{ padding: '14px 16px', fontWeight: 700, color: '#475569', fontSize: '12px', letterSpacing: '0.05em', textAlign: 'center' }}>QTY</th>
                             <th style={{ padding: '14px 16px', fontWeight: 700, color: '#475569', fontSize: '12px', letterSpacing: '0.05em', textAlign: 'right' }}>AMOUNT AND FEE</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {batch.items.map((item: any, idx: number) => {
-                             const qty = Number(item.quantity) || 1;
-                             let productAmount = Number(item.offeredAmount);
-                             if (!productAmount) {
-                                 productAmount = qty * Number(batch.variantPrice || 0);
-                             }
-                             const fee = Number(item.finalDeliveryPrice) || (Number(item.normalDeliveryFee || 0) + Number(item.urgentAdditionalFee || 0));
-                             const isUnassigned = batch.status === 'READY_FOR_DELIVERY' || batch.status === 'WAITING_FOR_PARTNER' || batch.status === 'DRAFT';
-                             const distanceVal = item.routeDistance || item.distanceKm;
-                             const distanceStr = distanceVal ? (distanceVal.toString().toLowerCase().includes('km') ? distanceVal : `${distanceVal} km`) : 'N/A';
-                             
-                             return (
-                               <tr key={item.id || idx} style={{ borderBottom: idx < batch.items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                                 <td style={{ padding: '16px', fontWeight: 700, color: '#0f172a' }}>
-                                   {item.customerName || 'Unknown'}
-                                   <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{item.customerContact || ''}</div>
-                                 </td>
-                                 <td style={{ padding: '16px', color: '#475569', maxWidth: '300px' }}>
-                                   <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '6px' }} title={item.dropoffAddress}>
-                                     <MapPin size={14} color="#94a3b8" style={{ flexShrink: 0 }} />
-                                     {item.dropoffAddress || 'No Address provided'}
-                                   </div>
-                                 </td>
-                                 <td style={{ padding: '16px', color: '#4f46e5', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                    {distanceStr}
-                                 </td>
-                                 <td style={{ padding: '16px', fontWeight: 800, color: '#0f172a', textAlign: 'center' }}>
-                                   <div style={{ display: 'inline-flex', background: '#f1f5f9', padding: '4px 12px', borderRadius: '12px' }}>{qty}</div>
-                                 </td>
-                                 <td style={{ padding: '16px', textAlign: 'right' }}>
-                                    <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '15px' }}>₱{formatCurrency(productAmount)}</div>
-                                    <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, marginTop: '4px' }}>
-                                      Fee: {isUnassigned ? 'TBD' : `₱${formatCurrency(fee)}`}
-                                      {item.deliveryPriority === 'URGENT' && <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px', background: '#fef2f2', padding: '2px 6px', borderRadius: '4px' }}>URGENT</span>}
-                                    </div>
-                                 </td>
-                               </tr>
-                             );
-                          })}
+                          {(() => {
+                            const groupedItemsMap = new Map();
+                            
+                            batch.items.forEach((item: any) => {
+                              const key = `${item.customerName || ''}-${item.customerContact || ''}-${item.dropoffAddress || ''}`;
+                              if (groupedItemsMap.has(key)) {
+                                const existing = groupedItemsMap.get(key);
+                                existing.quantity = (Number(existing.quantity) || 1) + (Number(item.quantity) || 1);
+                                existing.offeredAmount = (Number(existing.offeredAmount) || 0) + (Number(item.offeredAmount) || 0);
+                                existing.finalDeliveryPrice = (Number(existing.finalDeliveryPrice) || 0) + (Number(item.finalDeliveryPrice) || 0);
+                                existing.normalDeliveryFee = (Number(existing.normalDeliveryFee) || 0) + (Number(item.normalDeliveryFee) || 0);
+                                existing.urgentAdditionalFee = (Number(existing.urgentAdditionalFee) || 0) + (Number(item.urgentAdditionalFee) || 0);
+                              } else {
+                                groupedItemsMap.set(key, { ...item, quantity: Number(item.quantity) || 1 });
+                              }
+                            });
+                            
+                            const groupedItems = Array.from(groupedItemsMap.values());
+                            
+                            return groupedItems.map((item: any, idx: number) => {
+                               const qty = Number(item.quantity) || 1;
+                               let productAmount = Number(item.offeredAmount);
+                               if (!productAmount) {
+                                   productAmount = qty * Number(batch.variantPrice || 0);
+                               }
+                               const fee = Number(item.finalDeliveryPrice) || (Number(item.normalDeliveryFee || 0) + Number(item.urgentAdditionalFee || 0));
+                               const isUnassigned = batch.status === 'READY_FOR_DELIVERY' || batch.status === 'WAITING_FOR_PARTNER' || batch.status === 'DRAFT';
+                               const distanceVal = item.routeDistance || item.distanceKm;
+                               
+                               return (
+                                 <tr key={item.id || idx} style={{ borderBottom: idx < groupedItems.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                                   <td style={{ padding: '16px', fontWeight: 700, color: '#0f172a' }}>
+                                     {item.customerName || 'Unknown'}
+                                     <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{item.customerContact || ''}</div>
+                                   </td>
+                                   <td style={{ padding: '16px', color: '#475569', maxWidth: '300px' }}>
+                                     <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '6px' }} title={item.dropoffAddress}>
+                                       <MapPin size={14} color="#94a3b8" style={{ flexShrink: 0 }} />
+                                       {item.dropoffAddress || 'No Address provided'}
+                                     </div>
+                                   </td>
+                                   <td style={{ padding: '16px', fontWeight: 800, color: '#0f172a', textAlign: 'center' }}>
+                                     <div style={{ display: 'inline-flex', background: '#f1f5f9', padding: '4px 12px', borderRadius: '12px' }}>{qty}</div>
+                                   </td>
+                                   <td style={{ padding: '16px', textAlign: 'right' }}>
+                                      <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '15px' }}>₱{formatCurrency(productAmount)}</div>
+                                      <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, marginTop: '4px' }}>
+                                        Fee: {isUnassigned ? 'TBD' : `₱${formatCurrency(fee)}`}
+                                        {item.deliveryPriority === 'URGENT' && <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px', background: '#fef2f2', padding: '2px 6px', borderRadius: '4px' }}>URGENT</span>}
+                                      </div>
+                                   </td>
+                                 </tr>
+                               );
+                            });
+                          })()}
                         </tbody>
                       </table>
                     </div>

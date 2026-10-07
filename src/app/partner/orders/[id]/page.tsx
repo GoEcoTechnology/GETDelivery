@@ -250,8 +250,9 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     }
   }
 
+  const calculatedVehicleBaseFee = Number(baseOrder.vehicleBasePrice || totalDeliveryFee) || 0;
   const calculatedKmCharge = distanceKm * Number(baseOrder.pricePerKm || 0);
-  grandTotal = totalDeliveryFee + calculatedKmCharge + totalUrgentFee + totalOrderAmount;
+  grandTotal = calculatedVehicleBaseFee + calculatedKmCharge + totalUrgentFee + totalOrderAmount;
 
   const [businessOwner] = await db.select({ name: users.name, contactNumber: users.contactNumber, email: users.email })
     .from(users)
@@ -407,16 +408,36 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
                 <div style={{ height: '1px', background: '#cbd5e1', margin: '12px 0' }} />
                 
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Pricing Breakdown</div>
-                {Number(baseOrder.vehicleBasePrice || totalDeliveryFee) > 0 && <DetailRow label="Vehicle Base Fee" value={formatCurrency(Number(baseOrder.vehicleBasePrice || totalDeliveryFee))} />}
-                {Number(baseOrder.pricePerKm) > 0 && ((distanceKm || Number(baseOrder.distanceKm) || 0) > 0) && <DetailRow label="KM Charge" value={formatCurrency((distanceKm || Number(baseOrder.distanceKm) || 0) * Number(baseOrder.pricePerKm))} />}
-                {!baseOrder.vehicleBasePrice && !baseOrder.pricePerKm && !totalDeliveryFee && (
-                  <DetailRow label="Delivery Fee" value={formatCurrency(totalDeliveryFee)} />
-                )}
-                <DetailRow label="Total Product Amount" value={formatCurrency(totalOrderAmount)} />
-                {totalUrgentFee > 0 && <DetailRow label="Urgent Fee" value={formatCurrency(totalUrgentFee)} color="#ea580c" />}
                 
-                <div style={{ height: '1px', background: '#cbd5e1', margin: '8px 0' }} />
-                <DetailRow label="Grand Total Amount" value={formatCurrency(grandTotal)} color="#4f46e5" boldValue />
+                {(() => {
+                  const isUnassigned = ['PENDING', 'WAITING_FOR_PARTNER', 'DRAFT'].includes(baseOrder.status);
+                  
+                  if (isUnassigned) {
+                    return (
+                      <>
+                        <DetailRow label="Delivery Fee" value="TBD" />
+                        <DetailRow label="Total Product Amount" value={formatCurrency(totalOrderAmount)} />
+                        {totalUrgentFee > 0 && <DetailRow label="Urgent Fee" value={formatCurrency(totalUrgentFee)} color="#ea580c" />}
+                        <div style={{ height: '1px', background: '#cbd5e1', margin: '8px 0' }} />
+                        <DetailRow label="Grand Total Amount" value={`${formatCurrency(totalOrderAmount + totalUrgentFee)} + TBD`} color="#4f46e5" boldValue />
+                      </>
+                    );
+                  }
+                  
+                  return (
+                    <>
+                      {Number(baseOrder.vehicleBasePrice || totalDeliveryFee) > 0 && <DetailRow label="Vehicle Base Fee" value={formatCurrency(Number(baseOrder.vehicleBasePrice || totalDeliveryFee))} />}
+                      {Number(baseOrder.pricePerKm) > 0 && ((distanceKm || Number(baseOrder.distanceKm) || 0) > 0) && <DetailRow label="KM Charge" value={formatCurrency((distanceKm || Number(baseOrder.distanceKm) || 0) * Number(baseOrder.pricePerKm))} />}
+                      {!baseOrder.vehicleBasePrice && !baseOrder.pricePerKm && !totalDeliveryFee && (
+                        <DetailRow label="Delivery Fee" value={formatCurrency(totalDeliveryFee)} />
+                      )}
+                      <DetailRow label="Total Product Amount" value={formatCurrency(totalOrderAmount)} />
+                      {totalUrgentFee > 0 && <DetailRow label="Urgent Fee" value={formatCurrency(totalUrgentFee)} color="#ea580c" />}
+                      <div style={{ height: '1px', background: '#cbd5e1', margin: '8px 0' }} />
+                      <DetailRow label="Grand Total Amount" value={formatCurrency(grandTotal)} color="#4f46e5" boldValue />
+                    </>
+                  );
+                })()}
               </div>
 
             </div>

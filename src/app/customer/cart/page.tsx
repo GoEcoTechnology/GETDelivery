@@ -35,25 +35,51 @@ export default function CartPage() {
 
   const removeItem = async (id: number) => {
     setItems(prev => prev.filter(item => item.id !== id));
+    try {
+      await fetch('/api/cart/' + id, { method: 'DELETE' });
+    } catch (err) {
+      console.error(err);
+      fetchCart();
+    }
   };
 
-  const updateQuantity = (id: number, delta: number) => {
+  const updateQuantity = async (id: number, delta: number) => {
+    let newQty = 1;
     setItems(prev => prev.map(item => {
       if (item.id === id) {
-        const newQty = Math.max(1, item.quantity + delta);
+        newQty = Math.max(1, item.quantity + delta);
         return { ...item, quantity: newQty };
       }
       return item;
     }));
+    try {
+      await fetch('/api/cart/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity: newQty })
+      });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const setQuantityExact = (id: number, qty: number) => {
+  const setQuantityExact = async (id: number, qty: number) => {
+    const validQty = Math.max(1, qty);
     setItems(prev => prev.map(item => {
       if (item.id === id) {
-        return { ...item, quantity: Math.max(1, qty) };
+        return { ...item, quantity: validQty };
       }
       return item;
     }));
+    try {
+      await fetch('/api/cart/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity: validQty })
+      });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   // Group items by tenant
@@ -258,3 +284,5 @@ function ShoppingCartIcon() {
     </svg>
   );
 }
+
+

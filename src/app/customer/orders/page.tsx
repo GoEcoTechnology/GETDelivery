@@ -65,8 +65,11 @@ export default function CustomerOrdersPage() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'DRAFT':
-        return 'Pending';
+      case 'WAITING':
+      case 'PROCESSING':
+      case 'READY_FOR_DELIVERY':
       case 'WAITING_FOR_PARTNER':
+        return 'Pending';
       case 'ACCEPTED':
       case 'IN_TRANSIT':
         return 'To Receive';
@@ -82,7 +85,10 @@ export default function CustomerOrdersPage() {
 
   const getStatusColor = (status: string) => {
     switch(status) {
-      case 'DRAFT': return 'text-yellow-600';
+      case 'DRAFT': 
+      case 'WAITING':
+      case 'PROCESSING':
+      case 'READY_FOR_DELIVERY': return 'text-yellow-600';
       case 'WAITING_FOR_PARTNER': return 'text-blue-600';
       case 'COMPLETED':
       case 'DELIVERED': return 'text-green-600';
@@ -199,16 +205,16 @@ export default function CustomerOrdersPage() {
                         padding: '6px 14px',
                         fontSize: '12px',
                         fontWeight: 700,
-                        background: ['COMPLETED', 'DELIVERED'].includes(order.status) ? '#f0fdf4' : ['DRAFT', 'WAITING_FOR_PARTNER'].includes(order.status) ? '#f8fafc' : '#eff6ff',
-                        color: ['COMPLETED', 'DELIVERED'].includes(order.status) ? '#15803d' : ['DRAFT', 'WAITING_FOR_PARTNER'].includes(order.status) ? '#475569' : '#2563eb',
-                        border: `1px solid ${['COMPLETED', 'DELIVERED'].includes(order.status) ? '#bbf7d0' : ['DRAFT', 'WAITING_FOR_PARTNER'].includes(order.status) ? '#e2e8f0' : '#bfdbfe'}`,
+                        background: ['COMPLETED', 'DELIVERED'].includes(order.status) ? '#f0fdf4' : ['DRAFT', 'WAITING', 'PROCESSING', 'READY_FOR_DELIVERY', 'WAITING_FOR_PARTNER'].includes(order.status) ? '#f8fafc' : '#eff6ff',
+                        color: ['COMPLETED', 'DELIVERED'].includes(order.status) ? '#15803d' : ['DRAFT', 'WAITING', 'PROCESSING', 'READY_FOR_DELIVERY', 'WAITING_FOR_PARTNER'].includes(order.status) ? '#475569' : '#2563eb',
+                        border: `1px solid ${['COMPLETED', 'DELIVERED'].includes(order.status) ? '#bbf7d0' : ['DRAFT', 'WAITING', 'PROCESSING', 'READY_FOR_DELIVERY', 'WAITING_FOR_PARTNER'].includes(order.status) ? '#e2e8f0' : '#bfdbfe'}`,
                         borderRadius: '999px',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px'
                       }}>
                         {['COMPLETED', 'DELIVERED'].includes(order.status) && <CheckCircle2 size={14} />}
-                        {['DRAFT', 'WAITING_FOR_PARTNER'].includes(order.status) && <Package size={14} />}
+                        {['DRAFT', 'WAITING', 'PROCESSING', 'READY_FOR_DELIVERY', 'WAITING_FOR_PARTNER'].includes(order.status) && <Package size={14} />}
                         {['ACCEPTED', 'IN_TRANSIT'].includes(order.status) && <Truck size={14} />}
                         {getStatusText(order.status)}
                       </span>
@@ -341,7 +347,7 @@ export default function CustomerOrdersPage() {
                     >
                       Contact
                     </button>
-                    {['DRAFT', 'WAITING_FOR_PARTNER'].includes(order.status) && (
+                    {['DRAFT', 'WAITING_FOR_PARTNER', 'WAITING', 'PROCESSING', 'READY_FOR_DELIVERY'].includes(order.status) && (
                       <button 
                         onClick={() => handleCancelOrder(order.id)}
                         disabled={cancellingId === order.id}

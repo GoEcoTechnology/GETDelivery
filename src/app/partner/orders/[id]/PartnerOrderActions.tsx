@@ -177,16 +177,20 @@ export default function PartnerOrderActions({ orderId, status, availableVehicles
               <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', color: '#0f172a' }}>Accept Delivery Assignment</h3>
               <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '14px' }}>Please select the vehicle you will use for this delivery. The delivery fee will be calculated automatically based on your selection.</p>
 
-              <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
-                {availableVehicles?.map(v => (
-                  <label key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', border: selectedVehicleType === v.vehicleType ? '2px solid #4f46e5' : '1px solid #e2e8f0', borderRadius: '12px', background: selectedVehicleType === v.vehicleType ? '#eff6ff' : '#fff' }}>
-                    <input type="radio" name="accept_vehicle" value={v.vehicleType} checked={selectedVehicleType === v.vehicleType} onChange={(e) => setSelectedVehicleType(e.target.value)} style={{ display: 'none' }} />
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontWeight: 700, color: '#0f172a' }}>{v.vehicleType}</span>
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>Base: ₱{v.basePrice} | Per KM: ₱{v.pricePerKm}</span>
-                    </div>
-                  </label>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                <label style={{ fontSize: '14px', fontWeight: 600, color: '#475569' }}>Select Vehicle</label>
+                <select
+                  value={selectedVehicleType || ''}
+                  onChange={(e) => setSelectedVehicleType(e.target.value)}
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontSize: '14px', color: '#0f172a', appearance: 'none', cursor: 'pointer' }}
+                >
+                  <option value="" disabled>Select a vehicle...</option>
+                  {availableVehicles?.map(v => (
+                    <option key={v.id} value={v.vehicleType}>
+                      {v.vehicleType} (Base: ₱{v.basePrice} | Per KM: ₱{v.pricePerKm})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
