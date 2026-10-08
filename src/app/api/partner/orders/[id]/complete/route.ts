@@ -71,8 +71,7 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to complete delivery.' }, { status: 500 });
     }
 
-    // Audit log (fire and forget)
-    db.insert(auditLogs).values({
+    const auditPromise = db.insert(auditLogs).values({
       tenantId: updatedOrder.tenantId,
       actorType: 'PARTNER',
       actorId: partnerId,
@@ -80,10 +79,9 @@ export async function POST(
       entityType: 'DELIVERY_ORDER',
       entityId: orderId,
       details: 'Partner has successfully completed the delivery.'
-    }).catch(err => console.error('Failed to log audit:', err.message));
+    });
 
-    // Notify the Business Owner (fire and forget)
-    buildStandardNotificationBody('Delivery Completed', {
+    const notifPromise = buildStandardNotificationBody('Delivery Completed', {
       orderId: orderId,
       status: 'DELIVERED',
       reason: 'The Delivery Partner has successfully completed this delivery.'
@@ -100,7 +98,11 @@ export async function POST(
         actionUrl: `/admin/deliveries/${orderId}`,
         status: 'UNREAD'
       });
-    }).catch(err => console.error('Failed to insert notification:', err.message));
+    });
+
+    await Promise.all([auditPromise, notifPromise]).catch(err => {
+      console.error('Failed background tasks:', err);
+    });
 
     return NextResponse.json({ success: true, message: 'Delivery completed successfully.', status: 'DELIVERED' });
   });

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { deliveryOrders, deliveryItems, customers, productVariants, quotaAccumulations } from '@/db/schema';
+import { deliveryOrders, deliveryItems, customers, productVariants, quotaAccumulations, products, productSellingUnits } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 
@@ -79,9 +79,22 @@ export async function POST(
         customerId = newCust.id;
       }
 
-      // Fetch variant price
+      // Fetch product name
+      const [product] = await tx
+        .select({ name: products.name })
+        .from(products)
+        .where(eq(products.id, productId));
+      const productName = product?.name || 'Unknown Product';
       let unitPrice: string | null = null;
-      if (variantId) {
+      
+      const sellingUnitId = body.sellingUnitId ? parseInt(body.sellingUnitId, 10) : null;
+      if (sellingUnitId) {
+        const [su] = await tx.select({ price: productSellingUnits.price }).from(productSellingUnits).where(eq(productSellingUnits.id, sellingUnitId));
+        if (su?.price) unitPrice = String(su.price);
+      }
+
+      // Override with variant price if applicable
+      if (variantId && !unitPrice) {
         const [variant] = await tx
           .select({ price: productVariants.price })
           .from(productVariants)
@@ -114,6 +127,7 @@ export async function POST(
       await tx.insert(deliveryItems).values({
         deliveryOrderId: subOrder.id,
         productId,
+        productName,
         variantId: variantId ?? undefined,
         quantity,
         unit,

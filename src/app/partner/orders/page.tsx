@@ -46,10 +46,12 @@ export default async function PartnerOrdersPage() {
         vehicleBasePrice: deliveryOrders.vehicleBasePrice,
         pricePerKm: deliveryOrders.pricePerKm,
         pickupAddress: deliveryOrders.pickupAddress,
-        batchId: deliveryOrders.batchId
+        batchId: deliveryOrders.batchId,
+        orderSource: deliveryOrders.orderSource
       },
       tenant: {
-        name: tenants.name
+        name: tenants.name,
+        address: tenants.address
       },
       customer: {
         name: customers.name,
@@ -85,16 +87,55 @@ export default async function PartnerOrdersPage() {
     counts.forEach(c => batchItemCounts.set(c.batchId!, Number(c.count)));
   }
 
-  const invitationsWithItems = invitations.map(inv => ({
-    ...inv,
-    order: {
-      ...inv.order,
-      batchCustomerCount: inv.order.batchId ? batchItemCounts.get(inv.order.batchId) || 0 : 0
+  const manualDeliveryIds = invitations.filter(i => i.order.orderSource === 'CREATED').map(i => i.order.id);
+  const manualItemCounts = new Map<number, number>();
+  const manualFirstDropoff = new Map<number, string>();
+  
+  if (manualDeliveryIds.length > 0) {
+    const manualChildren = await db
+      .select({
+        parentId: deliveryOrders.parentOrderId,
+        dropoffAddress: deliveryOrders.dropoffAddress
+      })
+      .from(deliveryOrders)
+      .where(inArray(deliveryOrders.parentOrderId, manualDeliveryIds));
+      
+    manualChildren.forEach(child => {
+      if (child.parentId) {
+        const count = manualItemCounts.get(child.parentId) || 0;
+        manualItemCounts.set(child.parentId, count + 1);
+        if (!manualFirstDropoff.has(child.parentId) && child.dropoffAddress) {
+          manualFirstDropoff.set(child.parentId, child.dropoffAddress);
+        }
+      }
+    });
+  }
+
+  const invitationsWithItems = invitations.map(inv => {
+    let batchCustomerCount = 0;
+    let explicitDropoff = inv.order.dropoffAddress;
+
+    if (inv.order.batchId) {
+      batchCustomerCount = batchItemCounts.get(inv.order.batchId) || 0;
+    } else if (inv.order.orderSource === 'CREATED') {
+      batchCustomerCount = manualItemCounts.get(inv.order.id) || 0;
+      if (batchCustomerCount === 1) {
+        explicitDropoff = manualFirstDropoff.get(inv.order.id) || inv.order.dropoffAddress;
+      }
     }
-  })) as Array<{
+
+    return {
+      ...inv,
+      order: {
+        ...inv.order,
+        batchCustomerCount,
+        dropoffAddress: explicitDropoff
+      }
+    };
+  }) as Array<{
     invitation: { id: number; createdAt: Date | string; status: string };
-    order: { id: number; batchId?: number | null; batchCustomerCount?: number; dropoffAddress: string; instructions?: string; preferredVehicle?: string; finalDeliveryPrice?: string | number; requiredVehicleType?: string; distanceKm?: string | number; vehicleBasePrice?: string | number; pricePerKm?: string | number; pickupAddress?: string };
-    tenant: { name: string };
+    order: { id: number; batchId?: number | null; orderSource?: string; batchCustomerCount?: number; dropoffAddress: string; instructions?: string; preferredVehicle?: string; finalDeliveryPrice?: string | number; requiredVehicleType?: string; distanceKm?: string | number; vehicleBasePrice?: string | number; pricePerKm?: string | number; pickupAddress?: string };
+    tenant: { name: string; address?: string | null };
     customer?: { name: string; mobileNumber?: string | null } | null;
   }>;
 

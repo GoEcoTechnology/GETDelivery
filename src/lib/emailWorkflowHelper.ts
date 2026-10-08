@@ -305,17 +305,20 @@ export async function sendBroadcastDeliveryNotification(
   deliveryOrderId: number
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Fetch tenant name for businessOwnerName
+    // Fetch tenant name for businessOwnerName and their exact address
     const { tenants } = await import('@/db/schema');
-    const [tenant] = await db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, tenantId));
+    const [tenant] = await db.select({ name: tenants.name, address: tenants.address }).from(tenants).where(eq(tenants.id, tenantId));
     const businessOwnerName = tenant?.name || 'GET Delivery Customer';
+    
+    // Always prioritize the tenant's exact registered address over generic labels like "Warehouse"
+    const finalPickupAddress = tenant?.address ? tenant.address : pickupAddress;
 
     // Generate email template
     const emailTemplate = emailTemplatesV2.newDeliveryRequestTemplate({
       orderId,
       customerName,
       businessOwnerName,
-      pickupAddress,
+      pickupAddress: finalPickupAddress,
       dropoffAddress,
       deliveryDate,
       contactNumber,

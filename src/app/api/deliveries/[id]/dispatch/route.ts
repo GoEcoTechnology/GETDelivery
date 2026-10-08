@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates, users } from '@/db/schema';
-import { eq, and, or, isNotNull, desc } from 'drizzle-orm';
+import { deliveryOrders, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates, users, quotaAccumulations, deliveryItems } from '@/db/schema';
+import { eq, and, or, isNotNull, desc, sql as drizzleSql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 import { deductOrderStock } from '@/lib/inventory-helper';
@@ -80,6 +80,22 @@ export async function POST(
     // Create invitations and send Emails synchronously in the DB transaction
     try {
       const txResult = await tx.transaction(async (innerTx: any) => {
+        // Sync accumulated quotas into delivery items so they show correct quantities for partners
+        const accumulations = await innerTx
+          .select({
+            itemId: quotaAccumulations.sourceItemId,
+            finalizedQty: drizzleSql<number>`COALESCE(SUM(${quotaAccumulations.quantityAdded}), 0)::int`,
+          })
+          .from(quotaAccumulations)
+          .where(eq(quotaAccumulations.sourceOrderId, order.id))
+          .groupBy(quotaAccumulations.sourceItemId);
+
+        for (const row of accumulations) {
+          if (row.itemId && row.finalizedQty > 0) {
+            await innerTx.update(deliveryItems).set({ quantity: row.finalizedQty }).where(eq(deliveryItems.id, row.itemId));
+          }
+        }
+
         // 0. Deduct Stock (throws if insufficient)
         await deductOrderStock(innerTx, tenantIdToUse, order.id, claims.userId as number);
 

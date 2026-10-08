@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { deliveryInvitations, deliveryOrders, deliveryBatches, deliveryBatchItems, tenants, customers, deliveryItems, products, users, vehicleDeliveryRates } from '@/db/schema';
+import { deliveryInvitations, deliveryOrders, deliveryBatches, deliveryBatchItems, tenants, customers, deliveryItems, products, productSellingUnits, users, vehicleDeliveryRates } from '@/db/schema';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import PartnerOrderActions from './PartnerOrderActions';
 import RouteMap from '@/components/RouteMap';
@@ -77,7 +77,11 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
       instructions: deliveryOrders.instructions,
       preferredVehicle: deliveryOrders.preferredVehicle,
       vehicleBasePrice: deliveryOrders.vehicleBasePrice,
-      pricePerKm: deliveryOrders.pricePerKm
+      pricePerKm: deliveryOrders.pricePerKm,
+      orderSource: deliveryOrders.orderSource,
+      normalDeliveryFee: deliveryOrders.normalDeliveryFee,
+      urgentAdditionalFee: deliveryOrders.urgentAdditionalFee,
+      routeDistance: deliveryOrders.routeDistance
     },
     tenant: {
       id: tenants.id,
@@ -113,6 +117,8 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
   // 2. Fetch all orders for this delivery (either 1 or N if batch)
   let allOrders: any[] = [];
   let totalWeightKg = 0;
+  let hasChildren = false;
+
   if (isBatch) {
     const bItems = await db.select().from(deliveryBatchItems).where(eq(deliveryBatchItems.batchId, baseOrder.batchId as number));
     const batchOrderIds = bItems.map(i => i.customerOrderId);
@@ -122,7 +128,17 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     const [batchRecord] = await db.select({ totalWeight: deliveryBatches.totalWeight }).from(deliveryBatches).where(eq(deliveryBatches.id, baseOrder.batchId as number));
     if (batchRecord) totalWeightKg = Number(batchRecord.totalWeight) || 0;
   } else {
-    allOrders = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, baseOrder.id));
+    if (baseOrder.orderSource === 'CREATED') {
+      const children = await db.select().from(deliveryOrders).where(eq(deliveryOrders.parentOrderId, baseOrder.id));
+      if (children.length > 0) {
+        allOrders = children;
+        hasChildren = true;
+      } else {
+        allOrders = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, baseOrder.id));
+      }
+    } else {
+      allOrders = await db.select().from(deliveryOrders).where(eq(deliveryOrders.id, baseOrder.id));
+    }
   }
 
   // 3. Aggregate totals and Customer Stops
@@ -159,8 +175,9 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
       address = await getAddressFromCoords(lat.trim(), lng.trim(), address);
     }
 
-    const items = await db.select({ 
+    const rawItems = await db.select({ 
       id: deliveryItems.id, 
+      productId: deliveryItems.productId,
       quantity: deliveryItems.quantity,
       unit: deliveryItems.unit, 
       productName: deliveryItems.productName,
@@ -168,6 +185,31 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     })
     .from(deliveryItems)
     .where(eq(deliveryItems.deliveryOrderId, o.id));
+
+    // Safe fallback for old orders without crashing Drizzle mapper
+    const items = await Promise.all(rawItems.map(async (item) => {
+      let finalName = item.productName;
+      let finalPrice = item.unitPrice;
+      
+      if (!finalName || !finalPrice || finalPrice === '0' || finalPrice === '0.00') {
+        if (item.productId) {
+          const [prod] = await db.select({ name: products.name }).from(products).where(eq(products.id, item.productId));
+          if (prod && !finalName) finalName = prod.name;
+          
+          if (!finalPrice || finalPrice === '0' || finalPrice === '0.00') {
+            let [sellingUnit] = await db.select({ price: productSellingUnits.price }).from(productSellingUnits).where(and(eq(productSellingUnits.productId, item.productId), eq(productSellingUnits.unitName, item.unit || 'pc')));
+            if (!sellingUnit) {
+              const fallback = await db.select({ price: productSellingUnits.price }).from(productSellingUnits).where(eq(productSellingUnits.productId, item.productId)).limit(1);
+              sellingUnit = fallback[0];
+            }
+            if (sellingUnit && sellingUnit.price) {
+              finalPrice = String(sellingUnit.price);
+            }
+          }
+        }
+      }
+      return { ...item, productName: finalName, unitPrice: finalPrice };
+    }));
 
     const mappedProducts = items.map((item) => {
       const qty = item.quantity || 0;
@@ -233,9 +275,15 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     }
   }
 
+  if (hasChildren) {
+    totalDeliveryFee = Number(baseOrder.normalDeliveryFee || baseOrder.vehicleBasePrice) || 0;
+    totalUrgentFee = Number(baseOrder.urgentAdditionalFee) || 0;
+    distanceKm = Number.parseFloat(String(baseOrder.distanceKm || baseOrder.routeDistance || '0').replace(/[^\d.]/g, '')) || 0;
+  }
+
   if (distanceKm === 0) {
-    let pickupLat = isBatch && tenant.lat ? parseFloat(tenant.lat as any) : (baseOrder.pickupLat ? parseFloat(baseOrder.pickupLat) : 0);
-    let pickupLng = isBatch && tenant.lng ? parseFloat(tenant.lng as any) : (baseOrder.pickupLng ? parseFloat(baseOrder.pickupLng) : 0);
+    let pickupLat = tenant.lat ? parseFloat(tenant.lat as any) : (baseOrder.pickupLat ? parseFloat(baseOrder.pickupLat) : 0);
+    let pickupLng = tenant.lng ? parseFloat(tenant.lng as any) : (baseOrder.pickupLng ? parseFloat(baseOrder.pickupLng) : 0);
     
     if (pickupLat && pickupLng) {
       let currentLat = pickupLat;
@@ -274,18 +322,21 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
             <div className={styles.cardContent} style={{ padding: 0 }}>
               <div style={{ height: '300px' }}>
                 <RouteMap 
-                  pickupAddress={isBatch && tenant.address ? tenant.address : baseOrder.pickupAddress} 
-                  pickupLat={isBatch && tenant.lat ? parseFloat(tenant.lat as any) : (baseOrder.pickupLat ? parseFloat(baseOrder.pickupLat) : undefined)} 
-                  pickupLng={isBatch && tenant.lng ? parseFloat(tenant.lng as any) : (baseOrder.pickupLng ? parseFloat(baseOrder.pickupLng) : undefined)} 
-                  customerStops={customerStops.map(stop => ({
-                    id: stop.orderId,
-                    stopNumber: stop.stopNumber,
-                    address: stop.address,
-                    lat: stop.lat ? parseFloat(stop.lat) : undefined,
-                    lng: stop.lng ? parseFloat(stop.lng) : undefined,
-                    customerName: stop.fullName,
-                    contactNumber: stop.contactNumber
-                  }))}
+                  pickupAddress={tenant.address || baseOrder.pickupAddress} 
+                  pickupLat={tenant.lat ? parseFloat(tenant.lat as any) : (baseOrder.pickupLat ? parseFloat(baseOrder.pickupLat) : undefined)} 
+                  pickupLng={tenant.lng ? parseFloat(tenant.lng as any) : (baseOrder.pickupLng ? parseFloat(baseOrder.pickupLng) : undefined)} 
+                  customerStops={customerStops.map(stop => {
+                    const mapped: any = {
+                      id: stop.orderId,
+                      stopNumber: stop.stopNumber,
+                      address: stop.address,
+                      customerName: stop.fullName,
+                      contactNumber: stop.contactNumber
+                    };
+                    if (stop.lat) mapped.lat = parseFloat(stop.lat);
+                    if (stop.lng) mapped.lng = parseFloat(stop.lng);
+                    return mapped;
+                  })}
                   showCurrentLocation={true}
                 />
               </div>
@@ -347,7 +398,17 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
           <section className={styles.card} style={{ marginBottom: 0 }}>
             <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MapPin size={20} color="#4f46e5" /> Request Actions</h3></div>
             <div className={styles.cardContent}>
-              <PartnerOrderActions orderId={baseOrder.id} status={['ACCEPTED', 'TEMPORARY_WINNER'].includes(invite.status) ? baseOrder.status : invite.status} availableVehicles={await db.select().from(vehicleDeliveryRates).where(eq(vehicleDeliveryRates.isActive, true))} />
+              <PartnerOrderActions 
+                orderId={baseOrder.id} 
+                status={['ACCEPTED', 'TEMPORARY_WINNER'].includes(invite.status) ? baseOrder.status : invite.status} 
+                availableVehicles={(await db.select().from(vehicleDeliveryRates).where(eq(vehicleDeliveryRates.isActive, true))).map(v => ({
+                  id: v.id,
+                  vehicleType: v.vehicleType,
+                  basePrice: v.basePrice,
+                  pricePerKm: v.pricePerKm,
+                  isActive: v.isActive
+                }))} 
+              />
             </div>
           </section>
 
@@ -369,7 +430,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
               
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>Pickup Information</div>
               {await (async () => {
-                let pickupAddress = (isBatch && tenant.address ? tenant.address : baseOrder.pickupAddress) || '';
+                let pickupAddress = tenant.address || baseOrder.pickupAddress || '';
                 let pickupNote = '';
                 const match = pickupAddress.match(/\(([^)]+)\)$/);
                 if (match) {

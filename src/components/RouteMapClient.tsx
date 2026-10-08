@@ -174,8 +174,13 @@ export default function RouteMapClient({
       if (data.routes?.length > 0) {
         const coords = data.routes[0].geometry.coordinates.map((c: any) => [c[1], c[0]] as [number, number]);
         setRouteLine(coords);
+      } else {
+        setRouteLine([pickup, ...drops]);
       }
-    } catch { /* silent fail - still show pins */ }
+    } catch {
+      // Fallback to straight lines connecting the points if the routing API fails
+      setRouteLine([pickup, ...drops]);
+    }
   }
 
   if (loading) {

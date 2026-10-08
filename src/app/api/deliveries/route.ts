@@ -316,6 +316,8 @@ export async function POST(request: Request) {
       itemsToInsert.push({
         deliveryOrderId: order.id,
         productId: item.productId,
+        productName: productInfo.name,
+        unitPrice: unitPrice.toString(),
         quantity: item.quantity,
         unit: item.unit,
         variantId: item.variantId,

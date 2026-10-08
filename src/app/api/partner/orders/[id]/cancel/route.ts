@@ -64,9 +64,9 @@ export async function POST(
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, order.tenantId));
       const businessName = tenant?.name || 'Business Owner';
 
-      // 4. Notify Business Owner (fire and forget)
+      // 4. Notify Business Owner (Safe parallel)
       const tenantMsgTitle = 'Assigned Delivery Cancelled';
-      buildStandardNotificationBody(tenantMsgTitle, {
+      const ownerNotifPromise = buildStandardNotificationBody(tenantMsgTitle, {
         orderId: orderId,
         status: 'CANCELLED',
         reason: cancelReason || 'None provided'
@@ -83,10 +83,10 @@ export async function POST(
           actionUrl: `/admin/deliveries/${orderId}`,
           status: 'UNREAD'
         });
-      }).catch(err => console.error('Failed to notify owner:', err));
+      });
 
       // Send email to business owner and employees via the workflow helper
-      sendEmailToTenantUsers(
+      const emailPromise = sendEmailToTenantUsers(
         order.tenantId,
         tenantMsgTitle,
         emailTemplates.orderDeclinedTemplate({
@@ -96,7 +96,9 @@ export async function POST(
           reason: cancelReason || 'None provided',
           dashboardUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://getdelivery.ph'}/admin/deliveries/${orderId}`,
         })
-      ).catch(err => console.error('Failed to send cancellation email to owner:', err));
+      );
+      
+      await Promise.all([ownerNotifPromise, emailPromise]).catch(err => console.error('Failed to notify owner:', err));
 
       // 5. Notify All Active & Eligible Partners (Except the cancelling one)
       // Query all eligible partners dynamically to ensure we don't skip newly registered ones
@@ -211,8 +213,8 @@ export async function POST(
         }
       });
 
-      // 6. Audit Log (fire and forget)
-      db.insert(auditLogs).values({
+      // 6. Audit Log (Safe await)
+      await db.insert(auditLogs).values({
         tenantId: order.tenantId,
         actorType: 'PARTNER',
         actorId: partnerId,

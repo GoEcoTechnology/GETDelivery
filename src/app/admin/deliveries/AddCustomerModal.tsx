@@ -180,7 +180,7 @@ export function AddCustomerModal({ isOpen, onClose, context, onSuccess }: AddCus
     setCoords({ lat, lng });
     setSearchResults([]);
     setSearchQuery(result.display_name);
-    if (!form.address) setForm(prev => ({ ...prev, address: result.display_name }));
+    setForm(prev => ({ ...prev, address: result.display_name }));
     setErrors(prev => ({ ...prev, coords: '' }));
 
     import('leaflet').then((L) => {
