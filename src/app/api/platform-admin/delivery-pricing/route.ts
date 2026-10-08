@@ -60,7 +60,7 @@ export async function PUT(request: Request) {
       })
       .returning();
 
-    const ratePromises = rates.map(rate => {
+    const ratePromises = rates.map((rate: any) => {
       if (!rate.vehicleType) return null;
       const basePrice = Number(rate.basePrice || 0);
       const vehiclePricePerKm = Number(rate.pricePerKm || 0);
