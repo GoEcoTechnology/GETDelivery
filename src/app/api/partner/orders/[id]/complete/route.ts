@@ -71,8 +71,8 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to complete delivery.' }, { status: 500 });
     }
 
-    // Audit log
-    await db.insert(auditLogs).values({
+    // Audit log (fire and forget)
+    db.insert(auditLogs).values({
       tenantId: updatedOrder.tenantId,
       actorType: 'PARTNER',
       actorId: partnerId,
@@ -80,27 +80,27 @@ export async function POST(
       entityType: 'DELIVERY_ORDER',
       entityId: orderId,
       details: 'Partner has successfully completed the delivery.'
-    });
+    }).catch(err => console.error('Failed to log audit:', err.message));
 
-    // Notify the Business Owner
-    const bodyStr = await buildStandardNotificationBody('Delivery Completed', {
+    // Notify the Business Owner (fire and forget)
+    buildStandardNotificationBody('Delivery Completed', {
       orderId: orderId,
       status: 'DELIVERED',
       reason: 'The Delivery Partner has successfully completed this delivery.'
-    });
-
-    await db.insert(notifications).values({
-      tenantId: updatedOrder.tenantId,
-      deliveryOrderId: orderId,
-      senderId: partnerId,
-      receiverId: 0, // 0 means broadcast to tenant admins
-      receiverRole: 'BUSINESS_OWNER',
-      notificationType: 'delivery_completed',
-      title: 'Delivery Completed',
-      body: bodyStr,
-      actionUrl: `/admin/deliveries/${orderId}`,
-      status: 'UNREAD'
-    });
+    }).then(bodyStr => {
+      return db.insert(notifications).values({
+        tenantId: updatedOrder.tenantId,
+        deliveryOrderId: orderId,
+        senderId: partnerId,
+        receiverId: 0, // 0 means broadcast to tenant admins
+        receiverRole: 'BUSINESS_OWNER',
+        notificationType: 'delivery_completed',
+        title: 'Delivery Completed',
+        body: bodyStr,
+        actionUrl: `/admin/deliveries/${orderId}`,
+        status: 'UNREAD'
+      });
+    }).catch(err => console.error('Failed to insert notification:', err.message));
 
     return NextResponse.json({ success: true, message: 'Delivery completed successfully.', status: 'DELIVERED' });
   });

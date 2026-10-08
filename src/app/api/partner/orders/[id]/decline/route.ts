@@ -54,8 +54,8 @@ export async function POST(
           )
         );
 
-      // Audit log (keeps internal record)
-      await db.insert(auditLogs).values({
+      // Audit log (fire and forget)
+      db.insert(auditLogs).values({
         tenantId: updatedInvitation.tenantId,
         actorType: 'PARTNER',
         actorId: partnerId,
@@ -63,7 +63,7 @@ export async function POST(
         entityType: 'DELIVERY_ORDER',
         entityId: orderId,
         details: `Partner declined the request. Reason: ${declineReason || 'Not specified'}`
-      });
+      }).catch(err => console.error('Failed to log audit:', err.message));
 
       // No emails or in-app notifications are sent to the Business Owner here,
       // as they should only be notified upon successful acceptance or completion.

@@ -64,26 +64,26 @@ export async function POST(
       const [tenant] = await db.select().from(tenants).where(eq(tenants.id, order.tenantId));
       const businessName = tenant?.name || 'Business Owner';
 
-      // 4. Notify Business Owner
+      // 4. Notify Business Owner (fire and forget)
       const tenantMsgTitle = 'Assigned Delivery Cancelled';
-      const tenantMsgBody = await buildStandardNotificationBody(tenantMsgTitle, {
+      buildStandardNotificationBody(tenantMsgTitle, {
         orderId: orderId,
         status: 'CANCELLED',
         reason: cancelReason || 'None provided'
-      });
-      
-      await db.insert(notifications).values({
-        tenantId: order.tenantId,
-        deliveryOrderId: orderId,
-        senderId: partnerId,
-        receiverId: 0,
-        receiverRole: 'PLATFORM_OWNER',
-        notificationType: 'order_declined',
-        title: tenantMsgTitle,
-        body: tenantMsgBody,
-        actionUrl: `/admin/deliveries/${orderId}`,
-        status: 'UNREAD'
-      });
+      }).then(tenantMsgBody => {
+        return db.insert(notifications).values({
+          tenantId: order.tenantId,
+          deliveryOrderId: orderId,
+          senderId: partnerId,
+          receiverId: 0,
+          receiverRole: 'PLATFORM_OWNER',
+          notificationType: 'order_declined',
+          title: tenantMsgTitle,
+          body: tenantMsgBody,
+          actionUrl: `/admin/deliveries/${orderId}`,
+          status: 'UNREAD'
+        });
+      }).catch(err => console.error('Failed to notify owner:', err));
 
       // Send email to business owner and employees via the workflow helper
       sendEmailToTenantUsers(
@@ -211,8 +211,8 @@ export async function POST(
         }
       });
 
-      // 6. Audit Log
-      await db.insert(auditLogs).values({
+      // 6. Audit Log (fire and forget)
+      db.insert(auditLogs).values({
         tenantId: order.tenantId,
         actorType: 'PARTNER',
         actorId: partnerId,
@@ -220,7 +220,7 @@ export async function POST(
         entityType: 'DELIVERY_ORDER',
         entityId: orderId,
         details: `Partner cancelled assignment. Reason: ${cancelReason || 'Not specified'}. Order reverted to DISPATCHED.`
-      });
+      }).catch(err => console.error('Failed to log audit:', err.message));
 
       return NextResponse.json({ success: true, message: 'Assignment cancelled successfully. Order is available again.' });
     } catch (error) {

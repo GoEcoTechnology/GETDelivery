@@ -9,9 +9,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const [settings] = await tx.select().from(platformDeliverySettings).orderBy(desc(platformDeliverySettings.updatedAt)).limit(1);
-    const rates = await tx
-      .select({
+    const [settingsResult, ratesResult, vehicleTypesResult] = await Promise.all([
+      tx.select().from(platformDeliverySettings).orderBy(desc(platformDeliverySettings.updatedAt)).limit(1),
+      tx.select({
         vehicleType: vehicleDeliveryRates.vehicleType,
         basePrice: vehicleDeliveryRates.basePrice,
         pricePerKm: vehicleDeliveryRates.pricePerKm,
@@ -19,15 +19,18 @@ export async function GET(request: Request) {
         updatedAt: vehicleDeliveryRates.updatedAt,
       })
       .from(vehicleDeliveryRates)
-      .orderBy(asc(vehicleDeliveryRates.vehicleType));
-
-    const vehicleTypes = await tx
-      .select({
+      .orderBy(asc(vehicleDeliveryRates.vehicleType)),
+      tx.select({
         vehicleType: vehicles.vehicleType,
       })
       .from(vehicles)
       .groupBy(vehicles.vehicleType)
-      .orderBy(asc(vehicles.vehicleType));
+      .orderBy(asc(vehicles.vehicleType))
+    ]);
+
+    const settings = settingsResult[0];
+    const rates = ratesResult;
+    const vehicleTypes = vehicleTypesResult;
 
     return NextResponse.json({ data: { settings: settings || null, rates, vehicleTypes } });
   });
@@ -57,11 +60,11 @@ export async function PUT(request: Request) {
       })
       .returning();
 
-    for (const rate of rates) {
-      if (!rate.vehicleType) continue;
+    const ratePromises = rates.map(rate => {
+      if (!rate.vehicleType) return null;
       const basePrice = Number(rate.basePrice || 0);
       const vehiclePricePerKm = Number(rate.pricePerKm || 0);
-      await tx
+      return tx
         .insert(vehicleDeliveryRates)
         .values({
           vehicleType: String(rate.vehicleType),
@@ -80,7 +83,9 @@ export async function PUT(request: Request) {
             updatedAt: sql`now()`,
           },
         });
-    }
+    }).filter(Boolean);
+
+    await Promise.all(ratePromises);
 
     return NextResponse.json({ success: true, data: savedSettings });
   });
