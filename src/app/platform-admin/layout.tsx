@@ -10,7 +10,8 @@ import {
   Briefcase,
   Receipt,
   LogOut,
-  Shield
+  Shield,
+  X
 } from 'lucide-react';
 import NotificationBell from '../admin/NotificationBell';
 export default function PlatformAdminLayout({ children }: { children: React.ReactNode }) {
@@ -56,9 +57,12 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, color: '#4f46e5' }}>
           <Shield className="w-5 h-5" /> GETPlatform
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <NotificationBell />
-          <button className={styles.mobileMenuBtn} onClick={() => setSidebarOpen(true)}>
+          <button onClick={handleLogout} className={styles.mobileLogoutHeaderBtn} title="Sign Out" aria-label="Sign Out">
+            <LogOut size={18} />
+          </button>
+          <button className={styles.mobileMenuBtn} onClick={() => setSidebarOpen(true)} aria-label="Open menu">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="12" x2="21" y2="12"></line>
               <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -76,7 +80,16 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
 
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.brand}>
-          <Shield className="w-6 h-6" /> GETPlatform
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Shield className="w-6 h-6" /> GETPlatform
+          </div>
+          <button 
+            className={styles.sidebarCloseBtn} 
+            onClick={() => setSidebarOpen(false)} 
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
         </div>
         <nav className={styles.nav}>
           <Link href="/platform-admin/dashboard" className={pathname === '/platform-admin/dashboard' ? styles.active : ''}>

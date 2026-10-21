@@ -68,13 +68,19 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, color: '#4f46e5' }}>
           <Briefcase className="w-5 h-5" /> GETPartner
         </div>
-        <button className={styles.mobileMenuBtn} onClick={() => setSidebarOpen(true)}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <NotificationBell />
+          <button onClick={handleLogout} className={styles.mobileLogoutHeaderBtn} title="Sign Out" aria-label="Sign Out">
+            <LogOut size={18} />
+          </button>
+          <button className={styles.mobileMenuBtn} onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Overlay for mobile */}
@@ -85,7 +91,16 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
 
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.brand}>
-          <Briefcase className="w-6 h-6" /> GETPartner
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Briefcase className="w-6 h-6" /> GETPartner
+          </div>
+          <button 
+            className={styles.sidebarCloseBtn} 
+            onClick={() => setSidebarOpen(false)} 
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
         </div>
         <nav className={styles.nav}>
           <Link href="/partner/dashboard" className={pathname === '/partner/dashboard' ? styles.active : ''}>
