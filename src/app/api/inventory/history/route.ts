@@ -3,14 +3,22 @@ import { db } from '@/db';
 import { inventoryTransactions, products, users } from '@/db/schema';
 import { desc, eq, and, sql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { purgeExpiredDeliveries } from '@/lib/delivery-purge';
 
 export async function GET(request: Request) {
   return withAuth(request, { requiredPermissions: ['inventory.view'] }, async (tx, claims) => {
+    const tenantIdToUse = claims.role === 'PLATFORM_OWNER' ? null : (claims.tenantId as number | null | undefined);
+
+    // Auto-purge records older than 1 month (30 days)
+    await purgeExpiredDeliveries(tenantIdToUse).catch(err => {
+      console.error('Error during auto-purge in inventory-history route:', err);
+    });
+
     const { searchParams } = new URL(request.url);
+    const isExport = searchParams.get('all') === 'true';
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '25', 10);
-    
-    const offset = (page - 1) * limit;
+    const limit = isExport ? 5000 : parseInt(searchParams.get('limit') || '25', 10);
+    const offset = isExport ? 0 : (page - 1) * limit;
 
     let conditions: any = undefined;
     if (claims.role !== 'PLATFORM_OWNER') {
@@ -18,7 +26,7 @@ export async function GET(request: Request) {
     }
 
     // Join with products and users to get names
-    const data = await tx
+    const query = tx
       .select({
         id: inventoryTransactions.id,
         productName: products.name,
@@ -37,6 +45,8 @@ export async function GET(request: Request) {
       .limit(limit)
       .offset(offset)
       .orderBy(desc(inventoryTransactions.createdAt));
+
+    const data = await query;
 
     const countResult = await tx
       .select({ count: sql`count(*)` })

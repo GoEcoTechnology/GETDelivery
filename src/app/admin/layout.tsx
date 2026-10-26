@@ -17,7 +17,8 @@ import {
   X,
   AlertTriangle,
   ShoppingCart,
-  Archive
+  Archive,
+  ClipboardList
 } from 'lucide-react';
 import AdminNotifListener from './AdminNotifListener';
 import NotificationBell from './NotificationBell';
@@ -145,6 +146,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div style={{ marginTop: '16px', marginBottom: '4px', paddingLeft: '16px', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             System
           </div>
+          <Link href="/admin/audit-logs" className={pathname.startsWith('/admin/audit-logs') ? styles.active : ''}>
+            <ClipboardList size={18} /> Audit Logs
+          </Link>
           <Link href="/admin/profile" className={pathname.startsWith('/admin/profile') ? styles.active : ''}>
             <UserCog size={18} /> Profile
           </Link>
@@ -222,6 +226,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </li>
                 <li style={{ marginBottom: '8px' }}>
                   <strong>Completed Deliveries:</strong> Automatically deleted on the last day of every month.
+                </li>
+                <li style={{ marginBottom: '8px' }}>
+                  <strong>Audit Logs:</strong> Automatically deleted after 1 month (30 days).
                 </li>
                 <li style={{ marginBottom: '8px' }}>
                   <strong>Important:</strong> Please check your Spam folder for GET DELIVERY messages and do not report them as spam. Turn on notifications for Gmail to ensure you and your delivery partners always receive delivery alerts.

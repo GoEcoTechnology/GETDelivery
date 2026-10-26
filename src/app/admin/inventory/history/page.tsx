@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import styles from '../../../admin/admin.module.css';
-import { History, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Package } from 'lucide-react';
+import { History, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Package, Info, Download } from 'lucide-react';
 
 export default function InventoryHistoryPage() {
   const [history, setHistory] = useState<any[]>([]);
@@ -10,6 +10,8 @@ export default function InventoryHistoryPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(7);
   const [totalCount, setTotalCount] = useState(0);
+  const [showInfoTooltip, setShowInfoTooltip] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
@@ -31,13 +33,67 @@ export default function InventoryHistoryPage() {
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
+  const handleExportCSV = async () => {
+    if (totalCount === 0) return;
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/inventory/history?all=true`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch transactions for export');
+      const json = await res.json();
+      const exportItems = json.data || [];
+
+      const headers = [
+        'ID',
+        'Date & Time',
+        'Product',
+        'Movement Type',
+        'Quantity Change',
+        'Before Stock',
+        'After Stock',
+        'Reference',
+        'Performed By'
+      ];
+
+      const csvRows = exportItems.map((tx: any) => [
+        tx.id,
+        `"${new Date(tx.createdAt).toLocaleString('en-PH').replace(/"/g, '""')}"`,
+        `"${(tx.productName || 'Unknown').replace(/"/g, '""')}"`,
+        `"${tx.transactionType === 'IN' ? 'STOCK IN' : 'STOCK OUT'}"`,
+        `${tx.transactionType === 'IN' ? '+' : '-'}${tx.quantity}`,
+        tx.previousStock,
+        tx.newStock,
+        `"${(tx.reference || '—').replace(/"/g, '""')}"`,
+        `"${(tx.performedByName || 'System').replace(/"/g, '""')}"`
+      ]);
+
+      const csvContent =
+        'data:text/csv;charset=utf-8,\uFEFF' +
+        [headers.join(','), ...csvRows.map((r: any) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.setAttribute('download', `inventory_transactions_${dateStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Export error:', err);
+      alert('Failed to export transaction history.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 
   const skeletonRows = Array.from({ length: 8 });
 
   return (
     <div>
-      <div className={styles.card} style={{ padding: '0', overflow: 'hidden' }}>
+      <div className={styles.card} style={{ padding: '0', overflow: 'visible' }}>
 
         {/* Toolbar */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
@@ -46,14 +102,87 @@ export default function InventoryHistoryPage() {
               <History size={18} color="white" />
             </div>
             <div>
-              <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '15px' }}>Transaction Log</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '15px' }}>Transaction Log</div>
+
+                {/* Info (i) Icon toggle on hover */}
+                <div
+                  style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+                  onMouseEnter={() => setShowInfoTooltip(true)}
+                  onMouseLeave={() => setShowInfoTooltip(false)}
+                >
+                  <div
+                    style={{
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      backgroundColor: showInfoTooltip ? '#dbeafe' : '#eff6ff',
+                      color: '#2563eb',
+                      border: '1px solid #bfdbfe',
+                      transition: 'all 0.2s',
+                      boxShadow: showInfoTooltip ? '0 0 0 3px rgba(59, 130, 246, 0.15)' : 'none'
+                    }}
+                  >
+                    <Info size={13} />
+                  </div>
+
+                  {/* Floating tooltip when cursor is on it */}
+                  {showInfoTooltip && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '28px',
+                        left: 0,
+                        zIndex: 9999,
+                        backgroundColor: '#0f172a',
+                        color: 'white',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        fontSize: '12px',
+                        lineHeight: '1.5',
+                        width: '270px',
+                        boxShadow: '0 12px 28px -4px rgba(0, 0, 0, 0.35)',
+                        pointerEvents: 'none',
+                        animation: 'fadeIn 0.15s ease-out'
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, marginBottom: '2px', color: '#fde047', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <Info size={13} /> Data Retention Policy
+                      </div>
+                      Records here and in the database are <strong>automatically removed after 1 month (30 days)</strong> to optimize system performance. Please export your history beforehand.
+                    </div>
+                  )}
+                </div>
+              </div>
               <div style={{ fontSize: '12px', color: '#94a3b8' }}>All stock movement records</div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
               {totalCount} total records
             </div>
+
+            {/* Export button */}
+            <button
+              onClick={handleExportCSV}
+              disabled={exporting || totalCount === 0}
+              className={styles.btnSecondary}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                opacity: totalCount === 0 ? 0.6 : 1,
+                cursor: totalCount === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <Download size={15} />
+              {exporting ? 'Exporting...' : 'Export'}
+            </button>
+
             <button
               onClick={() => window.location.href = '/admin/inventory'}
               className={styles.btnSecondary}

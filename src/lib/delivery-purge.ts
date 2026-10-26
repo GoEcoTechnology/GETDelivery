@@ -1,25 +1,39 @@
 import { db } from '@/db';
-import { deliveryOrders, deliveryBatches } from '@/db/schema';
+import {
+  deliveryOrders,
+  deliveryBatches,
+  auditLogs,
+  deliveryInvitations,
+  notifications,
+  inventoryTransactions,
+  stockIns,
+  stockOuts
+} from '@/db/schema';
 import { and, eq, inArray, lte, or, sql } from 'drizzle-orm';
 
 /**
- * Automatically purges:
- * 1. Cancelled orders older than 1 week (7 days).
+ * Automatically purges records older than 1 month (30 days):
+ * 1. Cancelled orders older than 1 month (30 days).
  * 2. Completed deliveries (orders and batches) for both delivery partners and business owners older than 1 month (30 days).
+ * 3. Audit logs older than 1 month (30 days).
+ * 4. Expired or declined delivery invitations older than 1 month (30 days).
+ * 5. Read notifications older than 1 month (30 days).
+ * 6. Inventory transactions & stock history older than 1 month (30 days).
  */
 export async function purgeExpiredDeliveries(tenantId?: number | null) {
   try {
-    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
     const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-
-    const cancelledCutoff = new Date(Date.now() - ONE_WEEK_MS);
-    const completedCutoff = new Date(Date.now() - ONE_MONTH_MS);
+    const cutoffDate = new Date(Date.now() - ONE_MONTH_MS);
 
     let purgedCancelledCount = 0;
     let purgedCompletedOrdersCount = 0;
     let purgedCompletedBatchesCount = 0;
+    let purgedAuditLogsCount = 0;
+    let purgedInvitationsCount = 0;
+    let purgedNotificationsCount = 0;
+    let purgedInventoryTransactionsCount = 0;
 
-    // 1. Purge cancelled orders older than 1 week (7 days)
+    // 1. Purge cancelled orders older than 1 month (30 days)
     const expiredCancelledOrders = await db
       .select({ id: deliveryOrders.id })
       .from(deliveryOrders)
@@ -27,8 +41,8 @@ export async function purgeExpiredDeliveries(tenantId?: number | null) {
         and(
           eq(deliveryOrders.status, 'CANCELLED'),
           or(
-            lte(deliveryOrders.cancelledAt, cancelledCutoff),
-            and(sql`${deliveryOrders.cancelledAt} IS NULL`, lte(deliveryOrders.createdAt, cancelledCutoff))
+            lte(deliveryOrders.cancelledAt, cutoffDate),
+            and(sql`${deliveryOrders.cancelledAt} IS NULL`, lte(deliveryOrders.createdAt, cutoffDate))
           ),
           tenantId ? eq(deliveryOrders.tenantId, tenantId) : undefined
         )
@@ -50,8 +64,8 @@ export async function purgeExpiredDeliveries(tenantId?: number | null) {
         and(
           inArray(deliveryOrders.status, ['DELIVERED', 'COMPLETED']),
           or(
-            lte(deliveryOrders.completedAt, completedCutoff),
-            and(sql`${deliveryOrders.completedAt} IS NULL`, lte(deliveryOrders.createdAt, completedCutoff))
+            lte(deliveryOrders.completedAt, cutoffDate),
+            and(sql`${deliveryOrders.completedAt} IS NULL`, lte(deliveryOrders.createdAt, cutoffDate))
           ),
           tenantId ? eq(deliveryOrders.tenantId, tenantId) : undefined
         )
@@ -72,7 +86,7 @@ export async function purgeExpiredDeliveries(tenantId?: number | null) {
       .where(
         and(
           inArray(deliveryBatches.status, ['DELIVERED', 'COMPLETED']),
-          lte(deliveryBatches.createdAt, completedCutoff),
+          lte(deliveryBatches.createdAt, cutoffDate),
           tenantId ? eq(deliveryBatches.tenantId, tenantId) : undefined
         )
       );
@@ -85,13 +99,115 @@ export async function purgeExpiredDeliveries(tenantId?: number | null) {
       purgedCompletedBatchesCount = completedBatchIds.length;
     }
 
+    // 4. Purge audit logs older than 1 month (30 days)
+    const expiredAuditLogs = await db
+      .select({ id: auditLogs.id })
+      .from(auditLogs)
+      .where(
+        and(
+          lte(auditLogs.createdAt, cutoffDate),
+          tenantId ? eq(auditLogs.tenantId, tenantId) : undefined
+        )
+      );
+
+    const expiredAuditLogIds = expiredAuditLogs.map(a => a.id);
+    if (expiredAuditLogIds.length > 0) {
+      await db
+        .delete(auditLogs)
+        .where(inArray(auditLogs.id, expiredAuditLogIds));
+      purgedAuditLogsCount = expiredAuditLogIds.length;
+    }
+
+    // 5. Purge expired/declined delivery invitations older than 1 month (30 days)
+    const expiredInvitations = await db
+      .select({ id: deliveryInvitations.id })
+      .from(deliveryInvitations)
+      .where(
+        and(
+          inArray(deliveryInvitations.status, ['EXPIRED', 'DECLINED']),
+          lte(deliveryInvitations.createdAt, cutoffDate),
+          tenantId ? eq(deliveryInvitations.tenantId, tenantId) : undefined
+        )
+      );
+
+    const expiredInvitationIds = expiredInvitations.map(i => i.id);
+    if (expiredInvitationIds.length > 0) {
+      await db
+        .delete(deliveryInvitations)
+        .where(inArray(deliveryInvitations.id, expiredInvitationIds));
+      purgedInvitationsCount = expiredInvitationIds.length;
+    }
+
+    // 6. Purge read notifications older than 1 month (30 days)
+    const expiredNotifs = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.status, 'READ'),
+          lte(notifications.createdAt, cutoffDate),
+          tenantId ? eq(notifications.tenantId, tenantId) : undefined
+        )
+      );
+
+    const expiredNotifIds = expiredNotifs.map(n => n.id);
+    if (expiredNotifIds.length > 0) {
+      await db
+        .delete(notifications)
+        .where(inArray(notifications.id, expiredNotifIds));
+      purgedNotificationsCount = expiredNotifIds.length;
+    }
+
+    // 7. Purge inventory transactions older than 1 month (30 days)
+    const expiredInvTrans = await db
+      .select({ id: inventoryTransactions.id })
+      .from(inventoryTransactions)
+      .where(
+        and(
+          lte(inventoryTransactions.createdAt, cutoffDate),
+          tenantId ? eq(inventoryTransactions.tenantId, tenantId) : undefined
+        )
+      );
+
+    const expiredInvTransIds = expiredInvTrans.map(t => t.id);
+    if (expiredInvTransIds.length > 0) {
+      await db
+        .delete(inventoryTransactions)
+        .where(inArray(inventoryTransactions.id, expiredInvTransIds));
+      purgedInventoryTransactionsCount = expiredInvTransIds.length;
+    }
+
+    // 8. Purge old stock_ins and stock_outs older than 1 month (30 days)
+    await db
+      .delete(stockIns)
+      .where(
+        and(
+          lte(stockIns.createdAt, cutoffDate),
+          tenantId ? eq(stockIns.tenantId, tenantId) : undefined
+        )
+      )
+      .catch(() => {});
+
+    await db
+      .delete(stockOuts)
+      .where(
+        and(
+          lte(stockOuts.createdAt, cutoffDate),
+          tenantId ? eq(stockOuts.tenantId, tenantId) : undefined
+        )
+      )
+      .catch(() => {});
+
     return {
       success: true,
-      cancelledCutoff,
-      completedCutoff,
+      cutoffDate,
       purgedCancelledCount,
       purgedCompletedOrdersCount,
       purgedCompletedBatchesCount,
+      purgedAuditLogsCount,
+      purgedInvitationsCount,
+      purgedNotificationsCount,
+      purgedInventoryTransactionsCount,
     };
   } catch (error) {
     console.error('Error in purgeExpiredDeliveries:', error);
@@ -101,6 +217,9 @@ export async function purgeExpiredDeliveries(tenantId?: number | null) {
       purgedCancelledCount: 0,
       purgedCompletedOrdersCount: 0,
       purgedCompletedBatchesCount: 0,
+      purgedAuditLogsCount: 0,
+      purgedInvitationsCount: 0,
+      purgedNotificationsCount: 0,
     };
   }
 }
