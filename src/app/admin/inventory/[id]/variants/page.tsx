@@ -5,6 +5,8 @@ import {
   ArrowLeft, Plus, Trash2, Edit2, X, Save, Tag, Layers, AlertTriangle
 } from 'lucide-react';
 import styles from '../../../admin.module.css';
+import PackageSizeSelector from '@/components/PackageSizeSelector';
+import { detectPackageTierCode } from '@/lib/packageSizes';
 
 const fmt = (v: any) =>
   v != null ? new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(v)) : '—';
@@ -78,16 +80,73 @@ export default function ManageVariantsPage() {
 
   /* ── Variant CRUD ── */
   const openNewVariant = () => {
-    setVariantForm({ name: '', unit: '', price: '', stock: 0, lowStockThreshold: 10, status: 'ACTIVE' });
+    setVariantForm({ 
+      name: '', 
+      unit: '', 
+      price: '', 
+      stock: 0, 
+      lowStockThreshold: 10, 
+      status: 'ACTIVE',
+      weightKg: product?.weightKg || '',
+      lengthCm: product?.lengthCm || '',
+      widthCm: product?.widthCm || '',
+      heightCm: product?.heightCm || '',
+    });
     setVariantModal('new');
   };
 
   const openEditVariant = (v: any) => {
-    setVariantForm({ ...v });
+    setVariantForm({ 
+      ...v,
+      weightKg: v.weightKg ?? v.weightPerPieceKg ?? v.weight ?? '',
+      lengthCm: v.lengthCm ?? '',
+      widthCm: v.widthCm ?? '',
+      heightCm: v.heightCm ?? '',
+    });
     setVariantModal(v);
   };
 
   const saveVariant = async () => {
+    if (!variantForm.name?.trim()) {
+      alert('Variant Name is required.');
+      return;
+    }
+    const price = Number(variantForm.price);
+    if (!Number.isFinite(price) || price < 0) {
+      alert('Valid price (>= 0) is required.');
+      return;
+    }
+    const w = Number(variantForm.weightKg);
+    if (!variantForm.weightKg || !Number.isFinite(w) || w <= 0) {
+      alert('Weight (kg) is required and must be greater than 0.');
+      return;
+    }
+    if (!variantForm.packageSize) {
+      alert('Package Size is required.');
+      return;
+    }
+    if (variantForm.lengthCm !== undefined && variantForm.lengthCm !== '') {
+      const l = Number(variantForm.lengthCm);
+      if (!Number.isFinite(l) || l <= 0) {
+        alert('Length (cm) must be a positive number (> 0).');
+        return;
+      }
+    }
+    if (variantForm.widthCm !== undefined && variantForm.widthCm !== '') {
+      const wi = Number(variantForm.widthCm);
+      if (!Number.isFinite(wi) || wi <= 0) {
+        alert('Width (cm) must be a positive number (> 0).');
+        return;
+      }
+    }
+    if (variantForm.heightCm !== undefined && variantForm.heightCm !== '') {
+      const h = Number(variantForm.heightCm);
+      if (!Number.isFinite(h) || h <= 0) {
+        alert('Height (cm) must be a positive number (> 0).');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const isNew = variantModal === 'new';
@@ -115,12 +174,17 @@ export default function ManageVariantsPage() {
 
   const deleteVariant = async (variantId: number) => {
     if (!confirm('Delete this variant? This cannot be undone.')) return;
-    const res = await fetch(`/api/products/${productId}/variants/${variantId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) fetchProduct();
-    else alert('Failed to delete variant');
+    try {
+      const res = await fetch(`/api/products/${productId}/variants/${variantId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok) fetchProduct();
+      else alert(data?.error || data?.message || 'Failed to delete variant');
+    } catch (err) {
+      alert('Failed to delete variant');
+    }
   };
 
   /* ── Selling Unit CRUD ── */
@@ -136,6 +200,27 @@ export default function ManageVariantsPage() {
 
   const saveUnit = async () => {
     if (!unitModal) return;
+    if (!unitForm.unitName?.trim()) {
+      alert('Unit Name is required.');
+      return;
+    }
+    const uprice = Number(unitForm.price);
+    if (!Number.isFinite(uprice) || uprice < 0) {
+      alert('Valid price (>= 0) is required.');
+      return;
+    }
+    const eqQty = Number(unitForm.equivalentQty) || 1;
+    const targetVariant = product.variants?.find((v: any) => v.id === unitModal.variantId);
+    const variantWeight = Number(targetVariant?.weightKg ?? targetVariant?.weight ?? 0);
+    const autoWeight = variantWeight > 0 ? (variantWeight * eqQty).toFixed(2) : undefined;
+
+    const payload = {
+      ...unitForm,
+      weightKg: unitForm.weightKg || autoWeight,
+      weight: unitForm.weight || autoWeight,
+      description: unitForm.description?.trim() || `1 ${unitForm.unitName.trim()} = ${eqQty} ${targetVariant?.unit || 'pcs'}`,
+    };
+
     setSaving(true);
     try {
       const isNew = !unitModal.unit;
@@ -145,7 +230,7 @@ export default function ManageVariantsPage() {
       const res = await fetch(url, {
         method: isNew ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(unitForm),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setUnitModal(null);
@@ -163,12 +248,17 @@ export default function ManageVariantsPage() {
 
   const deleteUnit = async (variantId: number, unitId: number) => {
     if (!confirm('Delete this selling unit?')) return;
-    const res = await fetch(`/api/products/${productId}/variants/${variantId}/selling-units/${unitId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) fetchProduct();
-    else alert('Failed to delete selling unit');
+    try {
+      const res = await fetch(`/api/products/${productId}/variants/${variantId}/selling-units/${unitId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok) fetchProduct();
+      else alert(data?.error || data?.message || 'Failed to delete selling unit');
+    } catch (err) {
+      alert('Failed to delete selling unit');
+    }
   };
 
   if (loading) return (
@@ -259,17 +349,27 @@ export default function ManageVariantsPage() {
                   <p style={{ margin: 0, fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>No selling units defined. Add a selling unit (e.g. "Case × 24 pcs") to allow bundle pricing.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {v.sellingUnits.map((su: any) => (
-                      <div key={su.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 8, fontSize: 13 }}>
-                        <Layers size={12} style={{ color: '#8b5cf6', flexShrink: 0 }} />
-                        <span style={{ fontWeight: 700, color: '#4c1d95' }}>{su.unitName}</span>
-                        <span style={{ color: '#7c3aed' }}>× {su.equivalentQty} {v.unit}</span>
-                        <span style={{ fontWeight: 700, color: '#0f172a', marginLeft: 'auto' }}>{fmt(su.price)}</span>
-                        <span style={{ padding: '1px 6px', background: su.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2', color: su.status === 'ACTIVE' ? '#15803d' : '#b91c1c', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>{su.status}</span>
-                        <button onClick={() => openEditUnit(v.id, su)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 4 }}><Edit2 size={12} /></button>
-                        <button onClick={() => deleteUnit(v.id, su.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }}><Trash2 size={12} /></button>
-                      </div>
-                    ))}
+                    {v.sellingUnits.map((su: any) => {
+                      const calculatedStock = Math.floor((Number(v.stock) || 0) / (Number(su.equivalentQty) || 1));
+                      return (
+                        <div key={su.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 14px', background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 8, fontSize: 13 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Layers size={12} style={{ color: '#8b5cf6', flexShrink: 0 }} />
+                            <span style={{ fontWeight: 700, color: '#4c1d95' }}>{su.unitName}</span>
+                            <span style={{ color: '#64748b' }}>• Stock: <strong style={{ color: calculatedStock <= 5 ? '#dc2626' : '#16a34a' }}>{calculatedStock}</strong></span>
+                            {su.status !== 'ACTIVE' && (
+                              <span style={{ padding: '1px 6px', background: '#fee2e2', color: '#b91c1c', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>Inactive</span>
+                            )}
+                            <span style={{ fontWeight: 700, color: '#0f172a', marginLeft: 'auto' }}>{fmt(su.price)}</span>
+                            <button onClick={() => openEditUnit(v.id, su)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: 4 }}><Edit2 size={12} /></button>
+                            <button onClick={() => deleteUnit(v.id, su.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }}><Trash2 size={12} /></button>
+                          </div>
+                          <div style={{ fontSize: 12, color: '#6b7280', paddingLeft: 22 }}>
+                            {su.description || `1 ${su.unitName} = ${su.equivalentQty} ${v.unit || 'pcs'}`}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -291,13 +391,20 @@ export default function ManageVariantsPage() {
                 <label style={labelStyle}>Variant Name *</label>
                 <input style={inputStyle} placeholder="e.g. 500mL, Large, Red" value={variantForm.name || ''} onChange={e => setVariantForm({ ...variantForm, name: e.target.value })} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={labelStyle}>Unit</label>
-                  <input style={inputStyle} placeholder="pcs, kg, L" value={variantForm.unit || ''} onChange={e => setVariantForm({ ...variantForm, unit: e.target.value })} />
+                  <input style={inputStyle} placeholder="e.g. piece, pack, box" value={variantForm.unit || ''} onChange={e => setVariantForm({ ...variantForm, unit: e.target.value })} />
                 </div>
                 <div>
-                  <label style={labelStyle}>Price</label>
+                  <label style={labelStyle}>Weight (kg) *</label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input style={{ ...inputStyle, paddingRight: 32 }} type="number" step="0.01" min="0.01" placeholder="1.0" value={variantForm.weightKg || ''} onChange={e => setVariantForm({ ...variantForm, weightKg: e.target.value })} />
+                    <span style={{ position: 'absolute', right: 10, fontSize: 11, fontWeight: 700, color: '#94a3b8', pointerEvents: 'none' }}>kg</span>
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Price *</label>
                   <input style={inputStyle} type="number" step="0.01" min="0" placeholder="0.00" value={variantForm.price || ''} onChange={e => setVariantForm({ ...variantForm, price: e.target.value })} />
                 </div>
               </div>
@@ -311,6 +418,22 @@ export default function ManageVariantsPage() {
                   <input style={inputStyle} type="number" min="0" value={variantForm.lowStockThreshold ?? 10} onChange={e => setVariantForm({ ...variantForm, lowStockThreshold: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
+              <PackageSizeSelector
+                compact
+                title="Variant Package Size (Required) *"
+                subtitle="Select package dimensions tier for this variant."
+                selectedCode={variantForm.packageSize || detectPackageTierCode(variantForm.weightKg, variantForm.lengthCm, variantForm.widthCm, variantForm.heightCm)}
+                onSelect={(tier) => {
+                  setVariantForm({
+                    ...variantForm,
+                    packageSize: tier.code,
+                    weightKg: tier.defaultWeight,
+                    lengthCm: tier.defaultLength,
+                    widthCm: tier.defaultWidth,
+                    heightCm: tier.defaultHeight,
+                  });
+                }}
+              />
               <div>
                 <label style={labelStyle}>Status</label>
                 <select style={inputStyle} value={variantForm.status || 'ACTIVE'} onChange={e => setVariantForm({ ...variantForm, status: e.target.value })}>
@@ -332,7 +455,7 @@ export default function ManageVariantsPage() {
       {/* Selling Unit Modal */}
       {unitModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}>
-          <div style={{ background: 'white', borderRadius: 16, padding: 32, width: '100%', maxWidth: 420, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
+          <div style={{ background: 'white', borderRadius: 16, padding: 32, width: '100%', maxWidth: 580, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{unitModal.unit ? 'Edit Selling Unit' : 'Add Selling Unit'}</h2>
               <button onClick={() => setUnitModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={20} /></button>
@@ -340,17 +463,34 @@ export default function ManageVariantsPage() {
             <div style={{ display: 'grid', gap: 14 }}>
               <div>
                 <label style={labelStyle}>Unit Name *</label>
-                <input style={inputStyle} placeholder="e.g. Case, Box, Dozen" value={unitForm.unitName || ''} onChange={e => setUnitForm({ ...unitForm, unitName: e.target.value })} />
+                <input style={inputStyle} placeholder="e.g. Pallet of 31, Box of 10" value={unitForm.unitName || ''} onChange={e => setUnitForm({ ...unitForm, unitName: e.target.value })} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={labelStyle}>Equivalent Qty</label>
-                  <input style={inputStyle} type="number" min="1" step="0.01" placeholder="e.g. 24" value={unitForm.equivalentQty || ''} onChange={e => setUnitForm({ ...unitForm, equivalentQty: parseFloat(e.target.value) || 1 })} />
+                  <label style={labelStyle}>Qty Per Unit *</label>
+                  <input style={inputStyle} type="number" min="1" step="0.01" placeholder="e.g. 31" value={unitForm.equivalentQty || ''} onChange={e => setUnitForm({ ...unitForm, equivalentQty: parseFloat(e.target.value) || 1 })} />
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                    {(() => {
+                      const tv = product.variants?.find((v: any) => v.id === unitModal.variantId);
+                      const stockVal = Math.floor((Number(tv?.stock) || 0) / (Number(unitForm.equivalentQty) || 1));
+                      return <span>Stock: <strong style={{ color: '#16a34a' }}>{stockVal}</strong> available</span>;
+                    })()}
+                  </div>
                 </div>
                 <div>
-                  <label style={labelStyle}>Price</label>
+                  <label style={labelStyle}>Price (₱) *</label>
                   <input style={inputStyle} type="number" step="0.01" min="0" placeholder="0.00" value={unitForm.price || ''} onChange={e => setUnitForm({ ...unitForm, price: e.target.value })} />
                 </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Description</label>
+                <textarea
+                  style={{ ...inputStyle, minHeight: 60 }}
+                  rows={2}
+                  placeholder="e.g. 31 Panels per pallet"
+                  value={unitForm.description || ''}
+                  onChange={e => setUnitForm({ ...unitForm, description: e.target.value })}
+                />
               </div>
               <div>
                 <label style={labelStyle}>Status</label>

@@ -262,3 +262,9 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.5rem); line-height: 1.4; margin-bottom: 0.
 .calendar-day { transition: transform 0.15s ease, box-shadow 0.15s ease; -webkit-tap-highlight-color: transparent; }
 .calendar-day:active { transform: scale(1.03); box-shadow: 0 4px 12px rgba(0,0,0,0.05); z-index: 10; position: relative; }
 
+
+/* Retention info tooltip */
+.retention-info-icon:hover .retention-tooltip {
+  opacity: 1 !important;
+}
+

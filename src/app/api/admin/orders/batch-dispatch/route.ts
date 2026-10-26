@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryItems, productVariants, deliveryBatches, deliveryBatchItems, vehicles, inventoryTransactions } from '@/db/schema';
+import { deliveryOrders, deliveryItems, productVariants, deliveryBatches, deliveryBatchItems, vehicles, inventoryTransactions, vehicleDeliveryRates } from '@/db/schema';
 import { eq, and, sql, gte, inArray } from 'drizzle-orm';
 import { verifyToken } from '@/lib/auth';
+import { canShipmentFitInVehicle } from '@/lib/deliveryCalculation';
 
 export async function POST(request: Request) {
   try {
@@ -49,10 +50,16 @@ export async function POST(request: Request) {
     const orderIdsCsv = orderIds.join(',');
 
     const unbatchedResult = await db.execute(sql`
-      SELECT di.id, di.delivery_order_id, di.quantity, di.product_id, di.variant_id, di.unit, dord.customer_id, pv.quota, pv.weight_per_piece_kg, dord.pickup_address, psu.weight as selling_unit_weight, psu.equivalent_qty, pv.stock as current_stock, dord.batch_id as old_batch_id
+      SELECT di.id, di.delivery_order_id, di.quantity, di.product_id, di.variant_id, di.unit, dord.customer_id, pv.quota, pv.weight_per_piece_kg, pv.weight as variant_weight, p.weight_kg as product_weight, di.weight_kg as existing_item_weight, dord.pickup_address, psu.weight as selling_unit_weight, psu.weight_kg as selling_unit_weight_kg, psu.equivalent_qty, pv.stock as current_stock, dord.batch_id as old_batch_id,
+        di.length_cm as item_length, di.width_cm as item_width, di.height_cm as item_height,
+        psu.length_cm as su_length, psu.width_cm as su_width, psu.height_cm as su_height,
+        pv.length_cm as var_length, pv.width_cm as var_width, pv.height_cm as var_height,
+        p.length_cm as prod_length, p.width_cm as prod_width, p.height_cm as prod_height,
+        p.name as product_name
       FROM delivery_items di
       JOIN delivery_orders dord ON di.delivery_order_id = dord.id
       JOIN product_variants pv ON di.variant_id = pv.id
+      JOIN products p ON di.product_id = p.id
       LEFT JOIN product_selling_units psu ON psu.product_id = di.product_id AND (psu.variant_id IS NULL OR psu.variant_id = pv.id) AND TRIM(psu.unit_name) ILIKE TRIM(di.unit)
       WHERE dord.status != 'CANCELLED'
         AND dord.id IN (${sql.raw(orderIdsCsv)})
@@ -67,7 +74,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No unbatched items found' }, { status: 400 });
     }
 
-    const pickupLoc = (unbatchedResult[0] as any).pickup_address || 'TBD';
+    const pickupLoc = (unbatchedResult[0] as any).pickup_address || 'Main Store';
 
     let totalWeight = 0;
     
@@ -82,21 +89,40 @@ export async function POST(request: Request) {
     const oldBatchIds = new Set<number>();
 
     for (const row of unbatchedResult as any[]) {
-      const qty = Number(row.quantity);
+      const qty = Number(row.quantity) || 0;
       const vId = Number(row.variant_id);
       const pId = Number(row.product_id);
       const oldBatchId = row.old_batch_id;
       
-      const explicitUnitWeight = Number(row.selling_unit_weight) || 0;
-      const itemWeight = qty * explicitUnitWeight;
+      const sellingUnitWeight = Number(row.selling_unit_weight_kg) || Number(row.selling_unit_weight) || 0;
+      const pieceWeight = Number(row.weight_per_piece_kg) || Number(row.variant_weight) || 0;
+      const productWeight = Number(row.product_weight) || 0;
+      const equivMultiplier = Number(row.equivalent_qty) || 1;
+
+      let singleUnitWeight = 0;
+      if (sellingUnitWeight > 0) {
+        singleUnitWeight = sellingUnitWeight;
+      } else if (pieceWeight > 0) {
+        singleUnitWeight = pieceWeight * equivMultiplier;
+      } else if (productWeight > 0) {
+        singleUnitWeight = productWeight * equivMultiplier;
+      } else if (Number(row.existing_item_weight) > 0) {
+        singleUnitWeight = Number(row.existing_item_weight) / (qty || 1);
+      }
+
+      const itemWeight = Math.round(qty * singleUnitWeight * 100) / 100;
       totalWeight += itemWeight;
+      
+      // Update item weight in deliveryItems
+      await db.update(deliveryItems)
+        .set({ weightKg: itemWeight.toFixed(2) })
+        .where(eq(deliveryItems.id, row.id));
       
       if (oldBatchId) {
         oldBatchIds.add(oldBatchId);
       } else {
         // Calculate inventory deduction based on selling unit conversion only for newly batched items
-        const equivalentQty = Number(row.equivalent_qty) || 1;
-        const deduction = qty * equivalentQty;
+        const deduction = qty * equivMultiplier;
         
         const currentStock = Number(row.current_stock || 0);
 
@@ -106,8 +132,7 @@ export async function POST(request: Request) {
       }
 
       const oId = row.delivery_order_id;
-      const equivalentQty = Number(row.equivalent_qty) || 1;
-      const deduction = qty * equivalentQty;
+      const deduction = qty * equivMultiplier;
       
       orderWeightMap.set(oId, (orderWeightMap.get(oId) || 0) + itemWeight);
       orderQtyMap.set(oId, (orderQtyMap.get(oId) || 0) + deduction);
@@ -134,23 +159,76 @@ export async function POST(request: Request) {
        batchNum = `${baseBatchNum} (${counter})`;
     }
     
-    // Find recommended vehicle
-    const [suggestedVehicle] = await db
-    .select({ id: vehicles.id })
-    .from(vehicles)
-    .where(
-        and(
-        eq(vehicles.tenantId, claims.tenantId as number),
-        eq(vehicles.status, 'ACTIVE'),
-        gte(vehicles.capacityKg, Math.ceil(totalWeight))
-        )
-    )
-    .orderBy(vehicles.capacityKg)
-    .limit(1);
+    // Build packing items with resolved 3D dimensions
+    const packingItemsForBatch = (unbatchedResult as any[]).map(r => {
+      let l = Number(r.su_length || r.var_length || r.prod_length || r.item_length) || 50;
+      let w = Number(r.su_width || r.var_width || r.prod_width || r.item_width) || 40;
+      let h = Number(r.su_height || r.var_height || r.prod_height || r.item_height) || 30;
+      const qty = Number(r.quantity) || 1;
+      const itemWeight = Number(r.existing_item_weight) || 0;
+      return {
+        lengthCm: l,
+        widthCm: w,
+        heightCm: h,
+        quantity: qty,
+        weightKg: itemWeight,
+        name: r.product_name || 'Item'
+      };
+    });
 
-    // Sum total quantity across all orders
+    // Fetch active vehicle delivery rates
+    const rates = await db.select().from(vehicleDeliveryRates).where(eq(vehicleDeliveryRates.isActive, true));
+
+    // Find recommended vehicle evaluating BOTH payload capacity AND physical cargo dimensions
+    const allActiveVehicles = await db
+      .select({
+        id: vehicles.id,
+        vehicleType: vehicles.vehicleType,
+        capacityKg: vehicles.capacityKg,
+        cargoLengthCm: vehicles.cargoLengthCm,
+        cargoWidthCm: vehicles.cargoWidthCm,
+        cargoHeightCm: vehicles.cargoHeightCm,
+        tenantId: vehicles.tenantId,
+      })
+      .from(vehicles)
+      .where(eq(vehicles.status, 'ACTIVE'));
+
+    const evaluatedVehicles = allActiveVehicles.map((v: any) => {
+      const matchedRate = rates.find((r: any) => r.vehicleType.trim().toLowerCase() === v.vehicleType.trim().toLowerCase());
+      return {
+        ...v,
+        capacityKg: v.capacityKg || matchedRate?.capacityKg || 1000,
+        cargoLengthCm: Number(v.cargoLengthCm) || Number(matchedRate?.cargoLengthCm) || 0,
+        cargoWidthCm: Number(v.cargoWidthCm) || Number(matchedRate?.cargoWidthCm) || 0,
+        cargoHeightCm: Number(v.cargoHeightCm) || Number(matchedRate?.cargoHeightCm) || 0,
+      };
+    });
+
+    const eligibleVehicles = evaluatedVehicles.filter((v: any) => {
+      const fit = canShipmentFitInVehicle(packingItemsForBatch, {
+        capacityKg: v.capacityKg,
+        cargoLengthCm: v.cargoLengthCm,
+        cargoWidthCm: v.cargoWidthCm,
+        cargoHeightCm: v.cargoHeightCm,
+        vehicleType: v.vehicleType,
+      });
+      return fit.fits;
+    });
+
+    eligibleVehicles.sort((a: any, b: any) => a.capacityKg - b.capacityKg);
+
+    const tenantVehicles = eligibleVehicles.filter((v: any) => v.tenantId === (claims.tenantId as number));
+    let suggestedVehicle = tenantVehicles[0] || eligibleVehicles[0];
+
+    // Sum total quantity of items matching the primary variant quota
     let totalQty = 0;
-    for (const q of orderQtyMap.values()) totalQty += q;
+    for (const row of unbatchedResult as any[]) {
+      if (!primaryVariantId || Number(row.variant_id) === Number(primaryVariantId)) {
+        const qty = Number(row.quantity) || 0;
+        const equiv = Number(row.equivalent_qty) || 1;
+        totalQty += (qty * equiv);
+      }
+    }
 
     const primaryRow = (unbatchedResult as any[]).find(r => Number(r.variant_id) === primaryVariantId) || unbatchedResult[0];
     const quota = Number(primaryRow.quota || 50);
@@ -168,9 +246,17 @@ export async function POST(request: Request) {
     }).returning();
 
     // Update all associated orders to 'PROCESSING' and set batchId first to avoid foreign key errors
-    for (const oId of orderWeightMap.keys()) {
+    for (const [oId, w] of orderWeightMap.entries()) {
         await db.update(deliveryOrders)
-            .set({ status: 'PROCESSING', batchId: batch.id })
+            .set({ 
+              status: 'PROCESSING', 
+              batchId: batch.id,
+              totalWeight: w.toFixed(2),
+              suggestedVehicleId: suggestedVehicle?.id || null,
+              vehicleCapacityKg: suggestedVehicle?.capacityKg || null,
+              requiredVehicleType: suggestedVehicle?.vehicleType || null,
+              preferredVehicle: suggestedVehicle?.vehicleType || null,
+            })
             .where(eq(deliveryOrders.id, oId));
     }
 
@@ -232,7 +318,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, batchIds: [batch.id] });
+    return NextResponse.json({ success: true, batchIds: [batch.id], tenantId: batch.tenantId });
   } catch (error: any) {
     require('fs').appendFileSync('error.log', error.stack + '\n');
     console.error('Error dispatching batch order:', error);

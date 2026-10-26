@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { cartItems, deliveryOrders, deliveryItems, products, productVariants, customers, users, deliveryBatches, deliveryBatchItems, vehicles, tenants, notifications } from '@/db/schema';
 import { eq, inArray, sql, and, gte, asc } from 'drizzle-orm';
+import { calculateDeliveryQuote } from '@/lib/deliveryCalculation';
 
 export async function POST(request: Request) {
   try {
@@ -42,12 +43,47 @@ export async function POST(request: Request) {
       customer = newCustomer;
     }
 
-    // Update customer address and coordinates if provided
-    if (addressText && (addressText !== customer.address || dropoffLat || dropoffLng)) {
+    // Update customer address and default savedLocations if coordinates/address are provided
+    if (addressText || dropoffLat || dropoffLng) {
+      const finalAddress = addressText || customer.address || 'N/A';
+      const latNum = dropoffLat ? Number(dropoffLat) : null;
+      const lngNum = dropoffLng ? Number(dropoffLng) : null;
+
+      let updatedSavedLocations = Array.isArray(customer.savedLocations) ? [...customer.savedLocations] : [];
+
+      if (latNum !== null && lngNum !== null && !isNaN(latNum) && !isNaN(lngNum)) {
+        const existingIndex = updatedSavedLocations.findIndex((l: any) =>
+          (l.lat && Math.abs(Number(l.lat) - latNum) < 0.0001 && Math.abs(Number(l.lng) - lngNum) < 0.0001) ||
+          (l.address && addressText && l.address.toLowerCase().trim() === addressText.toLowerCase().trim())
+        );
+
+        const newLoc = {
+          id: existingIndex >= 0 ? (updatedSavedLocations[existingIndex].id || Date.now().toString()) : Date.now().toString(),
+          locationName: dropoffLandmark ? dropoffLandmark : (addressText ? addressText.split(',')[0].trim() : 'Saved Address'),
+          address: finalAddress,
+          lat: latNum,
+          lng: lngNum,
+          landmark: dropoffLandmark || '',
+          isDefault: true,
+          updatedAt: new Date().toISOString()
+        };
+
+        updatedSavedLocations = updatedSavedLocations.map((l: any) => ({ ...l, isDefault: false }));
+        if (existingIndex >= 0) {
+          updatedSavedLocations[existingIndex] = { ...updatedSavedLocations[existingIndex], ...newLoc };
+        } else {
+          updatedSavedLocations.unshift(newLoc);
+        }
+      }
+
       await db.update(customers).set({
-        address: addressText,
+        address: finalAddress,
+        savedLocations: updatedSavedLocations,
+        updatedAt: new Date()
       }).where(eq(customers.id, customer.id));
-      customer.address = addressText;
+
+      customer.address = finalAddress;
+      customer.savedLocations = updatedSavedLocations;
     }
 
     let items = [];
@@ -66,6 +102,7 @@ export async function POST(request: Request) {
           tenantId: products.tenantId,
           unit: productVariants.unit,
           productName: products.name,
+          sellingUnitId: cartItems.sellingUnitId,
         })
         .from(cartItems)
         .innerJoin(products, eq(cartItems.productId, products.id))
@@ -119,10 +156,46 @@ export async function POST(request: Request) {
         }
       }
 
-      // Compute total for this tenant
-      const totalAmount = tenantItems.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+      // Authoritatively calculate quote, total quota, cargo weight, vehicle selection, and shipping fee
+      const quote = await calculateDeliveryQuote({
+        items: tenantItems.map(ti => ({
+          productId: ti.productId,
+          variantId: ti.variantId,
+          sellingUnitId: ti.sellingUnitId || null,
+          quantity: ti.quantity,
+          unitPrice: ti.price ? Number(ti.price) : null,
+        })),
+        tenantId: tId,
+        dropoffLat: dropoffLat ? Number(dropoffLat) : null,
+        dropoffLng: dropoffLng ? Number(dropoffLng) : null,
+        priority: deliveryPriority || 'STANDARD',
+        customDistanceKm: distanceKm ? Number(distanceKm) : null,
+      });
 
-      // Create the deliveryOrder
+      if (!quote.success) {
+        return NextResponse.json(
+          { error: quote.error || 'Failed to determine vehicle or calculate delivery fee.' },
+          { status: 422 }
+        );
+      }
+
+      const totalAmount = quote.itemsSubtotal;
+
+      // Verify that suggestedVehicleId corresponds to an actual physical row in vehicles table
+      let validSuggestedVehicleId: number | null = null;
+      const targetVehicleId = quote.vehicle?.physicalVehicleId ?? quote.vehicle?.id;
+      if (targetVehicleId) {
+        const [existingV] = await db
+          .select({ id: vehicles.id })
+          .from(vehicles)
+          .where(eq(vehicles.id, targetVehicleId))
+          .limit(1);
+        if (existingV) {
+          validSuggestedVehicleId = existingV.id;
+        }
+      }
+
+      // Create the deliveryOrder with authoritative calculations
       const [order] = await db.insert(deliveryOrders).values({
         tenantId: tId,
         customerId: customer.id,
@@ -140,10 +213,25 @@ export async function POST(request: Request) {
         deliveryPriority: deliveryPriority || 'STANDARD',
         orderSource: 'MARKETPLACE',
         urgentReason: urgentReason || null,
-        normalDeliveryFee: normalDeliveryFee ? normalDeliveryFee.toString() : null,
-        urgentAdditionalFee: urgentAdditionalFee ? urgentAdditionalFee.toString() : null,
-        distanceKm: distanceKm ? distanceKm.toString() : null,
-        routeDistance: distanceKm ? `${distanceKm.toFixed(2)} km` : null,
+        totalWeight: quote.totalWeightKg.toString(),
+        packedLengthCm: quote.packedDimensions.lengthCm.toString(),
+        packedWidthCm: quote.packedDimensions.widthCm.toString(),
+        packedHeightCm: quote.packedDimensions.heightCm.toString(),
+        packageCategory: quote.packageCategory.code,
+        shippingCalculationStatus: 'CALCULATED',
+        shippingRateDetails: quote.shippingRateDetails || null,
+        quota: quote.totalQuota,
+        suggestedVehicleId: validSuggestedVehicleId,
+        vehicleCapacityKg: quote.vehicle?.capacityKg || null,
+        requiredVehicleType: quote.vehicle?.vehicleType || null,
+        preferredVehicle: quote.vehicle?.vehicleType || null,
+        vehicleBasePrice: '0', // Base fee strictly removed
+        pricePerKm: quote.pricing ? quote.pricing.pricePerKm.toString() : null,
+        normalDeliveryFee: quote.pricing ? quote.pricing.normalDeliveryFee.toString() : null,
+        urgentAdditionalFee: quote.pricing ? quote.pricing.urgentFee.toString() : null,
+        finalDeliveryPrice: quote.pricing ? quote.pricing.totalShippingFee.toString() : null,
+        distanceKm: quote.distanceKm.toString(),
+        routeDistance: `${quote.distanceKm.toFixed(2)} km`,
         offeredAmount: totalAmount.toString(),
         basisProductId: basisProductId,
         basisVariantId: basisVariantId,
@@ -151,16 +239,25 @@ export async function POST(request: Request) {
         hasBasisTie: hasBasisTie
       }).returning();
 
-      // Create the deliveryItems
-      const itemsToInsert = tenantItems.map(ti => ({
-        deliveryOrderId: order.id,
-        productId: ti.productId,
-        variantId: ti.variantId,
-        productName: ti.productName,
-        quantity: ti.quantity,
-        unitPrice: ti.price ? ti.price.toString() : '0',
-        unit: ti.unit,
-      }));
+      // Create the deliveryItems with saved weight and dimensions per item
+      const itemsToInsert = tenantItems.map(ti => {
+        const itemDetail = quote.itemBreakdown.find(
+          ib => ib.productId === ti.productId && ib.variantId === ti.variantId
+        );
+        return {
+          deliveryOrderId: order.id,
+          productId: ti.productId,
+          variantId: ti.variantId,
+          productName: ti.productName,
+          quantity: ti.quantity,
+          unitPrice: ti.price ? ti.price.toString() : '0',
+          unit: ti.unit,
+          weightKg: itemDetail ? itemDetail.itemWeightKg.toString() : null,
+          lengthCm: itemDetail ? itemDetail.lengthCm.toString() : null,
+          widthCm: itemDetail ? itemDetail.widthCm.toString() : null,
+          heightCm: itemDetail ? itemDetail.heightCm.toString() : null,
+        };
+      });
 
       await db.insert(deliveryItems).values(itemsToInsert);
 
@@ -187,9 +284,10 @@ export async function POST(request: Request) {
 
         // Find unbatched orders for this basis variant
         const unbatchedResult = await db.execute(sql`
-          SELECT dord.id as delivery_order_id, dord.customer_id, dord.basis_quantity, pv.quota, pv.weight_per_piece_kg, dord.pickup_address, psu.weight as selling_unit_weight, psu.equivalent_qty
+          SELECT dord.id as delivery_order_id, dord.customer_id, dord.basis_quantity, pv.quota, pv.weight_per_piece_kg, pv.weight, p.weight_kg as product_weight, di.weight_kg as existing_item_weight, dord.pickup_address, psu.weight as selling_unit_weight, psu.weight_kg as selling_unit_weight_kg, psu.equivalent_qty
           FROM delivery_orders dord
           JOIN product_variants pv ON dord.basis_variant_id = pv.id
+          JOIN products p ON pv.product_id = p.id
           LEFT JOIN delivery_items di ON di.delivery_order_id = dord.id AND di.variant_id = pv.id
           LEFT JOIN product_selling_units psu ON psu.product_id = di.product_id AND (psu.variant_id IS NULL OR psu.variant_id = pv.id) AND TRIM(psu.unit_name) ILIKE TRIM(di.unit)
           WHERE dord.basis_variant_id = ${vId}
@@ -201,12 +299,11 @@ export async function POST(request: Request) {
 
         if (unbatchedResult.length > 0) {
           const quota = Number((unbatchedResult[0] as any).quota || 50);
-          const weightPerPieceKg = Number((unbatchedResult[0] as any).weight_per_piece_kg || 0);
 
           let totalBasisQty = 0;
           let totalWeight = 0;
           const itemsToBatch = [];
-          const pickupLoc = (unbatchedResult[0] as any).pickup_address || 'TBD';
+          const pickupLoc = (unbatchedResult[0] as any).pickup_address || 'Main Store';
 
           // Use a set to prevent duplicate order processing due to LEFT JOINs
           const processedOrderIds = new Set();
@@ -215,17 +312,32 @@ export async function POST(request: Request) {
             if (processedOrderIds.has(row.delivery_order_id)) continue;
             processedOrderIds.add(row.delivery_order_id);
 
-            const qty = Number(row.basis_quantity);
-            totalBasisQty += qty;
+            const qty = Number(row.basis_quantity) || 0;
+            const equivMultiplier = Number(row.equivalent_qty) || 1;
+            totalBasisQty += qty * equivMultiplier;
 
-            const explicitUnitWeight = Number(row.selling_unit_weight) || 0;
-            const cWeight = qty * explicitUnitWeight;
+            const sellingUnitWeight = Number(row.selling_unit_weight_kg) || Number(row.selling_unit_weight) || 0;
+            const pieceWeight = Number(row.weight_per_piece_kg) || Number(row.weight) || 0;
+            const productWeight = Number(row.product_weight) || 0;
+
+            let singleUnitWeight = 0;
+            if (sellingUnitWeight > 0) {
+              singleUnitWeight = sellingUnitWeight;
+            } else if (pieceWeight > 0) {
+              singleUnitWeight = pieceWeight * equivMultiplier;
+            } else if (productWeight > 0) {
+              singleUnitWeight = productWeight * equivMultiplier;
+            } else if (Number(row.existing_item_weight) > 0) {
+              singleUnitWeight = Number(row.existing_item_weight) / (qty || 1);
+            }
+
+            const cWeight = Math.round(qty * singleUnitWeight * 100) / 100;
 
             totalWeight += cWeight;
             itemsToBatch.push({
               customerOrderId: row.delivery_order_id,
               customerId: row.customer_id,
-              quantity: qty,
+              quantity: qty * equivMultiplier,
               customerWeight: cWeight.toFixed(2)
             });
           }
@@ -234,9 +346,9 @@ export async function POST(request: Request) {
           if (totalBasisQty >= quota) {
             const batchNum = 'DEL-' + Math.random().toString(36).substr(2, 6).toUpperCase();
 
-            // Find recommended vehicle
-            const [suggestedVehicle] = await db
-              .select({ id: vehicles.id })
+            // Find recommended vehicle (check tenant fleet first, then any active vehicle)
+            let [suggestedVehicle] = await db
+              .select({ id: vehicles.id, vehicleType: vehicles.vehicleType, capacityKg: vehicles.capacityKg })
               .from(vehicles)
               .where(
                 and(
@@ -247,6 +359,20 @@ export async function POST(request: Request) {
               )
               .orderBy(asc(vehicles.capacityKg))
               .limit(1);
+
+            if (!suggestedVehicle) {
+              [suggestedVehicle] = await db
+                .select({ id: vehicles.id, vehicleType: vehicles.vehicleType, capacityKg: vehicles.capacityKg })
+                .from(vehicles)
+                .where(
+                  and(
+                    eq(vehicles.status, 'ACTIVE'),
+                    gte(vehicles.capacityKg, Math.ceil(totalWeight))
+                  )
+                )
+                .orderBy(asc(vehicles.capacityKg))
+                .limit(1);
+            }
 
             const [newBatch] = await db.insert(deliveryBatches).values({
               tenantId: tId,

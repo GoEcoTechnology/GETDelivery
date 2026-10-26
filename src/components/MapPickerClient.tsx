@@ -1,25 +1,32 @@
 'use client';
 
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Crosshair, Search, Loader2 } from 'lucide-react';
+import { patchLeaflet } from '@/lib/leaflet-fix';
+import { MapPin, Crosshair, Search, Loader2, Edit2, Check, RefreshCw } from 'lucide-react';
 
-// Fix leaflet icon issue
-if (typeof window !== 'undefined') {
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-  });
+patchLeaflet(L);
+
+function formatNominatimAddress(data: any): string {
+  if (!data) return '';
+  if (data.address) {
+    const a = data.address;
+    const primary = a.amenity || a.building || a.shop || a.office || a.leisure || a.tourism;
+    const street = a.house_number ? `${a.house_number} ${a.road || ''}`.trim() : (a.road || a.pedestrian || a.path || a.subdivision);
+    const area = a.neighbourhood || a.suburb || a.village || a.quarter || a.barangay;
+    const city = a.city || a.town || a.municipality;
+    const province = a.province || a.state;
+    const country = a.country;
+
+    const parts = [primary, street, area, city, province, country].filter(Boolean);
+    if (parts.length >= 2) {
+      return parts.join(', ');
+    }
+  }
+  return data.display_name || '';
 }
-
-// Generate a simple UUID-like string for session token
-const generateSessionToken = () => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-};
 
 interface Props {
   initialLat?: number;
@@ -37,23 +44,20 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
   const [address, setAddress] = useState(initialAddress || '');
   const [landmark, setLandmark] = useState(initialLandmark || '');
   const [mounted, setMounted] = useState(false);
-  
-  // Google Places Autocomplete States
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [flyToTarget, setFlyToTarget] = useState<[number, number] | null>(null);
+
+  // Search states
   const [searchInput, setSearchInput] = useState('');
   const [predictions, setPredictions] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [sessionToken, setSessionToken] = useState<string>('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [manualMode, setManualMode] = useState(false);
-
-  // Use this key to force React to unmount and remount the MapContainer if needed
-  // This prevents the _leaflet_pos error when switching views rapidly
-  const mapKey = useMemo(() => position ? `map-${position[0]}-${position[1]}` : 'map-default', [position]);
 
   const onLocationSelectRef = useRef(onLocationSelect);
   useEffect(() => {
@@ -61,7 +65,66 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
   }, [onLocationSelect]);
 
   useEffect(() => {
-    if (position) {
+    if (initialLat !== undefined && initialLng !== undefined) {
+      setPosition(prev => {
+        if (!prev || prev[0] !== initialLat || prev[1] !== initialLng) {
+          return [initialLat, initialLng];
+        }
+        return prev;
+      });
+    }
+  }, [initialLat, initialLng]);
+
+  useEffect(() => {
+    if (initialAddress !== undefined) {
+      setAddress(initialAddress);
+    }
+  }, [initialAddress]);
+
+  useEffect(() => {
+    if (initialLandmark !== undefined) {
+      setLandmark(initialLandmark);
+    }
+  }, [initialLandmark]);
+
+  // Reverse geocoding helper that accurately formats and updates location on drag / click
+  const reverseGeocode = useCallback(async (lat: number, lng: number) => {
+    setIsGeocoding(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'GETDeliveryApp/1.0 (contact@getdelivery.app)'
+          }
+        }
+      );
+      const data = await res.json();
+      const resolvedAddress = formatNominatimAddress(data) || data?.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      setAddress(resolvedAddress);
+      onLocationSelectRef.current({
+        lat,
+        lng,
+        address: resolvedAddress,
+        landmark: landmark.trim()
+      });
+    } catch (err) {
+      console.error('Reverse geocoding failed:', err);
+      const fallback = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      setAddress(fallback);
+      onLocationSelectRef.current({
+        lat,
+        lng,
+        address: fallback,
+        landmark: landmark.trim()
+      });
+    } finally {
+      setIsGeocoding(false);
+    }
+  }, [landmark]);
+
+  useEffect(() => {
+    if (position && !isGeocoding) {
       onLocationSelectRef.current({
         lat: position[0],
         lng: position[1],
@@ -69,11 +132,10 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
         landmark: landmark.trim()
       });
     }
-  }, [position, address, landmark]);
+  }, [position, address, landmark, isGeocoding]);
 
   useEffect(() => {
     setMounted(true);
-    setSessionToken(generateSessionToken());
     
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -84,10 +146,6 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
     
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      const container = L.DomUtil.get('map-picker-container');
-      if (container) {
-        (container as any)._leaflet_id = null;
-      }
     };
   }, []);
 
@@ -119,14 +177,23 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
       } finally {
         setIsSearching(false);
       }
-    }, 600); // 600ms debounce
+    }, 600);
   };
 
   const handleSelectPlace = (place: any) => {
+    const lat = parseFloat(place.lat);
+    const lng = parseFloat(place.lon);
     setSearchInput(place.display_name);
     setShowDropdown(false);
-    setPosition([parseFloat(place.lat), parseFloat(place.lon)]);
+    setPosition([lat, lng]);
+    setFlyToTarget([lat, lng]);
     setAddress(place.display_name);
+    onLocationSelectRef.current({
+      lat,
+      lng,
+      address: place.display_name,
+      landmark: landmark.trim()
+    });
   };
 
   const handleCurrentLocation = () => {
@@ -141,24 +208,8 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         setPosition([lat, lng]);
-        
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
-            headers: {
-              'User-Agent': 'GETDeliveryApp/1.0 (contact@getdelivery.app)'
-            }
-          });
-          const data = await res.json();
-          if (data && data.display_name) {
-            setAddress(data.display_name);
-          } else {
-            setAddress('My Current Location');
-          }
-        } catch (err) {
-          console.error('Reverse geocoding failed:', err);
-          setAddress('My Current Location');
-        }
-        
+        setFlyToTarget([lat, lng]);
+        await reverseGeocode(lat, lng);
         setIsLoading(false);
       },
       (err) => {
@@ -169,6 +220,7 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
     );
   };
 
+  // Draggable marker with automatic reverse geocoding on drag
   function DraggableMarker() {
     const markerRef = useRef<L.Marker>(null);
     const eventHandlers = useMemo(
@@ -178,28 +230,7 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
           if (marker != null) {
             const pos = marker.getLatLng();
             setPosition([pos.lat, pos.lng]);
-            
-            // Only reverse-geocode if there is no address or it's just coordinates.
-            // This prevents overwriting a valid address typed by the user with OSM's often incorrect data.
-            if (!address || /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(address.trim())) {
-              setAddress('Updating address...');
-              try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}`, {
-                  headers: {
-                    'User-Agent': 'GETDeliveryApp/1.0 (contact@getdelivery.app)'
-                  }
-                });
-                const data = await res.json();
-                if (data && data.display_name) {
-                  setAddress(data.display_name);
-                } else {
-                  setAddress(`${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`);
-                }
-              } catch (err) {
-                console.error('Reverse geocoding failed:', err);
-                setAddress(`${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`);
-              }
-            }
+            await reverseGeocode(pos.lat, pos.lng);
           }
         },
       }),
@@ -216,13 +247,26 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
     );
   }
 
-  function MapUpdater({ center }: { center: [number, number] }) {
-    const map = useMapEvents({});
-    useEffect(() => {
-      if (center) {
-        map.setView(center, 18, { animate: false });
+  // Click on map to place/move marker and reverse geocode
+  function MapEvents() {
+    useMapEvents({
+      click(e) {
+        const { lat, lng } = e.latlng;
+        setPosition([lat, lng]);
+        reverseGeocode(lat, lng);
       }
-    }, [center, map]);
+    });
+    return null;
+  }
+
+  // Smoothly pan/fly map when user searches or clicks current location
+  function MapFlyHandler({ target }: { target: [number, number] | null }) {
+    const map = useMap();
+    useEffect(() => {
+      if (target) {
+        map.flyTo(target, 18, { duration: 1 });
+      }
+    }, [target, map]);
     return null;
   }
 
@@ -236,9 +280,6 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
           <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>Where is the location?</div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            
-
-            
             <button
               type="button"
               onClick={handleCurrentLocation}
@@ -252,7 +293,11 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
               <div style={{ fontSize: '13px', color: '#64748b' }}>If you cannot find your location, you can place a pin directly.</div>
               <button 
                 type="button" 
-                onClick={() => setPosition([12.9744, 124.0055])} // Default fallback to Sorsogon area
+                onClick={() => {
+                  const defaultPos: [number, number] = [12.9744, 124.0055];
+                  setPosition(defaultPos);
+                  reverseGeocode(defaultPos[0], defaultPos[1]);
+                }}
                 style={{ background: '#0f172a', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
               >
                 Pick Exact Location on Map
@@ -270,31 +315,115 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
 
       {position && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
-              {address && address !== `${position[0].toFixed(6)}, ${position[1].toFixed(6)}` ? address : 'Selected Location'}
+          {/* Header Display: Current Address & Coordinates */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', background: '#ffffff', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', flex: 1 }}>
+              <MapPin size={20} color="#4f46e5" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ flex: 1 }}>
+                {isEditingAddress ? (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={e => setAddress(e.target.value)}
+                      placeholder="Enter or edit address..."
+                      style={{
+                        flex: 1,
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid #4f46e5',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        outline: 'none',
+                        color: '#0f172a'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAddress(false)}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#4f46e5',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Check size={14} /> Done
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>
+                      {isGeocoding ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#4f46e5' }}>
+                          <Loader2 size={14} className="animate-spin" /> Locating address from pin...
+                        </span>
+                      ) : (
+                        address || 'Location Coordinates Selected'
+                      )}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
+                      Pin coordinates: {position[0].toFixed(5)}, {position[1].toFixed(5)}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <button 
-              type="button" 
-              onClick={() => setPosition(null)}
-              style={{ background: 'transparent', border: 'none', color: '#4f46e5', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
-            >
-              Change Location
-            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {!isEditingAddress && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingAddress(true)}
+                  title="Edit address text manually"
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '4px 8px',
+                    color: '#475569',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Edit2 size={12} /> Edit Text
+                </button>
+              )}
+
+              <button 
+                type="button" 
+                onClick={() => setPosition(null)}
+                style={{ background: 'transparent', border: 'none', color: '#4f46e5', fontSize: '13px', fontWeight: 700, cursor: 'pointer', padding: '4px 6px' }}
+              >
+                Reset
+              </button>
+            </div>
           </div>
           
-          <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '-8px' }}>
-            Verify the location. You can drag the marker to adjust exactly where the pin drops.
+          <div style={{ fontSize: '12px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px', background: '#eff6ff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #dbeafe' }}>
+            <span>📍 <strong>Live Pinning:</strong> Drag the marker or click anywhere on the map to pinpoint your exact spot. The address updates automatically.</span>
           </div>
 
-          <div style={{ position: 'relative', marginTop: '16px', marginBottom: '8px' }}>
+          {/* Search Box */}
+          <div style={{ position: 'relative' }}>
             <div style={{ position: 'relative' }}>
               <div style={{ position: 'absolute', top: '50%', left: '12px', transform: 'translateY(-50%)', color: '#94a3b8' }}>
                 <Search size={18} />
               </div>
               <input
                 type="text"
-                placeholder="Search for a location..."
+                placeholder="Search for a street, landmark, or barangay..."
                 value={searchInput}
                 onChange={handleSearchChange}
                 onFocus={() => { if (predictions.length > 0) setShowDropdown(true); }}
@@ -322,19 +451,21 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
               </div>
             )}
           </div>
+
+          {/* Interactive Leaflet Map */}
           <div id="map-picker-container" style={{ width: '100%', height, borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1', zIndex: 0, position: 'relative' }}>
-            <MapContainer key={mapKey} center={position} zoom={18} style={{ height: '100%', width: '100%' }}>
+            <MapContainer center={position} zoom={18} style={{ height: '100%', width: '100%' }}>
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               <DraggableMarker />
-              <MapUpdater center={position} />
+              <MapEvents />
+              <MapFlyHandler target={flyToTarget} />
             </MapContainer>
           </div>
 
-
-
+          {/* Landmark input */}
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '8px' }}>
               Landmark / Delivery Instructions
@@ -347,7 +478,6 @@ export default function MapPickerClient({ initialLat, initialLng, initialAddress
               style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', boxSizing: 'border-box', outline: 'none' }}
             />
           </div>
-
         </>
       )}
     </div>

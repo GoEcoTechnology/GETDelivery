@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import PartnerNotifListener from './PartnerNotifListener';
 import NotificationBell from '../admin/NotificationBell';
+import PageGuideButton from '@/components/PageGuideModal';
 
 export default function PartnerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -69,6 +70,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           <Briefcase className="w-5 h-5" /> GETPartner
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <PageGuideButton variant="mobile" />
           <NotificationBell />
           <button onClick={handleLogout} className={styles.mobileLogoutHeaderBtn} title="Sign Out" aria-label="Sign Out">
             <LogOut size={18} />
@@ -121,7 +123,6 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
         </nav>
         <div className={styles.userProfile}>
           <p className={styles.userName}>{user.name}</p>
-          <p className={styles.userRole}>{user.role.replace('_', ' ')}</p>
           <button onClick={handleLogout} className={styles.logoutBtn}>
             <LogOut size={16} /> Sign Out
           </button>
@@ -132,21 +133,24 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
         {/* Top Navbar */}
         <header className="header-responsive hide-on-mobile">
           <div>
-            <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-              {(() => {
-                const segments = pathname.split('/').filter(Boolean);
-                const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
-                const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
-                if (['admin', 'partner', 'customer', 'platform-admin'].includes(lastSegment.toLowerCase())) {
-                  return 'Dashboard';
-                }
-                if (lastSegment === 'orders') return 'Available Orders';
-                if (lastSegment === 'deliveries') return 'My Deliveries';
-                if (lastSegment === 'completed') return 'Completed Deliveries';
-                return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-              })()}
-            </h1>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+              <h1 style={{ margin: 0, fontSize: '26px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                {(() => {
+                  const segments = pathname.split('/').filter(Boolean);
+                  const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
+                  const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
+                  if (['admin', 'partner', 'customer', 'platform-admin'].includes(lastSegment.toLowerCase())) {
+                    return 'Dashboard';
+                  }
+                  if (lastSegment === 'orders') return 'Available Orders';
+                  if (lastSegment === 'deliveries') return 'My Deliveries';
+                  if (lastSegment === 'completed') return 'Completed Deliveries';
+                  return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                })()}
+              </h1>
+              <PageGuideButton variant="title" />
+            </div>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>
               {(() => {
                 const segments = pathname.split('/').filter(Boolean);
                 const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
@@ -160,7 +164,6 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{user.name}</span>
-              <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'capitalize' }}>{user.role.replace(/_/g, ' ').toLowerCase()}</span>
             </div>
             <button onClick={() => setShowReminderModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', borderRadius: '50%', backgroundColor: '#fef3c7', boxShadow: '0 2px 5px rgba(245,158,11,0.2)', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
               <Lightbulb size={20} color="#d97706" />

@@ -18,20 +18,24 @@ export async function POST(
       return NextResponse.json({ error: 'Quantity must be a positive number' }, { status: 400 });
     }
 
-    const tenantIdToUse = claims.tenantId as number;
+    const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
+      ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
+      : claims.tenantId) as number | null;
 
     // 1. Find the master order (the one managing the quota)
     const [masterOrder] = await tx
       .select()
       .from(deliveryOrders)
-      .where(and(
+      .where(tenantIdToUse ? and(
         eq(deliveryOrders.id, id),
         eq(deliveryOrders.tenantId, tenantIdToUse)
-      ));
+      ) : eq(deliveryOrders.id, id));
 
     if (!masterOrder) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
+
+    const orderTenantId = masterOrder.tenantId;
 
     const remaining = masterOrder.quota - masterOrder.currentOrdersCount;
     if (quantity > remaining) {
@@ -64,14 +68,14 @@ export async function POST(
       const existing = await tx
         .select({ id: customers.id })
         .from(customers)
-        .where(and(eq(customers.tenantId, tenantIdToUse), eq(customers.mobileNumber, contactNumber)))
+        .where(and(eq(customers.tenantId, orderTenantId), eq(customers.mobileNumber, contactNumber)))
         .limit(1);
 
       if (existing.length > 0) {
         customerId = existing[0].id;
       } else {
         const [newCust] = await tx.insert(customers).values({
-          tenantId: tenantIdToUse,
+          tenantId: orderTenantId,
           name: customerName,
           mobileNumber: contactNumber,
           address: address,
@@ -104,7 +108,7 @@ export async function POST(
 
       // Create sub delivery order per customer
       const [subOrder] = await tx.insert(deliveryOrders).values({
-        tenantId: tenantIdToUse,
+        tenantId: orderTenantId,
         parentOrderId: id,
         customerId,
         customerName,
@@ -152,7 +156,7 @@ export async function POST(
     const itemId = body.itemId ? parseInt(body.itemId, 10) : null;
     if (itemId && productId) {
       await tx.insert(quotaAccumulations).values({
-        tenantId: tenantIdToUse,
+        tenantId: orderTenantId,
         productId,
         sourceOrderId: id,
         sourceItemId: itemId,

@@ -4,16 +4,9 @@ import { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { patchLeaflet } from '@/lib/leaflet-fix';
 
-// Fix default leaflet icons
-if (typeof window !== 'undefined') {
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-  });
-}
+patchLeaflet(L);
 
 const greenIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
@@ -70,9 +63,9 @@ function FitBounds({ coords }: { coords: [number, number][] }) {
     const timeout = setTimeout(() => {
       try {
         if (coords.length === 1) {
-          map.setView(coords[0], 15, { animate: true });
+          map.setView(coords[0], 15, { animate: false });
         } else {
-          map.fitBounds(L.latLngBounds(coords), { padding: [60, 60], animate: true });
+          map.fitBounds(L.latLngBounds(coords), { padding: [60, 60], animate: false });
         }
       } catch {}
     }, 150);

@@ -15,6 +15,10 @@ export async function GET(request: Request) {
         vehicleType: vehicleDeliveryRates.vehicleType,
         basePrice: vehicleDeliveryRates.basePrice,
         pricePerKm: vehicleDeliveryRates.pricePerKm,
+        capacityKg: vehicleDeliveryRates.capacityKg,
+        cargoLengthCm: vehicleDeliveryRates.cargoLengthCm,
+        cargoWidthCm: vehicleDeliveryRates.cargoWidthCm,
+        cargoHeightCm: vehicleDeliveryRates.cargoHeightCm,
         isActive: vehicleDeliveryRates.isActive,
         updatedAt: vehicleDeliveryRates.updatedAt,
       })
@@ -62,22 +66,34 @@ export async function PUT(request: Request) {
 
     const ratePromises = rates.map((rate: any) => {
       if (!rate.vehicleType) return null;
-      const basePrice = Number(rate.basePrice || 0);
       const vehiclePricePerKm = Number(rate.pricePerKm || 0);
+      const capacityKg = Math.max(0, parseInt(String(rate.capacityKg || 0), 10) || 0);
+      const cargoLengthCm = Math.max(0, Number(rate.cargoLengthCm || 0)).toFixed(2);
+      const cargoWidthCm = Math.max(0, Number(rate.cargoWidthCm || 0)).toFixed(2);
+      const cargoHeightCm = Math.max(0, Number(rate.cargoHeightCm || 0)).toFixed(2);
+
       return tx
         .insert(vehicleDeliveryRates)
         .values({
           vehicleType: String(rate.vehicleType),
-          basePrice: basePrice.toString(),
+          basePrice: '0',
           pricePerKm: vehiclePricePerKm.toString(),
+          capacityKg,
+          cargoLengthCm,
+          cargoWidthCm,
+          cargoHeightCm,
           isActive: Boolean(rate.isActive),
           updatedBy: claims.userId as number,
         })
         .onConflictDoUpdate({
           target: vehicleDeliveryRates.vehicleType,
           set: {
-            basePrice: basePrice.toString(),
+            basePrice: '0',
             pricePerKm: vehiclePricePerKm.toString(),
+            capacityKg,
+            cargoLengthCm,
+            cargoWidthCm,
+            cargoHeightCm,
             isActive: Boolean(rate.isActive),
             updatedBy: claims.userId as number,
             updatedAt: sql`now()`,

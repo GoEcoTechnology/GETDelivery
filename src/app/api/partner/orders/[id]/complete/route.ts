@@ -17,18 +17,18 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid delivery order ID' }, { status: 400 });
     }
 
-    // Verify the order is assigned to this partner and is in the IN_TRANSIT state
+    // Verify the order is assigned to this partner and is in an active delivery state
     const [existingOrder] = await db.select().from(deliveryOrders).where(
       and(
         eq(deliveryOrders.id, orderId),
         eq(deliveryOrders.temporaryWinnerId, partnerId),
-        eq(deliveryOrders.status, 'IN_TRANSIT')
+        inArray(deliveryOrders.status, ['IN_TRANSIT', 'ACCEPTED', 'DISPATCHED'])
       )
     );
 
     if (!existingOrder) {
       return NextResponse.json({ 
-        error: `Could not complete delivery. It must be in OUT FOR DELIVERY state and assigned to you.` 
+        error: `Could not complete delivery. The order must be assigned to you and currently active.` 
       }, { status: 400 });
     }
 
@@ -52,7 +52,7 @@ export async function POST(
       .where(
         and(
           inArray(deliveryOrders.id, relatedOrderIds),
-          eq(deliveryOrders.status, 'IN_TRANSIT'),
+          inArray(deliveryOrders.status, ['IN_TRANSIT', 'ACCEPTED', 'DISPATCHED']),
           eq(deliveryOrders.temporaryWinnerId, partnerId)
         )
       )

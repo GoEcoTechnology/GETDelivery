@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { vehicles } from '@/db/schema';
-import { desc, eq, and, ilike, sql, isNull } from 'drizzle-orm';
+import { desc, eq, and, ilike, sql, isNull, ne } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { clearVehicleDeliveryCache } from '@/lib/deliveryCalculation';
 
 export async function GET(request: Request) {
   return withAuth(request, { requiredPermissions: ['delivery.view'] }, async (tx, claims) => {
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
 
     const offset = (page - 1) * limit;
     
-    let conditions: any = isNull(vehicles.deliveryPartnerId);
+    let conditions: any = and(isNull(vehicles.deliveryPartnerId), ne(vehicles.status, 'ARCHIVED'));
     if (claims.role !== 'PLATFORM_OWNER') {
       conditions = and(conditions, eq(vehicles.tenantId, claims.tenantId as number));
     }
@@ -32,6 +33,9 @@ export async function GET(request: Request) {
         orNumber: vehicles.orNumber,
         crNumber: vehicles.crNumber,
         capacityKg: vehicles.capacityKg,
+        cargoLengthCm: vehicles.cargoLengthCm,
+        cargoWidthCm: vehicles.cargoWidthCm,
+        cargoHeightCm: vehicles.cargoHeightCm,
         registrationExpiry: vehicles.registrationExpiry,
         createdAt: vehicles.createdAt,
       })
@@ -54,7 +58,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return withAuth(request, { requiredPermissions: ['delivery.manage'] }, async (tx, claims) => {
-    const { plateNumber, vehicleType, deliveryPartnerId, capacityKg, orNumber, crNumber, registrationExpiry } = await request.json();
+    const { 
+      plateNumber, 
+      vehicleType, 
+      deliveryPartnerId, 
+      capacityKg, 
+      cargoLengthCm, 
+      cargoWidthCm, 
+      cargoHeightCm, 
+      orNumber, 
+      crNumber, 
+      registrationExpiry 
+    } = await request.json();
 
     if (!plateNumber || !vehicleType) {
       return NextResponse.json({ error: 'Plate Number and Vehicle Type are required' }, { status: 400 });
@@ -65,18 +80,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tenant context required to register a vehicle' }, { status: 400 });
     }
 
+    const payloadCapacity = Number(capacityKg);
+    if (!Number.isFinite(payloadCapacity) || payloadCapacity <= 0) {
+      return NextResponse.json({ error: 'Maximum payload capacity must be a positive number (> 0 kg)' }, { status: 400 });
+    }
+
     const [newVehicle] = await tx.insert(vehicles).values({
       tenantId: tenantIdToUse,
       deliveryPartnerId: deliveryPartnerId || null,
       plateNumber,
       vehicleType,
-      capacityKg: capacityKg || 0,
+      capacityKg: payloadCapacity,
+      cargoLengthCm: cargoLengthCm ? Number(cargoLengthCm) : 100,
+      cargoWidthCm: cargoWidthCm ? Number(cargoWidthCm) : 80,
+      cargoHeightCm: cargoHeightCm ? Number(cargoHeightCm) : 80,
       orNumber: orNumber || null,
       crNumber: crNumber || null,
       registrationExpiry: registrationExpiry ? new Date(registrationExpiry) : null,
       status: 'ACTIVE'
     }).returning();
 
+    clearVehicleDeliveryCache();
     return NextResponse.json({ data: newVehicle }, { status: 201 });
   });
 }

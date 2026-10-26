@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { deliveryInvitations, deliveryOrders, deliveryBatches, deliveryBatchItems, tenants, customers, deliveryItems, products, productSellingUnits, users, vehicleDeliveryRates } from '@/db/schema';
+import { deliveryInvitations, deliveryOrders, deliveryBatches, deliveryBatchItems, tenants, customers, deliveryItems, products, productSellingUnits, users, vehicleDeliveryRates, vehicles, productVariants } from '@/db/schema';
 import { eq, and, inArray, sql } from 'drizzle-orm';
+import { canShipmentFitInVehicle } from '@/lib/deliveryCalculation';
 import PartnerOrderActions from './PartnerOrderActions';
 import RouteMap from '@/components/RouteMap';
 import { MapPin, User, Package, Navigation, Users, ListOrdered } from 'lucide-react';
@@ -81,7 +82,12 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
       orderSource: deliveryOrders.orderSource,
       normalDeliveryFee: deliveryOrders.normalDeliveryFee,
       urgentAdditionalFee: deliveryOrders.urgentAdditionalFee,
-      routeDistance: deliveryOrders.routeDistance
+      routeDistance: deliveryOrders.routeDistance,
+      totalWeight: deliveryOrders.totalWeight,
+      quota: deliveryOrders.quota,
+      vehicleCapacityKg: deliveryOrders.vehicleCapacityKg,
+      finalDeliveryPrice: deliveryOrders.finalDeliveryPrice,
+      suggestedVehicleId: deliveryOrders.suggestedVehicleId
     },
     tenant: {
       id: tenants.id,
@@ -141,6 +147,27 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     }
   }
 
+  // Load active vehicles and pricing rates
+  const rates = await db.select().from(vehicleDeliveryRates).where(eq(vehicleDeliveryRates.isActive, true));
+  const activeVehicles = await db.select({ vehicleType: vehicles.vehicleType, capacityKg: vehicles.capacityKg }).from(vehicles).where(eq(vehicles.status, 'ACTIVE'));
+  const capMap = new Map<string, number>();
+  activeVehicles.forEach((v: any) => {
+    const cur = capMap.get(v.vehicleType) || 0;
+    if (v.capacityKg > cur) capMap.set(v.vehicleType, v.capacityKg);
+  });
+
+  const availableVehiclesWithCap = rates.map((v: any) => ({
+    id: v.id,
+    vehicleType: v.vehicleType,
+    basePrice: v.basePrice,
+    pricePerKm: v.pricePerKm,
+    isActive: v.isActive,
+    cargoLengthCm: Number(v.cargoLengthCm) || 0,
+    cargoWidthCm: Number(v.cargoWidthCm) || 0,
+    cargoHeightCm: Number(v.cargoHeightCm) || 0,
+    capacityKg: capMap.get(v.vehicleType) || Number(v.capacityKg) || (v.vehicleType === 'Motorcycle' ? 50 : 1000)
+  }));
+
   // 3. Aggregate totals and Customer Stops
   let totalPieces = 0;
   let totalCases = 0;
@@ -154,6 +181,7 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
   let distanceKm = 0;
 
   const customerStops: any[] = [];
+  const allOrderItems: any[] = [];
 
   for (let i = 0; i < allOrders.length; i++) {
     const o = allOrders[i];
@@ -178,10 +206,15 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     const rawItems = await db.select({ 
       id: deliveryItems.id, 
       productId: deliveryItems.productId,
+      variantId: deliveryItems.variantId,
       quantity: deliveryItems.quantity,
       unit: deliveryItems.unit, 
       productName: deliveryItems.productName,
-      unitPrice: deliveryItems.unitPrice
+      unitPrice: deliveryItems.unitPrice,
+      weightKg: deliveryItems.weightKg,
+      lengthCm: deliveryItems.lengthCm,
+      widthCm: deliveryItems.widthCm,
+      heightCm: deliveryItems.heightCm,
     })
     .from(deliveryItems)
     .where(eq(deliveryItems.deliveryOrderId, o.id));
@@ -190,33 +223,91 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
     const items = await Promise.all(rawItems.map(async (item) => {
       let finalName = item.productName;
       let finalPrice = item.unitPrice;
+      let calculatedItemWeight = Number(item.weightKg) || 0;
+      let l = Number(item.lengthCm) || 0;
+      let w = Number(item.widthCm) || 0;
+      let h = Number(item.heightCm) || 0;
       
-      if (!finalName || !finalPrice || finalPrice === '0' || finalPrice === '0.00') {
-        if (item.productId) {
-          const [prod] = await db.select({ name: products.name }).from(products).where(eq(products.id, item.productId));
-          if (prod && !finalName) finalName = prod.name;
-          
-          if (!finalPrice || finalPrice === '0' || finalPrice === '0.00') {
-            let [sellingUnit] = await db.select({ price: productSellingUnits.price }).from(productSellingUnits).where(and(eq(productSellingUnits.productId, item.productId), eq(productSellingUnits.unitName, item.unit || 'pc')));
-            if (!sellingUnit) {
-              const fallback = await db.select({ price: productSellingUnits.price }).from(productSellingUnits).where(eq(productSellingUnits.productId, item.productId)).limit(1);
-              sellingUnit = fallback[0];
-            }
-            if (sellingUnit && sellingUnit.price) {
-              finalPrice = String(sellingUnit.price);
-            }
-          }
+      if (item.variantId && calculatedItemWeight <= 0) {
+        const [variant] = await db.select({
+          quota: productVariants.quota,
+          weightPerPieceKg: productVariants.weightPerPieceKg,
+          weight: productVariants.weight,
+          lengthCm: productVariants.lengthCm,
+          widthCm: productVariants.widthCm,
+          heightCm: productVariants.heightCm,
+        }).from(productVariants).where(eq(productVariants.id, item.variantId));
+        if (variant) {
+          const wPerQuota = Number(variant.weightPerPieceKg || variant.weight || 0);
+          const qPerUnit = Number(variant.quota || 1);
+          calculatedItemWeight = (item.quantity || 0) * qPerUnit * wPerQuota;
+          if (!l) l = Number(variant.lengthCm) || 0;
+          if (!w) w = Number(variant.widthCm) || 0;
+          if (!h) h = Number(variant.heightCm) || 0;
         }
       }
-      return { ...item, productName: finalName, unitPrice: finalPrice };
+
+      if (item.productId) {
+        const [prod] = await db.select({ 
+          name: products.name,
+          lengthCm: products.lengthCm,
+          widthCm: products.widthCm,
+          heightCm: products.heightCm,
+        }).from(products).where(eq(products.id, item.productId));
+        if (prod && !finalName) finalName = prod.name;
+        if (prod) {
+          if (!l) l = Number(prod.lengthCm) || 0;
+          if (!w) w = Number(prod.widthCm) || 0;
+          if (!h) h = Number(prod.heightCm) || 0;
+        }
+        
+        let [sellingUnit] = await db.select({ 
+          price: productSellingUnits.price,
+          lengthCm: productSellingUnits.lengthCm,
+          widthCm: productSellingUnits.widthCm,
+          heightCm: productSellingUnits.heightCm,
+          weightKg: productSellingUnits.weightKg,
+        }).from(productSellingUnits).where(and(eq(productSellingUnits.productId, item.productId), eq(productSellingUnits.unitName, item.unit || 'pc')));
+        if (!sellingUnit) {
+          const fallback = await db.select({ 
+            price: productSellingUnits.price,
+            lengthCm: productSellingUnits.lengthCm,
+            widthCm: productSellingUnits.widthCm,
+            heightCm: productSellingUnits.heightCm,
+            weightKg: productSellingUnits.weightKg,
+          }).from(productSellingUnits).where(eq(productSellingUnits.productId, item.productId)).limit(1);
+          sellingUnit = fallback[0];
+        }
+        if (sellingUnit) {
+          if ((!finalPrice || finalPrice === '0' || finalPrice === '0.00') && sellingUnit.price) {
+            finalPrice = String(sellingUnit.price);
+          }
+          if (sellingUnit.lengthCm) l = Number(sellingUnit.lengthCm);
+          if (sellingUnit.widthCm) w = Number(sellingUnit.widthCm);
+          if (sellingUnit.heightCm) h = Number(sellingUnit.heightCm);
+        }
+      }
+      return { 
+        ...item, 
+        productName: finalName, 
+        unitPrice: finalPrice, 
+        weightKg: calculatedItemWeight,
+        lengthCm: l || 50,
+        widthCm: w || 40,
+        heightCm: h || 30,
+      };
     }));
 
+    allOrderItems.push(...items);
+
+    let accumulatedWeight = 0;
     const mappedProducts = items.map((item) => {
       const qty = item.quantity || 0;
       const unit = (item.unit || '').toLowerCase();
       totalQuantity += qty;
       totalItemsCount++;
-      const itemWeight = 0; // TBD from DB if available
+      const itemWeight = Number(item.weightKg) || 0;
+      accumulatedWeight += itemWeight;
       
       if (unit.includes('case')) totalCases += qty;
       else if (unit.includes('bottle')) totalBottles += qty;
@@ -240,6 +331,10 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
         mergedMappedProducts.push({ ...newP });
       }
     });
+
+    if (totalWeightKg === 0 && accumulatedWeight > 0) {
+      totalWeightKg = accumulatedWeight;
+    }
 
     totalDeliveryFee += Number(o.normalDeliveryFee || o.vehicleBasePrice) || 0;
     totalUrgentFee += Number(o.urgentAdditionalFee) || 0;
@@ -395,22 +490,76 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
 
         {/* RIGHT COLUMN: Details & Actions */}
         <div style={{ display: 'grid', gap: '16px' }}>
-          <section className={styles.card} style={{ marginBottom: 0 }}>
-            <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MapPin size={20} color="#4f46e5" /> Request Actions</h3></div>
-            <div className={styles.cardContent}>
-              <PartnerOrderActions 
-                orderId={baseOrder.id} 
-                status={['ACCEPTED', 'TEMPORARY_WINNER'].includes(invite.status) ? baseOrder.status : invite.status} 
-                availableVehicles={(await db.select().from(vehicleDeliveryRates).where(eq(vehicleDeliveryRates.isActive, true))).map(v => ({
-                  id: v.id,
-                  vehicleType: v.vehicleType,
-                  basePrice: v.basePrice,
-                  pricePerKm: v.pricePerKm,
-                  isActive: v.isActive
-                }))} 
-              />
-            </div>
-          </section>
+          {(() => {
+            const finalWeight = totalWeightKg || Number(baseOrder.totalWeight) || 0;
+            let resolvedVehicle = baseOrder.requiredVehicleType || baseOrder.preferredVehicle;
+            
+            // Check if current vehicle can actually physically fit the items
+            let vehiclePhysicallyFits = false;
+            if (resolvedVehicle) {
+              const currentV = availableVehiclesWithCap.find(v => v.vehicleType.trim().toLowerCase() === resolvedVehicle?.trim().toLowerCase());
+              if (currentV) {
+                const fitCheck = canShipmentFitInVehicle(
+                  allOrderItems.map((oi: any) => ({
+                    lengthCm: Number(oi.lengthCm) || 50,
+                    widthCm: Number(oi.widthCm) || 40,
+                    heightCm: Number(oi.heightCm) || 30,
+                    quantity: Number(oi.quantity) || 1,
+                    weightKg: Number(oi.weightKg) || (finalWeight / Math.max(1, allOrderItems.length)),
+                    name: oi.productName
+                  })),
+                  {
+                    capacityKg: currentV.capacityKg,
+                    cargoLengthCm: Number(currentV.cargoLengthCm) || 0,
+                    cargoWidthCm: Number(currentV.cargoWidthCm) || 0,
+                    cargoHeightCm: Number(currentV.cargoHeightCm) || 0
+                  }
+                );
+                vehiclePhysicallyFits = fitCheck.fits;
+              }
+            }
+
+            if (!resolvedVehicle || !vehiclePhysicallyFits) {
+              const sortedVehicles = [...availableVehiclesWithCap].sort((a, b) => a.capacityKg - b.capacityKg);
+              const matched = sortedVehicles.find(v => {
+                const fit = canShipmentFitInVehicle(
+                  allOrderItems.map((oi: any) => ({
+                    lengthCm: Number(oi.lengthCm) || 50,
+                    widthCm: Number(oi.widthCm) || 40,
+                    heightCm: Number(oi.heightCm) || 30,
+                    quantity: Number(oi.quantity) || 1,
+                    weightKg: Number(oi.weightKg) || (finalWeight / Math.max(1, allOrderItems.length)),
+                    name: oi.productName
+                  })),
+                  {
+                    capacityKg: v.capacityKg,
+                    cargoLengthCm: Number(v.cargoLengthCm) || 0,
+                    cargoWidthCm: Number(v.cargoWidthCm) || 0,
+                    cargoHeightCm: Number(v.cargoHeightCm) || 0
+                  }
+                );
+                return fit.fits;
+              });
+              if (matched) resolvedVehicle = matched.vehicleType;
+            }
+
+            const assignedVehicleName = resolvedVehicle || (finalWeight > 0 ? '10 Wheeler Truck' : 'Motorcycle');
+
+            return (
+              <section className={styles.card} style={{ marginBottom: 0 }}>
+                <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MapPin size={20} color="#4f46e5" /> Request Actions</h3></div>
+                <div className={styles.cardContent}>
+                  <PartnerOrderActions 
+                    orderId={baseOrder.id} 
+                    status={['ACCEPTED', 'TEMPORARY_WINNER'].includes(invite.status) ? baseOrder.status : invite.status} 
+                    orderWeight={finalWeight}
+                    availableVehicles={availableVehiclesWithCap} 
+                    assignedVehicleType={assignedVehicleName}
+                  />
+                </div>
+              </section>
+            );
+          })()}
 
           <section className={styles.card} style={{ marginBottom: 0 }}>
             <div className={styles.cardHeader}><h3 className={styles.cardTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><ListOrdered size={20} color="#4f46e5" /> Delivery Summary</h3></div>
@@ -460,9 +609,68 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
               <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
               
               <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '8px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Vehicle Details</div>
-                <DetailRow label="Suggested Vehicle" value={baseOrder.preferredVehicle || 'Motorcycle'} />
-                {totalWeightKg > 0 && <DetailRow label="Total Delivery Weight" value={`${totalWeightKg} kg`} />}
+                {(() => {
+                  const finalWeight = totalWeightKg || Number(baseOrder.totalWeight) || 0;
+                  let resolvedVehicle = baseOrder.requiredVehicleType || baseOrder.preferredVehicle;
+                  
+                  if (resolvedVehicle) {
+                    const currentV = availableVehiclesWithCap.find(v => v.vehicleType.trim().toLowerCase() === resolvedVehicle?.trim().toLowerCase());
+                    if (currentV) {
+                      const fitCheck = canShipmentFitInVehicle(
+                        allOrderItems.map((oi: any) => ({
+                          lengthCm: Number(oi.lengthCm) || 50,
+                          widthCm: Number(oi.widthCm) || 40,
+                          heightCm: Number(oi.heightCm) || 30,
+                          quantity: Number(oi.quantity) || 1,
+                          weightKg: Number(oi.weightKg) || (finalWeight / Math.max(1, allOrderItems.length)),
+                          name: oi.productName
+                        })),
+                        {
+                          capacityKg: currentV.capacityKg,
+                          cargoLengthCm: Number(currentV.cargoLengthCm) || 0,
+                          cargoWidthCm: Number(currentV.cargoWidthCm) || 0,
+                          cargoHeightCm: Number(currentV.cargoHeightCm) || 0
+                        }
+                      );
+                      if (!fitCheck.fits) resolvedVehicle = null;
+                    }
+                  }
+
+                  if (!resolvedVehicle) {
+                    const sortedVehicles = [...availableVehiclesWithCap].sort((a, b) => a.capacityKg - b.capacityKg);
+                    const matched = sortedVehicles.find(v => {
+                      const fit = canShipmentFitInVehicle(
+                        allOrderItems.map((oi: any) => ({
+                          lengthCm: Number(oi.lengthCm) || 50,
+                          widthCm: Number(oi.widthCm) || 40,
+                          heightCm: Number(oi.heightCm) || 30,
+                          quantity: Number(oi.quantity) || 1,
+                          weightKg: Number(oi.weightKg) || (finalWeight / Math.max(1, allOrderItems.length)),
+                          name: oi.productName
+                        })),
+                        {
+                          capacityKg: v.capacityKg,
+                          cargoLengthCm: Number(v.cargoLengthCm) || 0,
+                          cargoWidthCm: Number(v.cargoWidthCm) || 0,
+                          cargoHeightCm: Number(v.cargoHeightCm) || 0
+                        }
+                      );
+                      return fit.fits;
+                    });
+                    if (matched) resolvedVehicle = matched.vehicleType;
+                  }
+
+                  const assignedVehicle = resolvedVehicle || (finalWeight > 0 ? '10 Wheeler Truck' : 'Motorcycle');
+
+                  return (
+                    <DetailRow 
+                      label="Assigned Vehicle" 
+                      value={assignedVehicle} 
+                    />
+                  );
+                })()}
+                {(baseOrder.vehicleCapacityKg || 0) > 0 && <DetailRow label="Required Vehicle Capacity" value={`${baseOrder.vehicleCapacityKg} kg`} />}
+                {(totalWeightKg || Number(baseOrder.totalWeight) || 0) > 0 && <DetailRow label="Total Delivery Weight" value={`${totalWeightKg || Number(baseOrder.totalWeight)} kg`} />}
                 {((distanceKm || Number(baseOrder.distanceKm) || 0) > 0) && (
                   <DetailRow label="Distance (KM)" value={`${(distanceKm || Number(baseOrder.distanceKm) || 0).toFixed(2)} km`} />
                 )}
@@ -471,31 +679,21 @@ export default async function PartnerOrderDetailPage({ params }: { params: Promi
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Pricing Breakdown</div>
                 
                 {(() => {
-                  const isUnassigned = ['PENDING', 'WAITING_FOR_PARTNER', 'DRAFT'].includes(baseOrder.status);
-                  
-                  if (isUnassigned) {
-                    return (
-                      <>
-                        <DetailRow label="Delivery Fee" value="TBD" />
-                        <DetailRow label="Total Product Amount" value={formatCurrency(totalOrderAmount)} />
-                        {totalUrgentFee > 0 && <DetailRow label="Urgent Fee" value={formatCurrency(totalUrgentFee)} color="#ea580c" />}
-                        <div style={{ height: '1px', background: '#cbd5e1', margin: '8px 0' }} />
-                        <DetailRow label="Grand Total Amount" value={`${formatCurrency(totalOrderAmount + totalUrgentFee)} + TBD`} color="#4f46e5" boldValue />
-                      </>
-                    );
-                  }
+                  const deliveryFee = Number(baseOrder.finalDeliveryPrice) || 
+                    (Number(baseOrder.normalDeliveryFee || 0) + Number(baseOrder.urgentAdditionalFee || 0)) ||
+                    (calculatedKmCharge + totalUrgentFee);
+                  const grandTotalAmount = totalOrderAmount + deliveryFee;
                   
                   return (
                     <>
-                      {Number(baseOrder.vehicleBasePrice || totalDeliveryFee) > 0 && <DetailRow label="Vehicle Base Fee" value={formatCurrency(Number(baseOrder.vehicleBasePrice || totalDeliveryFee))} />}
-                      {Number(baseOrder.pricePerKm) > 0 && ((distanceKm || Number(baseOrder.distanceKm) || 0) > 0) && <DetailRow label="KM Charge" value={formatCurrency((distanceKm || Number(baseOrder.distanceKm) || 0) * Number(baseOrder.pricePerKm))} />}
-                      {!baseOrder.vehicleBasePrice && !baseOrder.pricePerKm && !totalDeliveryFee && (
-                        <DetailRow label="Delivery Fee" value={formatCurrency(totalDeliveryFee)} />
+                      {Number(baseOrder.pricePerKm) > 0 && ((distanceKm || Number(baseOrder.distanceKm) || 0) > 0) && (
+                        <DetailRow label="KM Charge" value={formatCurrency((distanceKm || Number(baseOrder.distanceKm) || 0) * Number(baseOrder.pricePerKm))} />
                       )}
+                      <DetailRow label="Delivery Fee" value={formatCurrency(deliveryFee)} />
                       <DetailRow label="Total Product Amount" value={formatCurrency(totalOrderAmount)} />
                       {totalUrgentFee > 0 && <DetailRow label="Urgent Fee" value={formatCurrency(totalUrgentFee)} color="#ea580c" />}
                       <div style={{ height: '1px', background: '#cbd5e1', margin: '8px 0' }} />
-                      <DetailRow label="Grand Total Amount" value={formatCurrency(grandTotal)} color="#4f46e5" boldValue />
+                      <DetailRow label="Grand Total Amount" value={formatCurrency(grandTotalAmount)} color="#4f46e5" boldValue />
                     </>
                   );
                 })()}

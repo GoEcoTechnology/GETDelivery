@@ -2,8 +2,8 @@ import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import { deliveryOrders, deliveryItems, products, productVariants, customers } from '@/db/schema';
-import { eq, desc, inArray, isNotNull, and } from 'drizzle-orm';
+import { deliveryOrders, deliveryItems, products, productVariants, productSellingUnits, customers } from '@/db/schema';
+import { eq, desc, inArray, isNotNull, and, sql } from 'drizzle-orm';
 import OrdersClient from './OrdersClient';
 
 export const metadata = {
@@ -20,16 +20,18 @@ export default async function AdminOrdersPage() {
   if (!claims) redirect('/login');
 
   const tenantId = claims.tenantId as number | null;
-  if (!tenantId) redirect('/login');
+  const isPlatformOwner = claims.role === 'PLATFORM_OWNER';
+  if (!tenantId && !isPlatformOwner) redirect('/login');
 
-  // Fetch all orders for this tenant
+  // Fetch orders for this tenant (or all marketplace orders if platform owner)
+  const queryCondition = tenantId
+    ? and(eq(deliveryOrders.tenantId, tenantId), eq(deliveryOrders.orderSource, 'MARKETPLACE'))
+    : eq(deliveryOrders.orderSource, 'MARKETPLACE');
+
   const data = await db
     .select()
     .from(deliveryOrders)
-    .where(and(
-      eq(deliveryOrders.tenantId, tenantId),
-      eq(deliveryOrders.orderSource, 'MARKETPLACE')
-    ))
+    .where(queryCondition)
     .orderBy(desc(deliveryOrders.createdAt));
 
   const orderIds = data.map(o => o.id);
@@ -42,14 +44,21 @@ export default async function AdminOrdersPage() {
         deliveryOrderId: deliveryItems.deliveryOrderId,
         productId: deliveryItems.productId,
         variantId: deliveryItems.variantId,
+        variantName: productVariants.name,
         productName: deliveryItems.productName,
         quantity: deliveryItems.quantity,
         unitPrice: deliveryItems.unitPrice,
         unit: deliveryItems.unit,
+        weightKg: deliveryItems.weightKg,
         quota: productVariants.quota,
+        equivalentQty: productSellingUnits.equivalentQty,
       })
       .from(deliveryItems)
       .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
+      .leftJoin(
+        productSellingUnits,
+        sql`${productSellingUnits.productId} = ${deliveryItems.productId} AND (${productSellingUnits.variantId} IS NULL OR ${productSellingUnits.variantId} = ${deliveryItems.variantId}) AND TRIM(${productSellingUnits.unitName}) ILIKE TRIM(${deliveryItems.unit})`
+      )
       .where(inArray(deliveryItems.deliveryOrderId, orderIds));
   }
 

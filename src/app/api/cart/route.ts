@@ -35,11 +35,17 @@ export async function GET(request: Request) {
           tenantLng: tenants.lng,
           variantId: productVariants.id,
           unit: productVariants.unit,
+          weightPerPieceKg: productVariants.weightPerPieceKg,
+          weight: productVariants.weight,
+          quota: productVariants.quota,
         },
         sellingUnit: {
           id: productSellingUnits.id,
           name: productSellingUnits.unitName,
           price: productSellingUnits.price,
+          weight: productSellingUnits.weight,
+          equivalentQty: productSellingUnits.equivalentQty,
+          quota: productSellingUnits.quota,
         }
       })
       .from(cartItems)

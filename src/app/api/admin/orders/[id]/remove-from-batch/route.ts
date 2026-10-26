@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { deliveryOrders, deliveryBatches, deliveryBatchItems, productVariants, inventoryTransactions, deliveryItems } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { verifyToken } from '@/lib/auth';
+import { determineVehicleForBatch } from '@/lib/deliveryCalculation';
 
 export async function POST(
   request: Request,
@@ -94,6 +95,8 @@ export async function POST(
         await db.update(deliveryBatches)
           .set({ totalQuantity: newTotalQty, totalWeight: newTotalWeight.toString() })
           .where(eq(deliveryBatches.id, batchId));
+
+        await determineVehicleForBatch(batchId, claims.tenantId as number);
       }
     }
 

@@ -27,6 +27,10 @@ const StockBadge = ({ stock, threshold }: { stock: number | null; threshold: num
   return <span style={{ color, fontWeight: 700 }}>{stock}</span>;
 };
 
+import PackageSizeSelector from '@/components/PackageSizeSelector';
+import { PACKAGE_SIZE_OPTIONS, PackageSizeOption, detectPackageTierCode } from '@/lib/packageSizes';
+
+
 /* ─── Variant row (sub-row) ─── */
 function VariantRow({ variant, productName }: { variant: any; productName: string }) {
   const [showUnits, setShowUnits] = useState(false);
@@ -34,16 +38,16 @@ function VariantRow({ variant, productName }: { variant: any; productName: strin
 
   return (
     <div style={{ borderLeft: '2px solid #e2e8f0', marginLeft: '9px', paddingLeft: '20px', paddingBottom: '16px', paddingTop: '16px', borderBottom: '1px solid #f1f5f9' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => setShowUnits(!showUnits)}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ cursor: hasUnits ? 'pointer' : 'default', flex: '1 1 320px' }} onClick={() => hasUnits && setShowUnits(!showUnits)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b' }}>{variant.name}</span>
             {variant.status !== 'ACTIVE' && (
               <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '11px', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>Inactive</span>
             )}
           </div>
-          <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
-            Stock: <StockBadge stock={variant.stock} threshold={variant.lowStockThreshold} /> {variant.unit ? variant.unit : ''}
+          <div style={{ fontSize: '13px', color: '#64748b', marginTop: '6px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span>Stock: <StockBadge stock={variant.stock} threshold={variant.lowStockThreshold} /> {variant.unit ? variant.unit : ''}</span>
           </div>
         </div>
         
@@ -54,7 +58,7 @@ function VariantRow({ variant, productName }: { variant: any; productName: strin
               { label: 'Add Selling Unit', icon: <Plus size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('add-selling-unit', { detail: { variant, productName } })), color: '#8b5cf6' },
               { label: 'Edit Variant', icon: <Edit2 size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('edit-variant', { detail: { variant, productName } })), color: '#3b82f6' },
             ]} />
-            <button onClick={() => setShowUnits(!showUnits)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex', width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}>
+            <button onClick={() => setShowUnits(!showUnits)} title={showUnits ? "Hide Selling Units" : "Show Selling Units"} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex', width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}>
               {showUnits ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
             </button>
           </div>
@@ -63,31 +67,38 @@ function VariantRow({ variant, productName }: { variant: any; productName: strin
       
       {showUnits && (
         <div style={{ marginTop: '16px' }}>
-          {hasUnits && variant.sellingUnits.map((su: any) => (
-            <div key={su.id} style={{ borderLeft: '2px solid #eab308', marginLeft: '8px', paddingLeft: '16px', paddingBottom: '12px', marginBottom: '12px' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontWeight: 600, fontSize: '14px', color: '#334155' }}>{su.unitName}</span>
-                    {su.status !== 'ACTIVE' && (
-                      <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>Inactive</span>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a', width: '100px', textAlign: 'right' }}>{fmt(su.price)}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '70px', justifyContent: 'flex-end' }}>
-                      <ActionMenu actions={[
-                        { label: 'Edit Selling Unit', icon: <Edit2 size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('edit-selling-unit', { detail: { unit: su, variant, productName } })), color: '#3b82f6' },
-                        { label: 'Delete Selling Unit', icon: <Trash2 size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('delete-selling-unit', { detail: { unit: su, variant } })), color: '#ef4444' },
-                      ]} />
-                      <div style={{ width: 26 }} />
+          {hasUnits && variant.sellingUnits.map((su: any) => {
+            const calculatedStock = Math.floor((Number(variant.stock) || 0) / (Number(su.equivalentQty) || 1));
+
+            return (
+              <div key={su.id} style={{ borderLeft: '2px solid #eab308', marginLeft: '8px', paddingLeft: '16px', paddingBottom: '12px', marginBottom: '12px' }}>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>{su.unitName}</span>
+                      {su.status !== 'ACTIVE' && (
+                        <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>Inactive</span>
+                      )}
+                      <span style={{ fontSize: '13px', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        • Stock: <StockBadge stock={calculatedStock} threshold={5} />
+                      </span>
                     </div>
-                  </div>
-               </div>
-               <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
-                 {su.description || `1 ${su.unitName} = ${Number(su.equivalentQty)} ${variant.unit || 'pcs'}`}
-               </div>
-            </div>
-          ))}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                      <span style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a', width: '100px', textAlign: 'right' }}>{fmt(su.price)}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '70px', justifyContent: 'flex-end' }}>
+                        <ActionMenu actions={[
+                          { label: 'Edit Selling Unit', icon: <Edit2 size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('edit-selling-unit', { detail: { unit: su, variant, productName } })), color: '#3b82f6' },
+                          { label: 'Delete Selling Unit', icon: <Trash2 size={14} />, onClick: () => window.dispatchEvent(new CustomEvent('delete-selling-unit', { detail: { unit: su, variant } })), color: '#ef4444' },
+                        ]} />
+                        <div style={{ width: 26 }} />
+                      </div>
+                    </div>
+                 </div>
+                 <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
+                   {su.description || `1 ${su.unitName} = ${Number(su.equivalentQty)} ${variant.unit || 'pcs'}`}
+                 </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -189,8 +200,8 @@ export default function InventoryClient() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
+  const fetchProducts = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const token = localStorage.getItem('token') || '';
       const res = await fetch(
@@ -205,12 +216,12 @@ export default function InventoryClient() {
     } catch (error) {
       console.error('Fetch error:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [page, limit, search]);
 
   useEffect(() => {
-    const timer = setTimeout(fetchProducts, 300);
+    const timer = setTimeout(() => fetchProducts(), 300);
     return () => clearTimeout(timer);
   }, [page, search, fetchProducts]);
 
@@ -228,20 +239,82 @@ export default function InventoryClient() {
     const deleteVariant = async (event: Event) => {
       const { variant } = (event as CustomEvent).detail;
       if (!confirm(`Delete variant "${variant.name}"?`)) return;
+
+      // Optimistic update
+      const prevProducts = products;
+      setProducts(prev =>
+        prev.map(p => {
+          if (p.id === variant.productId) {
+            return {
+              ...p,
+              variants: (p.variants || []).filter((v: any) => v.id !== variant.id),
+            };
+          }
+          return p;
+        })
+      );
+
       const token = localStorage.getItem('token') || '';
-      const res = await fetch(`/api/products/${variant.productId}/variants/${variant.id}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) fetchProducts(); else alert('Failed to delete variant');
+      try {
+        const res = await fetch(`/api/products/${variant.productId}/variants/${variant.id}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok) {
+          fetchProducts(true);
+        } else {
+          setProducts(prevProducts);
+          alert(data?.error || data?.message || 'Failed to delete variant');
+        }
+      } catch (err) {
+        console.error(err);
+        setProducts(prevProducts);
+        alert('Failed to delete variant');
+      }
     };
     const deleteUnit = async (event: Event) => {
       const { unit, variant } = (event as CustomEvent).detail;
       if (!confirm(`Delete selling unit "${unit.unitName}"?`)) return;
+
+      // Optimistic update
+      const prevProducts = products;
+      setProducts(prev =>
+        prev.map(p => {
+          if (p.id === unit.productId) {
+            return {
+              ...p,
+              variants: (p.variants || []).map((v: any) => {
+                if (v.id === variant.id) {
+                  return {
+                    ...v,
+                    sellingUnits: (v.sellingUnits || []).filter((su: any) => su.id !== unit.id),
+                  };
+                }
+                return v;
+              }),
+            };
+          }
+          return p;
+        })
+      );
+
       const token = localStorage.getItem('token') || '';
-      const res = await fetch(`/api/products/${unit.productId}/variants/${variant.id}/selling-units/${unit.id}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) fetchProducts(); else alert('Failed to delete selling unit');
+      try {
+        const res = await fetch(`/api/products/${unit.productId}/variants/${variant.id}/selling-units/${unit.id}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok) {
+          fetchProducts(true);
+        } else {
+          setProducts(prevProducts);
+          alert(data?.error || data?.message || 'Failed to delete selling unit');
+        }
+      } catch (err) {
+        console.error(err);
+        setProducts(prevProducts);
+        alert('Failed to delete selling unit');
+      }
     };
 
     window.addEventListener('edit-variant', openVariant);
@@ -258,7 +331,7 @@ export default function InventoryClient() {
       window.removeEventListener('delete-variant', deleteVariant);
       window.removeEventListener('delete-selling-unit', deleteUnit);
     };
-  }, [fetchProducts]);
+  }, [fetchProducts, products]);
 
   const saveVariant = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -272,9 +345,12 @@ export default function InventoryClient() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(variantModal.variant),
     });
-    if (!res.ok) return alert('Failed to update variant');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return alert(err.error || 'Failed to update variant');
+    }
     setVariantModal(null);
-    fetchProducts();
+    fetchProducts(true);
   };
 
   const saveUnit = async (event: React.FormEvent) => {
@@ -282,35 +358,72 @@ export default function InventoryClient() {
     if (!unitModal) return;
     const token = localStorage.getItem('token') || '';
     const { unit, variant } = unitModal;
-    const baseUrl = `/api/products/${unit.productId}/variants/${variant.id}/selling-units`;
+    const productId = unit.productId || variant?.productId;
+    const variantId = variant?.id || unit.variantId;
+    const baseUrl = `/api/products/${productId}/variants/${variantId}/selling-units`;
+
+    // Auto-calculate weight from parent variant if not explicitly set
+    const variantWeight = Number(variant?.weightKg ?? variant?.weight ?? 0);
+    const eqQty = Number(unit.equivalentQty) || 1;
+    const autoWeight = variantWeight > 0 ? (variantWeight * eqQty).toFixed(2) : undefined;
+
+    const payload = {
+      ...unit,
+      weightKg: unit.weightKg || autoWeight,
+      weight: unit.weight || autoWeight,
+    };
+
     const res = await fetch(unitModal.isNew ? baseUrl : `${baseUrl}/${unit.id}`, {
       method: unitModal.isNew ? 'POST' : 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(unit),
+      body: JSON.stringify(payload),
     });
-    if (!res.ok) return alert('Failed to update selling unit');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return alert(err.error || 'Failed to update selling unit');
+    }
     setUnitModal(null);
-    fetchProducts();
+    fetchProducts(true);
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
+
+    // 1. Optimistic removal: row disappears in 0ms!
+    const prevProducts = products;
+    const prevTotal = totalCount;
+    setProducts(prev => prev.filter(p => p.id !== id));
+    setTotalCount(prev => Math.max(0, prev - 1));
+
     try {
       const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/products/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) fetchProducts();
-      else alert('Failed to delete product');
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        // Silently sync pagination in background without screen flicker
+        fetchProducts(true);
+      } else {
+        // Rollback state if server rejected
+        setProducts(prevProducts);
+        setTotalCount(prevTotal);
+        alert(data?.error || data?.message || 'Failed to delete product');
+      }
     } catch (err) {
       console.error(err);
+      setProducts(prevProducts);
+      setTotalCount(prevTotal);
+      alert('Failed to delete product');
     }
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editModal) return;
+
+
     try {
       const token = localStorage.getItem('token') || '';
       const res = await fetch(`/api/products/${editModal.id}`, {
@@ -322,7 +435,8 @@ export default function InventoryClient() {
         setEditModal(null);
         fetchProducts();
       } else {
-        alert('Failed to update product');
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to update product');
       }
     } catch (err) {
       console.error(err);
@@ -524,7 +638,7 @@ export default function InventoryClient() {
 
       {variantModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}>
-          <form onSubmit={saveVariant} style={{ background: 'white', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 20px 25px rgba(0,0,0,0.15)' }}>
+          <form onSubmit={saveVariant} style={{ background: 'white', borderRadius: 16, padding: 28, width: '100%', maxWidth: 580, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px rgba(0,0,0,0.15)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ margin: 0, fontSize: 20 }}>{variantModal.isNew ? 'Add Variant' : 'Edit Variant'}</h2>
               <button type="button" onClick={() => setVariantModal(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: '#94a3b8' }}><X size={20} /></button>
@@ -534,11 +648,39 @@ export default function InventoryClient() {
             <label className={styles.label}>Variant Name *</label>
             <input required className={styles.inputField} value={variantModal.variant.name || ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, name: e.target.value } })} style={{ marginBottom: 14 }} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              <div><label className={styles.label}>Qty</label><input className={styles.inputField} type="number" value={variantModal.variant.quantity || 1} readOnly style={{ background: '#f8fafc' }} /></div>
+              <div>
+                <label className={styles.label}>Weight (kg) *</label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input required className={styles.inputField} style={{ paddingRight: 32 }} type="number" min="0.01" step="0.01" placeholder="1.0" value={variantModal.variant.weightKg ?? variantModal.variant.weight ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, weightKg: e.target.value, weight: e.target.value } })} />
+                  <span style={{ position: 'absolute', right: 10, fontSize: 11, fontWeight: 700, color: '#94a3b8', pointerEvents: 'none' }}>kg</span>
+                </div>
+              </div>
               <div><label className={styles.label}>Price *</label><input required className={styles.inputField} type="number" min="0" step="0.01" value={variantModal.variant.price ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, price: e.target.value } })} /></div>
-              <div><label className={styles.label}>Weight (kg) *</label><input required className={styles.inputField} type="number" min="0" step="0.001" value={variantModal.variant.weightPerPieceKg ?? variantModal.variant.weight ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, weightPerPieceKg: e.target.value } })} /></div>
               <div><label className={styles.label}>Quota *</label><input required className={styles.inputField} type="number" min="0" value={variantModal.variant.quota ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, quota: e.target.value } })} /></div>
               <div><label className={styles.label}>Current Stock *</label><input required className={styles.inputField} type="number" min="0" value={variantModal.variant.stock ?? ''} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, stock: e.target.value } })} /></div>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <PackageSizeSelector
+                compact
+                title="Variant Package Size (Required) *"
+                subtitle="Select package dimensions tier for this variant."
+                selectedCode={variantModal.variant.packageSize || detectPackageTierCode(variantModal.variant.weightKg ?? variantModal.variant.weightPerPieceKg ?? variantModal.variant.weight, variantModal.variant.lengthCm, variantModal.variant.widthCm, variantModal.variant.heightCm)}
+                onSelect={(tier) => {
+                  setVariantModal({
+                    ...variantModal,
+                    variant: {
+                      ...variantModal.variant,
+                      packageSize: tier.code,
+                      weightKg: tier.defaultWeight,
+                      weight: tier.defaultWeight,
+                      lengthCm: tier.defaultLength,
+                      widthCm: tier.defaultWidth,
+                      heightCm: tier.defaultHeight,
+                    }
+                  });
+                }}
+              />
             </div>
             <label className={styles.label} style={{ marginTop: 14 }}>Status</label>
             <select className={styles.inputField} value={variantModal.variant.status || 'ACTIVE'} onChange={e => setVariantModal({ ...variantModal, variant: { ...variantModal.variant, status: e.target.value } })}>
@@ -554,31 +696,83 @@ export default function InventoryClient() {
 
       {unitModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}>
-          <form onSubmit={saveUnit} style={{ background: 'white', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 20px 25px rgba(0,0,0,0.15)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <h2 style={{ margin: 0, fontSize: 20 }}>{unitModal.isNew ? 'Add Selling Unit' : 'Edit Selling Unit'}</h2>
+          <form onSubmit={saveUnit} style={{ background: 'white', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px rgba(0,0,0,0.15)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{unitModal.isNew ? 'Add Selling Unit' : 'Edit Selling Unit'}</h2>
               <button type="button" onClick={() => setUnitModal(null)} style={{ background: 'none', border: 0, cursor: 'pointer', color: '#94a3b8' }}><X size={20} /></button>
             </div>
-            <label className={styles.label}>Product Name</label>
-            <input className={styles.inputField} value={unitModal.productName} readOnly style={{ marginBottom: 14, background: '#f8fafc' }} />
-            <label className={styles.label}>Variant Name</label>
-            <input className={styles.inputField} value={unitModal.variant.name || ''} readOnly style={{ marginBottom: 14, background: '#f8fafc' }} />
-            <label className={styles.label}>Selling Unit Name *</label>
-            <input required className={styles.inputField} value={unitModal.unit.unitName || ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, unitName: e.target.value } })} style={{ marginBottom: 14 }} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <div><label className={styles.label}>Qty Per Unit *</label><input required className={styles.inputField} type="number" min="1" step="0.01" value={unitModal.unit.equivalentQty ?? ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, equivalentQty: e.target.value } })} /></div>
-              <div><label className={styles.label}>Selling Price *</label><input required className={styles.inputField} type="number" min="0" step="0.01" value={unitModal.unit.price ?? ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, price: e.target.value } })} /></div>
-              <div><label className={styles.label}>Weight (kg)</label><input className={styles.inputField} type="number" min="0" step="0.001" value={unitModal.unit.weight ?? ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, weight: e.target.value } })} /></div>
+
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+              For <strong style={{ color: '#0f172a' }}>{unitModal.productName}</strong> ({unitModal.variant.name || 'Default Variant'})
             </div>
-            <label className={styles.label} style={{ marginTop: 14 }}>Description *</label>
-            <textarea required className={styles.inputField} rows={3} value={unitModal.unit.description || ''} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, description: e.target.value } })} placeholder="1 Case = 24 bottles" />
-            <label className={styles.label} style={{ marginTop: 14 }}>Calculated Stock</label>
-            <input className={styles.inputField} readOnly value={`${Math.floor((Number(unitModal.variant.stock) || 0) / (Number(unitModal.unit.equivalentQty) || 1))} available`} style={{ background: '#f8fafc', marginBottom: 14 }} />
-            <label className={styles.label}>Status</label>
-            <select className={styles.inputField} value={unitModal.unit.status || 'ACTIVE'} onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, status: e.target.value } })}>
-              <option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option>
-            </select>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
+
+            <div style={{ marginBottom: 14 }}>
+              <label className={styles.label}>Selling Unit Name *</label>
+              <input
+                required
+                placeholder="e.g. Pallet of 31, Box of 10"
+                className={styles.inputField}
+                value={unitModal.unit.unitName || ''}
+                onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, unitName: e.target.value } })}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label className={styles.label}>Qty Per Unit *</label>
+                <input
+                  required
+                  className={styles.inputField}
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  placeholder="e.g. 31"
+                  value={unitModal.unit.equivalentQty ?? ''}
+                  onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, equivalentQty: e.target.value } })}
+                />
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                  Stock: <strong style={{ color: '#16a34a' }}>{Math.floor((Number(unitModal.variant.stock) || 0) / (Number(unitModal.unit.equivalentQty) || 1))}</strong> available
+                </div>
+              </div>
+              <div>
+                <label className={styles.label}>Selling Price (₱) *</label>
+                <input
+                  required
+                  className={styles.inputField}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={unitModal.unit.price ?? ''}
+                  onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, price: e.target.value } })}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label className={styles.label}>Description</label>
+              <textarea
+                className={styles.inputField}
+                rows={2}
+                value={unitModal.unit.description || ''}
+                onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, description: e.target.value } })}
+                placeholder="e.g. 31 Panels per pallet"
+              />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label className={styles.label}>Status</label>
+              <select
+                className={styles.inputField}
+                value={unitModal.unit.status || 'ACTIVE'}
+                onChange={e => setUnitModal({ ...unitModal, unit: { ...unitModal.unit, status: e.target.value } })}
+              >
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button type="button" onClick={() => setUnitModal(null)} className={styles.btnSecondary}>Cancel</button>
               <button type="submit" className={styles.btnPrimary}>Save Selling Unit</button>
             </div>
@@ -589,7 +783,7 @@ export default function InventoryClient() {
       {/* Edit Modal */}
       {editModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}>
-          <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '500px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>Edit Product</h2>
               <button onClick={() => setEditModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={20} /></button>
@@ -597,13 +791,15 @@ export default function InventoryClient() {
 
             <form onSubmit={handleUpdate}>
               <div style={{ marginBottom: '16px' }}>
-                <label className={styles.label}>Product Name</label>
+                <label className={styles.label}>Product Name *</label>
                 <input required className={styles.inputField} type="text" value={editModal.name} onChange={e => setEditModal({ ...editModal, name: e.target.value })} />
               </div>
               <div style={{ marginBottom: '16px' }}>
                 <label className={styles.label}>Category</label>
                 <input className={styles.inputField} type="text" value={editModal.category || ''} onChange={e => setEditModal({ ...editModal, category: e.target.value })} />
               </div>
+
+
               <div style={{ marginBottom: '16px' }}>
                 <label className={styles.label}>Status</label>
                 <select className={styles.inputField} value={editModal.status} onChange={e => setEditModal({ ...editModal, status: e.target.value })}>
@@ -612,7 +808,7 @@ export default function InventoryClient() {
                 </select>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 24 }}>
                 <button type="button" onClick={() => setEditModal(null)} style={{ padding: '12px 20px', background: 'none', border: '1px solid #cbd5e1', borderRadius: '10px', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>
                   Cancel
                 </button>

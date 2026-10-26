@@ -4,17 +4,11 @@ import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { patchLeaflet } from '@/lib/leaflet-fix';
 
 import type { CustomerStop } from './RouteMap';
 
-if (typeof window !== 'undefined') {
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-  });
-}
+patchLeaflet(L);
 
 const pickupIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
@@ -45,7 +39,7 @@ function FitBounds({ coords }: { coords: [number, number][] }) {
     try {
       const timeout = setTimeout(() => {
         if (map && map.getContainer()) {
-          map.fitBounds(L.latLngBounds(coords), { padding: [50, 50] });
+          map.fitBounds(L.latLngBounds(coords), { padding: [50, 50], animate: false });
         }
       }, 100);
       return () => clearTimeout(timeout);

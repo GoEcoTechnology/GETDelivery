@@ -56,13 +56,36 @@ export async function POST(
       }
 
       const body = await request.json().catch(() => ({}));
-      const vehicleType = body.vehicleType;
+      const vehicleType = body.vehicleType || existingOrder.requiredVehicleType || existingOrder.preferredVehicle || '10 Wheeler Truck';
 
       let vRate = null;
       if (vehicleType) {
-        const { vehicleDeliveryRates } = await import('@/db/schema');
+        const { vehicleDeliveryRates, vehicles } = await import('@/db/schema');
+        const { desc } = await import('drizzle-orm');
         const [rate] = await db.select().from(vehicleDeliveryRates).where(eq(vehicleDeliveryRates.vehicleType, vehicleType));
         vRate = rate;
+
+        // Server-side check: verify vehicle capacity is sufficient
+        const orderWeight = Number(existingOrder.totalWeight) || 0;
+        if (orderWeight > 0) {
+          const [matchedVehicle] = await db
+            .select({ capacityKg: vehicles.capacityKg })
+            .from(vehicles)
+            .where(
+              and(
+                eq(vehicles.vehicleType, vehicleType),
+                eq(vehicles.status, 'ACTIVE')
+              )
+            )
+            .orderBy(desc(vehicles.capacityKg))
+            .limit(1);
+
+          if (matchedVehicle && matchedVehicle.capacityKg > 0 && matchedVehicle.capacityKg < orderWeight) {
+            return NextResponse.json({
+              error: `System assigned vehicle type (${vehicleType}, max capacity ${matchedVehicle.capacityKg} kg) cannot carry required cargo weight of ${orderWeight} kg.`
+            }, { status: 400 });
+          }
+        }
       }
 
       const { sql } = await import('drizzle-orm');
@@ -75,9 +98,9 @@ export async function POST(
 
       if (vRate) {
         updatePayload.preferredVehicle = vRate.vehicleType;
-        updatePayload.vehicleBasePrice = vRate.basePrice;
+        updatePayload.vehicleBasePrice = '0'; // Strictly 0 base fee as requested
         updatePayload.pricePerKm = vRate.pricePerKm;
-        updatePayload.finalDeliveryPrice = sql`${vRate.basePrice} + (distance_km * ${vRate.pricePerKm}) + COALESCE(urgent_additional_fee, 0)`;
+        updatePayload.finalDeliveryPrice = sql`(distance_km * ${vRate.pricePerKm}) + COALESCE(urgent_additional_fee, 0)`;
       }
 
       // Perform updates using admin connection to bypass RLS restrictions on deliveryOrders for partners

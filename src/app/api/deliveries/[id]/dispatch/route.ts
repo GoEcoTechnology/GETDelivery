@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates, users, quotaAccumulations, deliveryItems } from '@/db/schema';
-import { eq, and, or, isNotNull, desc, sql as drizzleSql } from 'drizzle-orm';
+import { deliveryOrders, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates, users, quotaAccumulations, deliveryItems, vehicles, productVariants } from '@/db/schema';
+import { eq, and, or, isNotNull, desc, sql as drizzleSql, gte, asc, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 import { deductOrderStock } from '@/lib/inventory-helper';
@@ -21,38 +21,106 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid delivery ID' }, { status: 400 });
     }
 
-    const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
+    let tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
-      : claims.tenantId) as number;
-
-    if (isNaN(tenantIdToUse)) {
-      return NextResponse.json({ error: 'Tenant context is missing or invalid' }, { status: 400 });
-    }
+      : claims.tenantId) as number | null;
 
     // Fetch and validate the order
     const [order] = await tx
       .select()
       .from(deliveryOrders)
-      .where(and(
-        eq(deliveryOrders.id, orderId),
-        eq(deliveryOrders.tenantId, tenantIdToUse)
-      ));
+      .where(
+        tenantIdToUse
+          ? and(eq(deliveryOrders.id, orderId), eq(deliveryOrders.tenantId, tenantIdToUse))
+          : eq(deliveryOrders.id, orderId)
+      );
 
     if (!order) {
       return NextResponse.json({ error: 'Delivery order not found' }, { status: 404 });
     }
+
+    const finalTenantId = (tenantIdToUse || order.tenantId) as number;
 
     if (order.status !== 'READY_FOR_DISPATCH') {
       return NextResponse.json({ error: `Only READY_FOR_DISPATCH orders can be dispatched. Current status: ${order.status}` }, { status: 400 });
     }
 
     const [settings] = await tx.select().from(platformDeliverySettings).orderBy(desc(platformDeliverySettings.updatedAt)).limit(1);
-    const vehicleType = order.preferredVehicle || 'Motorcycle';
+
+    // Compute order cargo weight
+    let orderWeight = Number(order.totalWeight) || 0;
+    if (orderWeight <= 0) {
+      const orderItems = await tx.select().from(deliveryItems).where(eq(deliveryItems.deliveryOrderId, order.id));
+      const vIds = orderItems.map((i: any) => i.variantId).filter(Boolean) as number[];
+      if (vIds.length > 0) {
+        const dbVariants = await tx.select().from(productVariants).where(inArray(productVariants.id, vIds));
+        const vMap = new Map<number, any>(dbVariants.map((v: any) => [v.id, v]));
+        for (const item of orderItems) {
+          const v = item.variantId ? vMap.get(item.variantId) : null;
+          const wPerQuota = Number(v?.weightPerPieceKg || v?.weight || 0);
+          const qPerUnit = Number(v?.quota || 1);
+          orderWeight += item.quantity * qPerUnit * wPerQuota;
+        }
+      }
+    }
+
+    // Find eligible vehicles where capacity >= cargo weight
+    let eligibleVehicles = await tx
+      .select({
+        id: vehicles.id,
+        vehicleType: vehicles.vehicleType,
+        capacityKg: vehicles.capacityKg,
+        tenantId: vehicles.tenantId,
+      })
+      .from(vehicles)
+      .where(
+        and(
+          eq(vehicles.status, 'ACTIVE'),
+          gte(vehicles.capacityKg, Math.ceil(orderWeight))
+        )
+      )
+      .orderBy(asc(vehicles.capacityKg));
+
+    const tenantVehicles = eligibleVehicles.filter((v: any) => v.tenantId === tenantIdToUse);
+    const candidates = tenantVehicles.length > 0 ? tenantVehicles : eligibleVehicles;
+
+    if (candidates.length === 0) {
+      return NextResponse.json({
+        error: `Total cargo weight (${orderWeight} kg) exceeds the maximum capacity of all available vehicles. No eligible vehicle is available.`
+      }, { status: 400 });
+    }
+
+    let selectedVehicle = candidates[0];
+    if (order.preferredVehicle) {
+      const preferred = candidates.find(
+        (v: any) => v.vehicleType.trim().toLowerCase() === order.preferredVehicle!.trim().toLowerCase()
+      );
+      if (preferred) {
+        selectedVehicle = preferred;
+      }
+    }
+
+    const vehicleType = selectedVehicle.vehicleType;
     const [rate] = await tx.select().from(vehicleDeliveryRates).where(and(eq(vehicleDeliveryRates.vehicleType, vehicleType), eq(vehicleDeliveryRates.isActive, true)));
-    const distanceKm = Number.parseFloat(String(order.routeDistance || '0').replace(/[^\d.]/g, '')) || 0;
-    const basePrice = Number(rate?.basePrice || 0);
-    const pricePerKm = Number(settings?.pricePerKm || 0);
+    const distanceKm = Number.parseFloat(String(order.routeDistance || order.distanceKm || '0').replace(/[^\d.]/g, '')) || 0;
+    const basePrice = Number(rate?.basePrice || 100);
+    const pricePerKm = Number(rate?.pricePerKm || settings?.pricePerKm || 20);
     const finalDeliveryPrice = basePrice + (distanceKm * pricePerKm);
+
+    // Snapshot authoritative calculation onto the order
+    await tx.update(deliveryOrders)
+      .set({
+        preferredVehicle: vehicleType,
+        requiredVehicleType: vehicleType,
+        vehicleCapacityKg: selectedVehicle.capacityKg,
+        suggestedVehicleId: selectedVehicle.id,
+        totalWeight: orderWeight.toFixed(2),
+        vehicleBasePrice: basePrice.toString(),
+        pricePerKm: pricePerKm.toString(),
+        distanceKm: distanceKm.toString(),
+        finalDeliveryPrice: finalDeliveryPrice.toString(),
+      })
+      .where(eq(deliveryOrders.id, order.id));
 
     // Find eligible ACTIVE delivery partners
     const eligiblePartners = await tx
@@ -97,7 +165,7 @@ export async function POST(
         }
 
         // 0. Deduct Stock (throws if insufficient)
-        await deductOrderStock(innerTx, tenantIdToUse, order.id, claims.userId as number);
+        await deductOrderStock(innerTx, finalTenantId, order.id, claims.userId as number);
 
         // 1. Update order status atomically
         await innerTx
@@ -189,7 +257,7 @@ export async function POST(
           // Notification for Customer
           if (order.customerId) {
             newNotifsToInsert.push({
-              tenantId: tenantIdToUse,
+              tenantId: finalTenantId,
               deliveryOrderId: order.id,
               senderId: claims.userId || null,
               receiverId: order.customerId,
@@ -210,14 +278,14 @@ export async function POST(
 
           const [businessOwnerUser] = await db.select({ contact: users.contactNumber })
             .from(users)
-            .where(and(eq(users.tenantId, tenantIdToUse), eq(users.role, 'BUSINESS_OWNER')))
+            .where(and(eq(users.tenantId, finalTenantId), eq(users.role, 'BUSINESS_OWNER')))
             .limit(1);
           const ownerContact = businessOwnerUser?.contact || undefined;
 
           // Send broadcast emails asynchronously (non-blocking)
           if (partnerEmailList && partnerEmailList.length > 0) {
             await sendBroadcastDeliveryNotification(
-              tenantIdToUse,
+              finalTenantId,
               order.id,
               order.customerName,
               order.pickupAddress,

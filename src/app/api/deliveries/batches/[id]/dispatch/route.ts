@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { deliveryOrders, deliveryBatches, deliveryBatchItems, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates, users } from '@/db/schema';
-import { eq, and, or, isNotNull, desc, inArray, gte, ilike } from 'drizzle-orm';
+import { deliveryOrders, deliveryBatches, deliveryBatchItems, deliveryPartners, deliveryInvitations, notifications, platformDeliverySettings, vehicleDeliveryRates, users, vehicles } from '@/db/schema';
+import { eq, and, or, isNotNull, desc, inArray, gte, ilike, asc } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { buildStandardNotificationBody } from '@/lib/notificationHelper';
 import { deductOrderStock } from '@/lib/inventory-helper';
 import crypto from 'crypto';
 import { hashPassword } from '@/lib/password';
 import { sendBroadcastDeliveryNotification } from '@/lib/emailWorkflowHelper';
+import { canShipmentFitInVehicle } from '@/lib/deliveryCalculation';
 
 export async function POST(
   request: Request,
@@ -27,26 +28,25 @@ export async function POST(
     }
     const { requiredVehicleType } = body as any;
 
-    const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
+    let tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
-      : claims.tenantId) as number;
-
-    if (isNaN(tenantIdToUse)) {
-      return NextResponse.json({ error: 'Tenant context is missing or invalid' }, { status: 400 });
-    }
+      : claims.tenantId) as number | null;
 
     // Fetch and validate the batch
     const [batch] = await tx
       .select()
       .from(deliveryBatches)
-      .where(and(
-        eq(deliveryBatches.id, batchId),
-        eq(deliveryBatches.tenantId, tenantIdToUse)
-      ));
+      .where(
+        tenantIdToUse
+          ? and(eq(deliveryBatches.id, batchId), eq(deliveryBatches.tenantId, tenantIdToUse))
+          : eq(deliveryBatches.id, batchId)
+      );
 
     if (!batch) {
       return NextResponse.json({ error: 'Delivery batch not found' }, { status: 404 });
     }
+
+    const finalTenantId = (tenantIdToUse || batch.tenantId) as number;
 
     if (batch.status !== 'READY_FOR_DELIVERY' && batch.status !== 'DRAFT') {
       return NextResponse.json({ error: `Cannot dispatch batch in current status: ${batch.status}` }, { status: 400 });
@@ -100,54 +100,159 @@ export async function POST(
       await tx.transaction(async (innerTx: any) => {
         // 0. Deduct Stock for all orders in batch
         for (const order of ordersInBatch) {
-          await deductOrderStock(innerTx, tenantIdToUse, order.id, claims.userId as number);
+          await deductOrderStock(innerTx, finalTenantId, order.id, claims.userId as number);
         }
 
-        // Determine the vehicle and pricing
-        let finalVehicleType = requiredVehicleType || 'Motorcycle';
-        let basePrice = 0;
-        let pricePerKm = 0;
+        // Calculate batch cargo weight authoritatively
+        const ordersWeightSum = ordersInBatch.reduce((sum: number, o: any) => sum + (Number(o.totalWeight) || 0), 0);
+        let batchWeight = Number(batch.totalWeight) || 0;
+        if (batchWeight <= 0 || (ordersWeightSum > 0 && Math.abs(batchWeight - ordersWeightSum) > 0.01)) {
+          batchWeight = ordersWeightSum;
+          await innerTx.update(deliveryBatches)
+            .set({ totalWeight: batchWeight.toFixed(2) })
+            .where(eq(deliveryBatches.id, batchId));
+        }
 
-        const [rate] = await innerTx
+        // 1. Fetch batch items to evaluate physical dimensions
+        const { deliveryItems, productSellingUnits } = await import('@/db/schema');
+        const batchOrderItems = await innerTx
+          .select({
+            id: deliveryItems.id,
+            productId: deliveryItems.productId,
+            variantId: deliveryItems.variantId,
+            unit: deliveryItems.unit,
+            quantity: deliveryItems.quantity,
+            weightKg: deliveryItems.weightKg,
+            lengthCm: deliveryItems.lengthCm,
+            widthCm: deliveryItems.widthCm,
+            heightCm: deliveryItems.heightCm,
+            productName: deliveryItems.productName,
+          })
+          .from(deliveryItems)
+          .where(inArray(deliveryItems.deliveryOrderId, orderIds));
+
+        const packingItemsForBatch: Array<{ lengthCm: number; widthCm: number; heightCm: number; quantity: number; weightKg: number; name: string }> = [];
+        for (const item of batchOrderItems) {
+          let l = Number(item.lengthCm) || 0;
+          let w = Number(item.widthCm) || 0;
+          let h = Number(item.heightCm) || 0;
+          let wt = Number(item.weightKg) || 0;
+          const qty = Number(item.quantity) || 1;
+
+          if (item.productId && (!l || !w || !h)) {
+            const [su] = await innerTx.select().from(productSellingUnits).where(
+              and(eq(productSellingUnits.productId, item.productId), ilike(productSellingUnits.unitName, item.unit || ''))
+            ).limit(1);
+            if (su) {
+              if (su.lengthCm && !l) l = Number(su.lengthCm);
+              if (su.widthCm && !w) w = Number(su.widthCm);
+              if (su.heightCm && !h) h = Number(su.heightCm);
+              if (!wt && su.weightKg) wt = Number(su.weightKg) * qty;
+            }
+          }
+          packingItemsForBatch.push({
+            lengthCm: l || 50,
+            widthCm: w || 40,
+            heightCm: h || 30,
+            quantity: qty,
+            weightKg: wt,
+            name: item.productName || 'Item'
+          });
+        }
+
+        // 2. Fetch configured vehicle delivery rates (authoritative source for cargo dimensions & rates)
+        const rates = await innerTx
           .select()
           .from(vehicleDeliveryRates)
-          .where(ilike(vehicleDeliveryRates.vehicleType, finalVehicleType))
-          .limit(1);
+          .where(eq(vehicleDeliveryRates.isActive, true));
 
-        if (rate) {
-          basePrice = Number(rate.basePrice) || 0;
-          pricePerKm = Number(rate.pricePerKm) || 0;
-        } else if (settings) {
-          pricePerKm = Number(settings.pricePerKm) || 0;
+        // 3. Fetch active registered vehicles
+        let activeVehicles = await innerTx
+          .select({
+            id: vehicles.id,
+            vehicleType: vehicles.vehicleType,
+            capacityKg: vehicles.capacityKg,
+            cargoLengthCm: vehicles.cargoLengthCm,
+            cargoWidthCm: vehicles.cargoWidthCm,
+            cargoHeightCm: vehicles.cargoHeightCm,
+            tenantId: vehicles.tenantId,
+          })
+          .from(vehicles)
+          .where(eq(vehicles.status, 'ACTIVE'))
+          .orderBy(asc(vehicles.capacityKg));
+
+        // Supplement vehicle instance cargo dimensions from configured vehicleDeliveryRates if null/0
+        const evaluatedVehicles = activeVehicles.map((v: any) => {
+          const matchedRate = rates.find((r: any) => r.vehicleType.trim().toLowerCase() === v.vehicleType.trim().toLowerCase());
+          return {
+            ...v,
+            capacityKg: v.capacityKg || matchedRate?.capacityKg || 1000,
+            cargoLengthCm: Number(v.cargoLengthCm) || Number(matchedRate?.cargoLengthCm) || 0,
+            cargoWidthCm: Number(v.cargoWidthCm) || Number(matchedRate?.cargoWidthCm) || 0,
+            cargoHeightCm: Number(v.cargoHeightCm) || Number(matchedRate?.cargoHeightCm) || 0,
+            pricePerKm: matchedRate ? Number(matchedRate.pricePerKm) : 20,
+          };
+        });
+
+        // 4. Filter vehicles by BOTH payload weight AND physical 3D cargo fit
+        const eligibleVehicles = evaluatedVehicles.filter((v: any) => {
+          const fitResult = canShipmentFitInVehicle(
+            packingItemsForBatch,
+            {
+              capacityKg: v.capacityKg,
+              cargoLengthCm: v.cargoLengthCm,
+              cargoWidthCm: v.cargoWidthCm,
+              cargoHeightCm: v.cargoHeightCm,
+              vehicleType: v.vehicleType,
+            }
+          );
+          return fitResult.fits;
+        });
+
+        // Prioritize tenant-owned vehicles if available among physically fitting ones
+        const tenantVehicles = eligibleVehicles.filter((v: any) => v.tenantId === tenantIdToUse);
+        const candidates = tenantVehicles.length > 0 ? tenantVehicles : eligibleVehicles;
+
+        if (candidates.length === 0) {
+          throw new Error(`Shipment requirements (total weight: ${batchWeight} kg, volume: ${packingItemsForBatch.reduce((sum, i) => sum + (i.lengthCm * i.widthCm * i.heightCm * i.quantity), 0)} cm³) exceed the usable cargo space and capacity of all available registered vehicles. No suitable vehicle can fit this shipment.`);
         }
 
-        // 1. Update all order statuses and pricing
+        // Sort candidates: smallest capable vehicle tier first
+        candidates.sort((a: any, b: any) => a.capacityKg - b.capacityKg);
+
+        let selectedVehicle = candidates[0];
+        if (requiredVehicleType) {
+          const matchedRequired = candidates.find(
+            (v: any) => v.vehicleType.trim().toLowerCase() === requiredVehicleType.trim().toLowerCase()
+          );
+          if (matchedRequired) {
+            selectedVehicle = matchedRequired;
+          }
+        }
+
+        const finalVehicleType = selectedVehicle.vehicleType;
+        const vehicleCapacity = selectedVehicle.capacityKg;
+        const finalPricePerKm = selectedVehicle.pricePerKm || 20;
+
+        // 5. Update all order statuses and pricing (Strictly ZERO base price as requested!)
         for (const order of ordersInBatch) {
           const distanceKm = Number.parseFloat(String(order.routeDistance || order.distanceKm || '0').replace(/[^\d.]/g, '')) || 0;
-          
-          let finalBasePrice = basePrice;
-          let finalPricePerKm = pricePerKm;
-          
-          if (finalBasePrice === 0) {
-            finalBasePrice = Number(order.vehicleBasePrice) || (order.normalDeliveryFee ? Number(order.normalDeliveryFee) : 50);
-          }
-          if (finalPricePerKm === 0) {
-            finalPricePerKm = Number(order.pricePerKm) || 10;
-          }
-          
-          const finalDeliveryPrice = finalBasePrice + (distanceKm * finalPricePerKm);
+          const finalDeliveryPrice = (distanceKm * finalPricePerKm);
           
           await innerTx
             .update(deliveryOrders)
             .set({
               status: 'WAITING_FOR_PARTNER',
               pricingFrozenAt: new Date(),
-              vehicleBasePrice: finalBasePrice.toString(),
+              vehicleBasePrice: '0', // Strictly ZERO base fee
               pricePerKm: finalPricePerKm.toString(),
               distanceKm: distanceKm.toString(),
-              finalDeliveryPrice: finalDeliveryPrice.toString(),
+              finalDeliveryPrice: finalDeliveryPrice.toFixed(2),
+              normalDeliveryFee: finalDeliveryPrice.toFixed(2),
               requiredVehicleType: finalVehicleType,
               preferredVehicle: finalVehicleType,
+              vehicleCapacityKg: vehicleCapacity,
+              suggestedVehicleId: selectedVehicle.id,
             })
             .where(eq(deliveryOrders.id, order.id));
         }
@@ -156,7 +261,9 @@ export async function POST(
         await innerTx
           .update(deliveryBatches)
           .set({ 
-            status: 'WAITING_FOR_PARTNER'
+            status: 'WAITING_FOR_PARTNER',
+            suggestedVehicleId: selectedVehicle.id,
+            totalWeight: batchWeight.toString(),
           })
           .where(eq(deliveryBatches.id, batchId));
       }); // End of transaction
@@ -255,14 +362,14 @@ export async function POST(
 
           const [businessOwnerUser] = await db.select({ contact: users.contactNumber })
             .from(users)
-            .where(and(eq(users.tenantId, tenantIdToUse), eq(users.role, 'BUSINESS_OWNER')))
+            .where(and(eq(users.tenantId, finalTenantId), eq(users.role, 'BUSINESS_OWNER')))
             .limit(1);
           const ownerContact = businessOwnerUser?.contact || undefined;
           const dropoffAddr = ordersInBatch.length > 1 ? 'Multiple Drop Offs' : firstOrder.dropoffAddress;
 
           if (partnerEmailList && partnerEmailList.length > 0) {
             await sendBroadcastDeliveryNotification(
-              tenantIdToUse,
+              finalTenantId,
               firstOrder.id,
               firstOrder.customerName, // Removed in template, but still part of function signature
               firstOrder.pickupAddress,

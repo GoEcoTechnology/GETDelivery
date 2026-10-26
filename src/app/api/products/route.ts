@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { products, productVariants, productSellingUnits, inventoryTransactions } from '@/db/schema';
-import { eq, and, ilike, desc, sql } from 'drizzle-orm';
+import { eq, and, ne, ilike, desc, sql, inArray } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 export const dynamic = 'force-dynamic';
 
@@ -25,73 +25,92 @@ export async function GET(request: Request) {
       conditions = conditions ? and(conditions, searchCond) : searchCond;
     }
 
-    // Fetch parent products only (paginated)
-    const productList = await tx
-      .select({
-        id: products.id,
-        name: products.name,
-        category: products.category,
-        status: products.status,
-        isMarketplace: products.isMarketplace,
-        createdAt: products.createdAt,
-        tenantId: products.tenantId,
-      })
-      .from(products)
-      .where(conditions)
-      .limit(limit)
-      .offset(offset)
-      .orderBy(desc(products.createdAt));
+    const statusParam = searchParams.get('status');
+    let statusCond;
+    if (statusParam && statusParam !== 'ALL') {
+      statusCond = eq(products.status, statusParam);
+    } else if (statusParam !== 'ALL') {
+      statusCond = ne(products.status, 'ARCHIVED');
+    }
 
-    // Get total count for pagination
-    const countResult = await tx
-      .select({ count: sql`count(*)` })
-      .from(products)
-      .where(conditions);
+    if (statusCond) {
+      conditions = conditions ? and(conditions, statusCond) : statusCond;
+    }
+
+    // 1. Fetch parent products and total count in PARALLEL
+    const [productList, countResult] = await Promise.all([
+      tx
+        .select({
+          id: products.id,
+          name: products.name,
+          category: products.category,
+          description: products.description,
+          status: products.status,
+          isMarketplace: products.isMarketplace,
+          createdAt: products.createdAt,
+        })
+        .from(products)
+        .where(conditions)
+        .limit(limit)
+        .offset(offset)
+        .orderBy(desc(products.createdAt)),
+      tx
+        .select({ count: sql`count(*)` })
+        .from(products)
+        .where(conditions)
+    ]);
       
     const totalCount = Number(countResult[0]?.count || 0);
 
-    // Fetch all variants for these products
+    // 2. Fetch variants and selling units for these products in PARALLEL
     const productIds = productList.map((p: { id: number }) => p.id);
     let variantsData: any[] = [];
     let sellingUnitsData: any[] = [];
 
     if (productIds.length > 0) {
-      const { inArray } = await import('drizzle-orm');
-      
-      variantsData = await tx
-        .select({
-          id: productVariants.id,
-          productId: productVariants.productId,
-          name: productVariants.name,
-          unit: productVariants.unit,
-          price: productVariants.price,
-          stock: productVariants.stock,
-          lowStockThreshold: productVariants.lowStockThreshold,
-          quantity: productVariants.quantity,
-          quota: productVariants.quota,
-          productType: productVariants.productType,
-          status: productVariants.status,
-          weight: productVariants.weight,
-          weightPerPieceKg: productVariants.weightPerPieceKg,
-        })
-        .from(productVariants)
-        .where(inArray(productVariants.productId, productIds))
-        .orderBy(productVariants.id);
-
-      sellingUnitsData = await tx
-        .select({
-          id: productSellingUnits.id,
-          variantId: productSellingUnits.variantId,
-          productId: productSellingUnits.productId,
-          unitName: productSellingUnits.unitName,
-          equivalentQty: productSellingUnits.equivalentQty,
-          description: productSellingUnits.description,
-          weight: productSellingUnits.weight,
-          price: productSellingUnits.price,
-          status: productSellingUnits.status,
-        })
-        .from(productSellingUnits)
-        .where(inArray(productSellingUnits.productId, productIds));
+      [variantsData, sellingUnitsData] = await Promise.all([
+        tx
+          .select({
+            id: productVariants.id,
+            productId: productVariants.productId,
+            name: productVariants.name,
+            quantity: productVariants.quantity,
+            unit: productVariants.unit,
+            price: productVariants.price,
+            stock: productVariants.stock,
+            lowStockThreshold: productVariants.lowStockThreshold,
+            status: productVariants.status,
+            weight: productVariants.weight,
+            weightKg: productVariants.weightKg,
+            weightPerPieceKg: productVariants.weightPerPieceKg,
+            lengthCm: productVariants.lengthCm,
+            widthCm: productVariants.widthCm,
+            heightCm: productVariants.heightCm,
+            quota: productVariants.quota,
+          })
+          .from(productVariants)
+          .where(and(inArray(productVariants.productId, productIds), ne(productVariants.status, 'ARCHIVED')))
+          .orderBy(productVariants.id),
+        tx
+          .select({
+            id: productSellingUnits.id,
+            variantId: productSellingUnits.variantId,
+            productId: productSellingUnits.productId,
+            unitName: productSellingUnits.unitName,
+            equivalentQty: productSellingUnits.equivalentQty,
+            description: productSellingUnits.description,
+            price: productSellingUnits.price,
+            status: productSellingUnits.status,
+            weight: productSellingUnits.weight,
+            weightKg: productSellingUnits.weightKg,
+            lengthCm: productSellingUnits.lengthCm,
+            widthCm: productSellingUnits.widthCm,
+            heightCm: productSellingUnits.heightCm,
+            quota: productSellingUnits.quota,
+          })
+          .from(productSellingUnits)
+          .where(and(inArray(productSellingUnits.productId, productIds), ne(productSellingUnits.status, 'ARCHIVED')))
+      ]);
     }
 
     // Group variants and selling units under products
@@ -153,10 +172,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
     }
 
+    const isShippable = body.isShippable !== false;
+    const parentWeightKg = body.weightKg !== undefined && body.weightKg !== null && body.weightKg !== '' ? Number(body.weightKg) : null;
+    const parentLengthCm = body.lengthCm !== undefined && body.lengthCm !== null && body.lengthCm !== '' ? Number(body.lengthCm) : null;
+    const parentWidthCm = body.widthCm !== undefined && body.widthCm !== null && body.widthCm !== '' ? Number(body.widthCm) : null;
+    const parentHeightCm = body.heightCm !== undefined && body.heightCm !== null && body.heightCm !== '' ? Number(body.heightCm) : null;
+
+    if (isShippable) {
+      if (parentWeightKg !== null && (!Number.isFinite(parentWeightKg) || parentWeightKg <= 0)) {
+        return NextResponse.json({ error: 'Product Weight (kg) must be a positive number greater than 0.' }, { status: 400 });
+      }
+      if (parentLengthCm !== null && (!Number.isFinite(parentLengthCm) || parentLengthCm <= 0)) {
+        return NextResponse.json({ error: 'Product Length (cm) must be a positive number greater than 0.' }, { status: 400 });
+      }
+      if (parentWidthCm !== null && (!Number.isFinite(parentWidthCm) || parentWidthCm <= 0)) {
+        return NextResponse.json({ error: 'Product Width (cm) must be a positive number greater than 0.' }, { status: 400 });
+      }
+      if (parentHeightCm !== null && (!Number.isFinite(parentHeightCm) || parentHeightCm <= 0)) {
+        return NextResponse.json({ error: 'Product Height (cm) must be a positive number greater than 0.' }, { status: 400 });
+      }
+    }
+
     const productInsertValues: any = {
       tenantId: tenantIdToUse as number,
       name: String(name).trim(),
       category: category || null,
+      description: description || null,
+      weightKg: parentWeightKg !== null ? String(parentWeightKg) : null,
+      lengthCm: parentLengthCm !== null ? String(parentLengthCm) : null,
+      widthCm: parentWidthCm !== null ? String(parentWidthCm) : null,
+      heightCm: parentHeightCm !== null ? String(parentHeightCm) : null,
+      isShippable,
       status: 'ACTIVE',
       isMarketplace: isMarketplace ?? true,
     };
@@ -177,11 +223,36 @@ export async function POST(request: Request) {
     for (const variant of variantArray) {
       const quantity = Number(variant.quantity);
       const variantPrice = Number(variant.price);
-      const variantWeight = Number(variant.weight);
+      let variantWeight = Number(variant.weightKg ?? variant.weight ?? parentWeightKg);
+      let variantLength = Number(variant.lengthCm ?? parentLengthCm);
+      let variantWidth = Number(variant.widthCm ?? parentWidthCm);
+      let variantHeight = Number(variant.heightCm ?? parentHeightCm);
       const variantQuota = Number(variant.quota);
       const variantStock = Number(variant.stock);
-      if (!variant.name?.trim() || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(variantPrice) || variantPrice < 0 || !Number.isFinite(variantWeight) || variantWeight < 0 || !Number.isFinite(variantQuota) || variantQuota < 0 || !Number.isFinite(variantStock) || variantStock < 0) {
-        return NextResponse.json({ error: 'Each variant requires a name, quantity, price, weight, quota, and stock.' }, { status: 400 });
+
+      if (!variant.name?.trim()) {
+        return NextResponse.json({ error: 'Variant name is required.' }, { status: 400 });
+      }
+      if (!Number.isFinite(variantPrice) || variantPrice < 0) {
+        return NextResponse.json({ error: `Price for variant "${variant.name}" must be a valid positive number.` }, { status: 400 });
+      }
+      if (!Number.isFinite(variantStock) || variantStock < 0) {
+        return NextResponse.json({ error: `Available stock for variant "${variant.name}" must be 0 or greater.` }, { status: 400 });
+      }
+
+      if (isShippable) {
+        if (!Number.isFinite(variantWeight) || variantWeight <= 0) {
+          return NextResponse.json({ error: `Weight (kg) for "${variant.name}" is required and must be greater than 0.` }, { status: 400 });
+        }
+        if (!Number.isFinite(variantLength) || variantLength <= 0) {
+          return NextResponse.json({ error: `Length (cm) for "${variant.name}" is required and must be greater than 0.` }, { status: 400 });
+        }
+        if (!Number.isFinite(variantWidth) || variantWidth <= 0) {
+          return NextResponse.json({ error: `Width (cm) for "${variant.name}" is required and must be greater than 0.` }, { status: 400 });
+        }
+        if (!Number.isFinite(variantHeight) || variantHeight <= 0) {
+          return NextResponse.json({ error: `Height (cm) for "${variant.name}" is required and must be greater than 0.` }, { status: 400 });
+        }
       }
 
       const [newVariant] = await tx
@@ -190,14 +261,19 @@ export async function POST(request: Request) {
           tenantId: tenantIdToUse as number,
           productId: newProduct.id,
           name: String(variant.name || 'Regular').trim() || 'Regular',
-          quantity,
+          quantity: quantity > 0 ? quantity : 1,
           unit: variant.unit || unit || 'pcs',
-          price: variantPrice,
+          price: String(variantPrice),
           stock: variantStock,
           lowStockThreshold: variant.lowStockThreshold ?? lowStockThreshold ?? 10,
           productType: variant.productType || productType || null,
           weight: String(variantWeight),
-          quota: variantQuota,
+          weightKg: String(variantWeight),
+          weightPerPieceKg: String(variantWeight),
+          lengthCm: String(variantLength),
+          widthCm: String(variantWidth),
+          heightCm: String(variantHeight),
+          quota: variantQuota > 0 ? variantQuota : 1,
           status: variant.status || 'ACTIVE',
         })
         .returning();

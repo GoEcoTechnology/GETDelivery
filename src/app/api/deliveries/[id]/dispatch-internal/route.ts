@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deliveryOrders, deliveryAssignments, drivers, vehicles, users } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray, like } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
 import { deductOrderStock } from '@/lib/inventory-helper';
 import { sendDriverAssignmentNotification } from '@/lib/emailWorkflowHelper';
+import { clearVehicleDeliveryCache } from '@/lib/deliveryCalculation';
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -22,26 +23,25 @@ export async function POST(
       return NextResponse.json({ error: 'Driver and Vehicle must be provided' }, { status: 400 });
     }
 
-    const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
+    let tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
-      : claims.tenantId) as number;
-
-    if (isNaN(tenantIdToUse)) {
-      return NextResponse.json({ error: 'Tenant context is missing or invalid' }, { status: 400 });
-    }
+      : claims.tenantId) as number | null;
 
     // Validate the order
     const [order] = await tx
       .select()
       .from(deliveryOrders)
-      .where(and(
-        eq(deliveryOrders.id, orderId),
-        eq(deliveryOrders.tenantId, tenantIdToUse)
-      ));
+      .where(
+        tenantIdToUse
+          ? and(eq(deliveryOrders.id, orderId), eq(deliveryOrders.tenantId, tenantIdToUse))
+          : eq(deliveryOrders.id, orderId)
+      );
 
     if (!order) {
       return NextResponse.json({ error: 'Delivery order not found' }, { status: 404 });
     }
+
+    const finalTenantId = (tenantIdToUse || order.tenantId) as number;
 
     if (order.status !== 'READY_FOR_DISPATCH') {
       return NextResponse.json({ error: `Only READY_FOR_DISPATCH orders can be dispatched. Current status: ${order.status}` }, { status: 400 });
@@ -53,11 +53,27 @@ export async function POST(
       .from(drivers)
       .where(and(
         eq(drivers.id, parseInt(driverId)),
-        eq(drivers.tenantId, tenantIdToUse)
+        eq(drivers.tenantId, finalTenantId)
       ));
 
     if (!driver || driver.status !== 'ACTIVE') {
       return NextResponse.json({ error: 'Valid active driver is required' }, { status: 400 });
+    }
+
+    // Check if driver currently has an active delivery
+    const activeDriverAssignments = await tx
+      .select({ id: deliveryAssignments.id })
+      .from(deliveryAssignments)
+      .innerJoin(deliveryOrders, eq(deliveryAssignments.deliveryOrderId, deliveryOrders.id))
+      .where(and(
+        eq(deliveryAssignments.driverName, driver.name),
+        inArray(deliveryAssignments.status, ['ASSIGNED', 'IN_TRANSIT']),
+        inArray(deliveryOrders.status, ['IN_TRANSIT', 'DISPATCHED', 'ACCEPTED', 'ASSIGNED'])
+      ))
+      .limit(1);
+
+    if (activeDriverAssignments.length > 0) {
+      return NextResponse.json({ error: `Driver ${driver.name} is currently on an active delivery and cannot be assigned.` }, { status: 400 });
     }
 
     // Validate Vehicle
@@ -66,16 +82,37 @@ export async function POST(
       .from(vehicles)
       .where(and(
         eq(vehicles.id, parseInt(vehicleId)),
-        eq(vehicles.tenantId, tenantIdToUse)
+        eq(vehicles.tenantId, finalTenantId)
       ));
 
     if (!vehicle || vehicle.status !== 'ACTIVE') {
       return NextResponse.json({ error: 'Valid active vehicle is required' }, { status: 400 });
     }
 
+    // Check if vehicle currently has an active delivery
+    const activeVehicleAssignments = await tx
+      .select({ id: deliveryAssignments.id })
+      .from(deliveryAssignments)
+      .innerJoin(deliveryOrders, eq(deliveryAssignments.deliveryOrderId, deliveryOrders.id))
+      .where(and(
+        like(deliveryAssignments.vehicleDetails, `%${vehicle.plateNumber}%`),
+        inArray(deliveryAssignments.status, ['ASSIGNED', 'IN_TRANSIT']),
+        inArray(deliveryOrders.status, ['IN_TRANSIT', 'DISPATCHED', 'ACCEPTED', 'ASSIGNED'])
+      ))
+      .limit(1);
+
+    if (activeVehicleAssignments.length > 0) {
+      return NextResponse.json({ error: `Vehicle ${vehicle.plateNumber} is currently on an active delivery and cannot be assigned.` }, { status: 400 });
+    }
+
+    const orderWeight = Number(order.totalWeight) || 0;
+    if (orderWeight > 0 && vehicle.capacityKg < orderWeight) {
+      console.warn(`[Dispatch Warning] Vehicle ${vehicle.plateNumber} (${vehicle.vehicleType}) has insufficient capacity (${vehicle.capacityKg} kg) for order weight (${orderWeight} kg). Proceeding with user override.`);
+    }
+
     try {
       // 0. Deduct Stock (throws if insufficient)
-      await deductOrderStock(tx, tenantIdToUse, order.id, claims.userId as number);
+      await deductOrderStock(tx, finalTenantId, order.id, claims.userId as number);
 
       // 1. Update order status
       const { vehicleDeliveryRates } = await import('@/db/schema');
@@ -96,7 +133,7 @@ export async function POST(
 
       // 2. Create Assignment (no deliveryPartnerId for internal)
       await tx.insert(deliveryAssignments).values({
-        tenantId: tenantIdToUse,
+        tenantId: finalTenantId,
         deliveryOrderId: order.id,
         driverName: driver.name,
         vehicleDetails: `${vehicle.plateNumber} - ${vehicle.vehicleType}`,
@@ -110,7 +147,7 @@ export async function POST(
       // Send email to assigned driver (fire-and-forget)
       const dashboardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}/driver/dashboard/${order.id}`;
       sendDriverAssignmentNotification(
-        tenantIdToUse,
+        finalTenantId,
         driver.id,
         driver.name,
         `${vehicle.plateNumber} - ${vehicle.vehicleType}`,
@@ -123,6 +160,8 @@ export async function POST(
       ).catch(err => {
         console.error('Failed to send driver assignment email:', err.message);
       });
+
+      clearVehicleDeliveryCache();
 
       return NextResponse.json({ success: true, message: 'Dispatched internally successfully' });
     } catch (error: any) {

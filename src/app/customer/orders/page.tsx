@@ -2,7 +2,7 @@
 import { formatCurrency } from '@/lib/formatCurrency';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Package, Store, Truck, CheckCircle2, ChevronRight, RotateCcw, Info, Clock, X, UserCircle, Car, Phone } from 'lucide-react';
+import { Package, Store, Truck, CheckCircle2, ChevronRight, RotateCcw, Info, Clock, X, UserCircle, Car, Phone, Scale, MapPin, Navigation } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 
 export default function CustomerOrdersPage() {
@@ -141,10 +141,10 @@ export default function CustomerOrdersPage() {
           onMouseLeave={() => document.getElementById('cancel-tooltip')!.style.display = 'none'}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: '#f1f5f9', padding: '8px 12px', borderRadius: '999px', whiteSpace: 'nowrap' }}>
-            <Info size={16} /> Cancellation Policy
+            <Info size={16} /> Order Policy
           </div>
           <div id="cancel-tooltip" style={{ position: 'absolute', right: 0, top: '40px', background: '#1e293b', color: 'white', padding: '12px', borderRadius: '8px', fontSize: '13px', width: '280px', zIndex: 50, display: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' }}>
-            Orders cannot be cancelled once they have been accepted or dispatched by the Business Owner. <br/><br/><strong>Note:</strong> Cancelled orders will be removed after a day.
+            Orders cannot be cancelled once they have been accepted or dispatched by the Business Owner. <br/><br/><strong>Note:</strong> Cancelled orders are removed after 1 week, and completed orders are kept in your history for 1 week.
           </div>
         </div>
       </div>
@@ -257,73 +257,32 @@ export default function CustomerOrdersPage() {
                       </div>
                     </div>
 
-                    {['ACCEPTED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status) ? (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Vehicle Base Fee</div>
-                          <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700 }}>
-                            ₱{formatCurrency(order.vehicleBasePrice || 0)}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Distance ({Number(order.distanceKm || 0).toFixed(1)} km)</div>
-                          <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700 }}>
-                            ₱{formatCurrency(Number(order.distanceKm || 0) * Number(order.pricePerKm || 0))}
-                          </div>
-                        </div>
-                        {order.deliveryPriority === 'URGENT' && (
+                    {(() => {
+                      const baseFee = Number(order.vehicleBasePrice || order.normalDeliveryFee || 0);
+                      const distanceKmVal = Number(order.distanceKm || 0);
+                      const pricePerKmVal = Number(order.pricePerKm || 0);
+                      const distanceFee = distanceKmVal > 0 && pricePerKmVal > 0 ? distanceKmVal * pricePerKmVal : Math.max(0, Number(order.normalDeliveryFee || 0) - baseFee);
+                      const urgentFee = order.deliveryPriority === 'URGENT' ? Number(order.urgentAdditionalFee || 0) : 0;
+                      const shippingFee = Number(order.finalDeliveryPrice || (baseFee + distanceFee + urgentFee));
+                      const grandTotal = Number(order.totalAmount || 0) + shippingFee;
+
+                      return (
+                        <>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ color: '#ef4444', fontSize: '13px', fontWeight: 700 }}>Urgent Fee</div>
-                            <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 800 }}>
-                              ₱{formatCurrency(order.urgentAdditionalFee || 0)}
+                            <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Shipping Fee</div>
+                            <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700 }}>
+                              ₱{formatCurrency(shippingFee)}
                             </div>
                           </div>
-                        )}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '4px' }}>
-                          <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700 }}>Shipping Total</div>
-                          <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 800 }}>
-                            ₱{formatCurrency(Number(order.vehicleBasePrice || 0) + (Number(order.distanceKm || 0) * Number(order.pricePerKm || 0)) + (order.deliveryPriority === 'URGENT' ? Number(order.urgentAdditionalFee || 0) : 0))}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', padding: '16px', background: '#eff6ff', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
-                          <div style={{ color: '#1e3a8a', fontSize: '15px', fontWeight: 800 }}>Total Amount</div>
-                          <div style={{ color: '#4f46e5', fontSize: '20px', fontWeight: 900 }}>
-                            ₱{formatCurrency(Number(order.totalAmount) + Number(order.vehicleBasePrice || 0) + (Number(order.distanceKm || 0) * Number(order.pricePerKm || 0)) + (order.deliveryPriority === 'URGENT' ? Number(order.urgentAdditionalFee || 0) : 0))}
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Vehicle Base Fee</div>
-                          <div style={{ color: '#64748b', fontSize: '14px', fontWeight: 700 }}>TBD</div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ color: '#64748b', fontSize: '13px', fontWeight: 600 }}>Distance ({Number(order.distanceKm || 0).toFixed(1)} km)</div>
-                          <div style={{ color: '#64748b', fontSize: '14px', fontWeight: 700 }}>TBD</div>
-                        </div>
-                        {order.deliveryPriority === 'URGENT' && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ color: '#ef4444', fontSize: '13px', fontWeight: 700 }}>Urgent Fee</div>
-                            <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 800 }}>
-                              ₱{formatCurrency(order.urgentAdditionalFee || 0)}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', padding: '16px', background: '#eff6ff', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
+                            <div style={{ color: '#1e3a8a', fontSize: '15px', fontWeight: 800 }}>Total Amount Payable</div>
+                            <div style={{ color: '#4f46e5', fontSize: '20px', fontWeight: 900 }}>
+                              ₱{formatCurrency(grandTotal)}
                             </div>
                           </div>
-                        )}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '4px' }}>
-                          <div style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700 }}>Shipping Total</div>
-                          <div style={{ color: '#64748b', fontSize: '14px', fontWeight: 700 }}>
-                            {order.deliveryPriority === 'URGENT' ? `₱${Number(order.urgentAdditionalFee || 0).toFixed(2)} + TBD` : 'TBD'}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', padding: '16px', background: '#eff6ff', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
-                          <div style={{ color: '#1e3a8a', fontSize: '15px', fontWeight: 800 }}>Total Amount</div>
-                          <div style={{ color: '#4f46e5', fontSize: '18px', fontWeight: 900 }}>
-                            ₱{formatCurrency(Number(order.totalAmount) + (order.deliveryPriority === 'URGENT' ? Number(order.urgentAdditionalFee || 0) : 0))} <span style={{ fontSize: '14px', color: '#6366f1', fontWeight: 700 }}>+ TBD</span>
-                          </div>
-                        </div>
-                      </>
-                    )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -434,8 +393,16 @@ export default function CustomerOrdersPage() {
               </button>
             </div>
             
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
+              {/* Delivery Landmark / Instructions if present */}
+              {selectedOrderDetails.instructions && (
+                <div style={{ fontSize: '13px', color: '#475569', background: '#f8fafc', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Navigation size={14} color="#4f46e5" />
+                  <span>Landmark / Instructions: <strong>{selectedOrderDetails.instructions}</strong></span>
+                </div>
+              )}
+
               {/* Business Owner Section */}
               {selectedOrderDetails.businessOwner && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

@@ -14,6 +14,7 @@ import {
   X
 } from 'lucide-react';
 import NotificationBell from '../admin/NotificationBell';
+import PageGuideButton from '@/components/PageGuideModal';
 export default function PlatformAdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -58,6 +59,7 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
           <Shield className="w-5 h-5" /> GETPlatform
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <PageGuideButton variant="mobile" />
           <NotificationBell />
           <button onClick={handleLogout} className={styles.mobileLogoutHeaderBtn} title="Sign Out" aria-label="Sign Out">
             <LogOut size={18} />
@@ -119,7 +121,6 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
         </nav>
         <div className={styles.userProfile}>
           <p className={styles.userName}>{user.name}</p>
-          <p className={styles.userRole}>{user.role.replace('_', ' ')}</p>
           <button onClick={handleLogout} className={styles.logoutBtn}>
             <LogOut size={16} /> Sign Out
           </button>
@@ -130,18 +131,21 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
         {/* Top Navbar */}
         <header className="header-responsive hide-on-mobile">
           <div>
-            <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-              {(() => {
-                const segments = pathname.split('/').filter(Boolean);
-                const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
-                const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
-                if (['admin', 'partner', 'customer', 'platform-admin'].includes(lastSegment.toLowerCase())) {
-                  return 'Dashboard';
-                }
-                return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-              })()}
-            </h1>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+              <h1 style={{ margin: 0, fontSize: '26px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                {(() => {
+                  const segments = pathname.split('/').filter(Boolean);
+                  const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
+                  const lastSegment = nameSegments.length > 1 ? nameSegments[nameSegments.length - 1] : 'Dashboard';
+                  if (['admin', 'partner', 'customer', 'platform-admin'].includes(lastSegment.toLowerCase())) {
+                    return 'Dashboard';
+                  }
+                  return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                })()}
+              </h1>
+              <PageGuideButton variant="title" />
+            </div>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>
               {(() => {
                 const segments = pathname.split('/').filter(Boolean);
                 const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
@@ -159,7 +163,6 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
           <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{user.name}</span>
-              <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'capitalize' }}>{user.role.replace(/_/g, ' ').toLowerCase()}</span>
             </div>
             <NotificationBell />
           </div>

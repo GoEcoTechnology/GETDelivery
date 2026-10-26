@@ -1,18 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Navigation, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import styles from "./page.module.css";
 
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [errorField, setErrorField] = useState<'email' | 'password' | 'both' | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const [userData, setUserData] = useState<any>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +21,6 @@ export default function LoginPage() {
     setErrorField(null);
     setLoading(true);
 
-    // Detect no internet before even trying
     if (!navigator.onLine) {
       setError("Please check your internet connection and try again.");
       setErrorField('both');
@@ -53,21 +53,18 @@ export default function LoginPage() {
         return;
       }
 
-      // Save user AND token to localStorage for client-side API calls
+      // Save user & token to localStorage for client-side API calls
       const userToStore = { ...data.user };
+      localStorage.removeItem('customer_default_location');
       localStorage.setItem('user', JSON.stringify(userToStore));
       if (data.token) {
         localStorage.setItem('token', data.token);
-        // Also write as a non-httpOnly cookie for the server-side proxy to read
-        // (the httpOnly cookie is already set by the server, this is the fallback)
         document.cookie = `token=${data.token}; path=/; SameSite=Lax; max-age=${7 * 24 * 60 * 60}`;
       }
-      setUserData(data.user);
 
       proceedToDashboard(data.user);
     } catch (err: any) {
       console.error(err);
-      // TypeError usually means a network failure (fetch itself couldn't connect)
       if (err instanceof TypeError && err.message.includes('fetch')) {
         setError('Please check your internet connection and try again.');
       } else {
@@ -96,71 +93,117 @@ export default function LoginPage() {
 
   return (
     <main className={styles.container}>
-
-      <form onSubmit={handleLogin} className={`${styles.card} glass`}>
-        <div>
+      <div className={styles.card}>
+        
+        {/* Header */}
+        <div className={styles.header}>
+          <div className={styles.logoIcon}>
+            <Navigation size={24} color="#ffffff" />
+          </div>
+          <span className={styles.brandName}>GETDelivery</span>
           <h1 className={styles.title}>Welcome Back</h1>
-          <p className={styles.label} style={{ textAlign: "center" }}>
-            Sign in to your GETDelivery account
-          </p>
+          <p className={styles.subtitle}>Sign in to your GETDelivery account</p>
         </div>
 
-        {error && errorField === 'both' && <div className={styles.error}>{error}</div>}
+        {/* Global Error Banner */}
+        {error && errorField === 'both' && (
+          <div className={styles.error}>{error}</div>
+        )}
 
-        <div className={styles.formGroup}>
-          <label htmlFor="username" className={styles.label}>
-            Email or Mobile Number
-          </label>
-          <input
-            id="username"
-            type="text"
-            className={styles.input}
-            value={username}
-            onChange={(e) => { setUsername(e.target.value); if (errorField === 'email') { setErrorField(null); setError(''); } }}
-            required
-            placeholder="Enter your email or mobile number"
-            style={errorField === 'email' || errorField === 'both' ? { borderColor: '#ef4444' } : {}}
-          />
-          {errorField === 'email' && (
-            <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0 0' }}>{error}</p>
-          )}
+        {/* Form */}
+        <form onSubmit={handleLogin} className={styles.form}>
+          
+          <div className={styles.formGroup}>
+            <label htmlFor="username" className={styles.label}>
+              Email or Mobile Number
+            </label>
+            <div className={styles.inputWrapper}>
+              <Mail size={16} className={styles.inputIcon} />
+              <input
+                id="username"
+                type="text"
+                className={styles.input}
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (errorField === 'email') {
+                    setErrorField(null);
+                    setError('');
+                  }
+                }}
+                required
+                placeholder="Enter your email or mobile number"
+                autoComplete="username"
+                style={errorField === 'email' || errorField === 'both' ? { borderColor: '#ef4444' } : {}}
+              />
+            </div>
+            {errorField === 'email' && (
+              <p className={styles.fieldError}>{error}</p>
+            )}
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="password" className={styles.label}>
+              Password
+            </label>
+            <div className={styles.inputWrapper}>
+              <Lock size={16} className={styles.inputIcon} />
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                className={`${styles.input} ${styles.inputWithToggle}`}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (errorField === 'password') {
+                    setErrorField(null);
+                    setError('');
+                  }
+                }}
+                required
+                placeholder="••••••••"
+                autoComplete="current-password"
+                style={errorField === 'password' || errorField === 'both' ? { borderColor: '#ef4444' } : {}}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className={styles.toggleBtn}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            {errorField === 'password' && (
+              <p className={styles.fieldError}>{error}</p>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            className={styles.submitBtn}
+            disabled={loading}
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+
+        {/* Footer */}
+        <div className={styles.footer}>
+          <div>
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className={styles.link}>
+              Register here
+            </Link>
+          </div>
+          <div>
+            <Link href="/" className={styles.backLink}>
+              Go back
+            </Link>
+          </div>
         </div>
 
-        <div className={styles.formGroup}>
-          <label htmlFor="password" className={styles.label}>
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            className={styles.input}
-            value={password}
-            onChange={(e) => { setPassword(e.target.value); if (errorField === 'password') { setErrorField(null); setError(''); } }}
-            required
-            placeholder="••••••••"
-            style={errorField === 'password' || errorField === 'both' ? { borderColor: '#ef4444' } : {}}
-          />
-          {errorField === 'password' && (
-            <p style={{ color: '#ef4444', fontSize: '12px', margin: '4px 0 0 0' }}>{error}</p>
-          )}
-        </div>
-
-        <button
-          type="submit"
-          className={`btn btn-primary ${styles.submitBtn}`}
-          disabled={loading}
-        >
-          {loading ? "Signing in..." : "Sign In"}
-        </button>
-
-        <div style={{ textAlign: 'center', fontSize: 14, color: '#64748b', marginTop: 8 }}>
-          Don&apos;t have an account?{' '}
-          <a href="/register" style={{ color: '#4f46e5', fontWeight: 600, textDecoration: 'none' }}>Register here</a>
-        </div>
-        <div style={{ textAlign: 'center', fontSize: 14, color: '#64748b', marginTop: -20 }}>
-          <a href="/" style={{ color: '#4f46e5', fontWeight: 600, textDecoration: 'none' }}> Go back  </a>
-        </div>
-      </form>
+      </div>
     </main>
   );
 }

@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { deliveryOrders, deliveryItems, productVariants, deliveryBatches, deliveryBatchItems, inventoryTransactions } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyToken } from '@/lib/auth';
+import { determineVehicleForBatch } from '@/lib/deliveryCalculation';
 
 export async function POST(request: Request) {
   try {
@@ -13,8 +14,9 @@ export async function POST(request: Request) {
 
     const token = authHeader.split(' ')[1];
     const claims = await verifyToken(token);
+    const isPlatformOwner = claims?.role === 'PLATFORM_OWNER';
     
-    if (!claims || !claims.tenantId) {
+    if (!claims || (!claims.tenantId && !isPlatformOwner)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -27,11 +29,17 @@ export async function POST(request: Request) {
 
     // Verify target batch exists
     const [targetBatch] = await db.select().from(deliveryBatches)
-      .where(and(eq(deliveryBatches.id, targetBatchId), eq(deliveryBatches.tenantId, claims.tenantId as number)));
+      .where(
+        isPlatformOwner
+          ? eq(deliveryBatches.id, targetBatchId)
+          : and(eq(deliveryBatches.id, targetBatchId), eq(deliveryBatches.tenantId, claims.tenantId as number))
+      );
 
     if (!targetBatch) {
       return NextResponse.json({ error: 'Target batch not found' }, { status: 404 });
     }
+
+    const effectiveTenantId = targetBatch.tenantId;
 
     if (targetBatch.status === 'DISPATCHED' || targetBatch.status === 'DELIVERED') {
        return NextResponse.json({ error: 'Cannot add to a dispatched or delivered batch' }, { status: 400 });
@@ -42,7 +50,7 @@ export async function POST(request: Request) {
       .where(
         and(
           inArray(deliveryOrders.id, orderIds),
-          eq(deliveryOrders.tenantId, claims.tenantId as number)
+          eq(deliveryOrders.tenantId, effectiveTenantId)
         )
       );
 
@@ -53,10 +61,11 @@ export async function POST(request: Request) {
     const orderIdsCsv = orderIds.join(',');
 
     const unbatchedResult = await db.execute(sql`
-      SELECT di.id, di.delivery_order_id, di.quantity, di.product_id, di.variant_id, di.unit, dord.customer_id, pv.quota, pv.weight_per_piece_kg, psu.weight as selling_unit_weight, psu.equivalent_qty, pv.stock as current_stock, dord.batch_id as old_batch_id
+      SELECT di.id, di.delivery_order_id, di.quantity, di.product_id, di.variant_id, di.unit, dord.customer_id, pv.quota, pv.weight_per_piece_kg, pv.weight as variant_weight, p.weight_kg as product_weight, di.weight_kg as existing_item_weight, psu.weight as selling_unit_weight, psu.weight_kg as selling_unit_weight_kg, psu.equivalent_qty, pv.stock as current_stock, dord.batch_id as old_batch_id
       FROM delivery_items di
       JOIN delivery_orders dord ON di.delivery_order_id = dord.id
       JOIN product_variants pv ON di.variant_id = pv.id
+      JOIN products p ON di.product_id = p.id
       LEFT JOIN product_selling_units psu ON psu.product_id = di.product_id AND (psu.variant_id IS NULL OR psu.variant_id = pv.id) AND TRIM(psu.unit_name) ILIKE TRIM(di.unit)
       WHERE dord.status != 'CANCELLED'
         AND dord.id IN (${sql.raw(orderIdsCsv)})
@@ -75,7 +84,7 @@ export async function POST(request: Request) {
     const variantInventoryDeductions = new Map<number, { productId: number; deduction: number; currentStock: number }>();
 
     for (const row of unbatchedResult as any[]) {
-      const qty = Number(row.quantity);
+      const qty = Number(row.quantity) || 0;
       const vId = Number(row.variant_id);
       const pId = Number(row.product_id);
       const oldBatchId = row.old_batch_id;
@@ -84,30 +93,42 @@ export async function POST(request: Request) {
         continue; // Already in target batch
       }
 
+      const sellingUnitWeight = Number(row.selling_unit_weight_kg) || Number(row.selling_unit_weight) || 0;
+      const pieceWeight = Number(row.weight_per_piece_kg) || Number(row.variant_weight) || 0;
+      const productWeight = Number(row.product_weight) || 0;
+      const equivMultiplier = Number(row.equivalent_qty) || 1;
+
+      let singleUnitWeight = 0;
+      if (sellingUnitWeight > 0) {
+        singleUnitWeight = sellingUnitWeight;
+      } else if (pieceWeight > 0) {
+        singleUnitWeight = pieceWeight * equivMultiplier;
+      } else if (productWeight > 0) {
+        singleUnitWeight = productWeight * equivMultiplier;
+      } else if (Number(row.existing_item_weight) > 0) {
+        singleUnitWeight = Number(row.existing_item_weight) / (qty || 1);
+      }
+
+      const itemWeight = Math.round(qty * singleUnitWeight * 100) / 100;
+      addedWeight += itemWeight;
+
+      await db.update(deliveryItems)
+        .set({ weightKg: itemWeight.toFixed(2) })
+        .where(eq(deliveryItems.id, row.id));
+
       if (oldBatchId) {
          oldBatchIds.add(oldBatchId);
-         // Note: we should theoretically restore inventory if moving batches? 
-         // Actually, if it's already in a batch, its inventory was already deducted!
-         // Wait, if it moves from batch to batch, inventory doesn't change.
-         // If it moves from unbatched to batch, inventory deducts.
-         // For simplicity, if it has NO oldBatchId, we deduct.
       } else {
-         const equivalentQty = Number(row.equivalent_qty) || 1;
-         const deduction = qty * equivalentQty;
+         const deduction = qty * equivMultiplier;
          const currentStock = Number(row.current_stock || 0);
 
          const existing = variantInventoryDeductions.get(vId) || { productId: pId, deduction: 0, currentStock };
          existing.deduction += deduction;
          variantInventoryDeductions.set(vId, existing);
       }
-
-      const explicitUnitWeight = Number(row.selling_unit_weight) || 0;
-      const itemWeight = qty * explicitUnitWeight;
-      addedWeight += itemWeight;
       
       const oId = row.delivery_order_id;
-      const equivalentQty = Number(row.equivalent_qty) || 1;
-      const deduction = qty * equivalentQty;
+      const deduction = qty * equivMultiplier;
       
       orderWeightMap.set(oId, (orderWeightMap.get(oId) || 0) + itemWeight);
       orderQtyMap.set(oId, (orderQtyMap.get(oId) || 0) + deduction);
@@ -165,12 +186,24 @@ export async function POST(request: Request) {
     await db.insert(deliveryBatchItems).values(dbBatchItems);
 
 
-    // Update target batch totals
-    const newTotalQty = targetBatch.totalQuantity + addedQty;
+    // Only add to target batch's quota quantity if items match targetBatch.variantId
+    let addedVariantQty = 0;
+    for (const row of unbatchedResult as any[]) {
+      if (!targetBatch.variantId || Number(row.variant_id) === Number(targetBatch.variantId)) {
+        const qty = Number(row.quantity) || 0;
+        const equivMultiplier = Number(row.equivalent_qty) || 1;
+        addedVariantQty += qty * equivMultiplier;
+      }
+    }
+
+    const newTotalQty = targetBatch.totalQuantity + addedVariantQty;
     const newTotalWeight = Number(targetBatch.totalWeight || 0) + addedWeight;
     await db.update(deliveryBatches)
        .set({ totalQuantity: newTotalQty, totalWeight: newTotalWeight.toString() })
        .where(eq(deliveryBatches.id, targetBatchId));
+
+    // Recalculate vehicle for target batch based on all products in the batch
+    await determineVehicleForBatch(targetBatchId, effectiveTenantId);
 
     // Deduct Inventory for unbatched items
     for (const [vId, data] of variantInventoryDeductions.entries()) {
@@ -182,7 +215,7 @@ export async function POST(request: Request) {
           .where(eq(productVariants.id, vId));
 
         await db.insert(inventoryTransactions).values({
-          tenantId: claims.tenantId as number,
+          tenantId: effectiveTenantId,
           productId: data.productId,
           variantId: vId,
           quantity: data.deduction,

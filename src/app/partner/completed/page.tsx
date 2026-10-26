@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { deliveryInvitations, deliveryOrders, tenants, customers, deliveryItems, products } from '@/db/schema';
 import { eq, desc, inArray, and, ne, sql, isNull } from 'drizzle-orm';
 import { deliveryPartners } from '@/db/schema';
+import { purgeExpiredDeliveries } from '@/lib/delivery-purge';
 import OrdersTableClient from '../orders/OrdersTableClient';
 import styles from '../partner.module.css';
 
@@ -25,6 +26,11 @@ export default async function PartnerCompletedPage() {
   const [partner] = await db.select({ companyName: deliveryPartners.companyName })
     .from(deliveryPartners)
     .where(eq(deliveryPartners.id, partnerId));
+
+  // Purge deliveries older than 1 month and cancelled orders older than 1 week
+  await purgeExpiredDeliveries().catch(err => {
+    console.warn('Background purge error in partner completed page:', err);
+  });
 
   // Fetch all invitations for this partner, joined with order details
   const invitations = await db

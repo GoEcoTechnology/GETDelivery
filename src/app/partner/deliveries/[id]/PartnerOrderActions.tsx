@@ -174,6 +174,12 @@ export default function PartnerOrderActions({ orderId, status }: { orderId: numb
               {isStarting ? 'Starting...' : 'Start Delivery'}
             </button>
             <button
+              onClick={() => setShowCompleteModal(true)}
+              style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: 'none', background: '#16a34a', color: 'white', fontWeight: 800, cursor: 'pointer' }}
+            >
+              Complete Delivery
+            </button>
+            <button
               onClick={() => setShowCancelModal(true)}
               style={{ width: '100%', padding: '12px 18px', borderRadius: '14px', border: '1px solid #dc2626', background: 'transparent', color: '#dc2626', fontWeight: 800, cursor: 'pointer' }}
             >

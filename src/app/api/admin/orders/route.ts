@@ -14,15 +14,16 @@ export async function GET(request: Request) {
     const token = authHeader.split(' ')[1];
     const claims = await verifyToken(token);
 
-    if (!claims || !claims.tenantId) {
+    const isPlatformOwner = claims?.role === 'PLATFORM_OWNER';
+    if (!claims || (!claims.tenantId && !isPlatformOwner)) {
       return NextResponse.json({ error: 'Unauthorized or missing tenant ID' }, { status: 403 });
     }
-    const tenantId = claims.tenantId as number;
+    const tenantId = claims.tenantId as number | null;
 
     const data = await db
       .select()
       .from(deliveryOrders)
-      .where(eq(deliveryOrders.tenantId, tenantId))
+      .where(tenantId ? eq(deliveryOrders.tenantId, tenantId) : undefined)
       .orderBy(desc(deliveryOrders.createdAt));
 
     const orderIds = data.map(o => o.id);
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
           quantity: deliveryItems.quantity,
           unitPrice: deliveryItems.unitPrice,
           unit: deliveryItems.unit,
+          weightKg: deliveryItems.weightKg,
           quota: productVariants.quota,
           equivalentQty: productSellingUnits.equivalentQty
         })

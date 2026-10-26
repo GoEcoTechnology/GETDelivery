@@ -11,6 +11,7 @@ const publicPaths = [
   '/api/auth/register',
   '/api/invite',
   '/api/places',
+  '/api/deliveries/calculate-quote',
 ];
 
 // Page route sections restricted by role

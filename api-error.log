@@ -30,3 +30,199 @@
   "cause": null
 }
 
+2026-10-22T23:10:38.663Z
+{
+  "message": "read ECONNRESET",
+  "cause": null,
+  "code": "ECONNRESET"
+}
+
+2026-10-22T23:10:38.696Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:11:28.128Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:11:28.278Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:12:28.056Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:12:28.102Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:13:28.059Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:13:28.090Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:14:28.061Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:14:28.094Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:15:28.056Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:15:28.087Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:16:28.080Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:16:28.134Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:17:28.065Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:17:28.089Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:18:28.054Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:18:28.085Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:19:28.048Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:19:28.084Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:20:28.067Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:20:28.112Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:21:28.059Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:21:28.114Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:22:28.059Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-22T23:22:28.087Z
+{
+  "message": "getaddrinfo ENOTFOUND aws-0-ap-northeast-2.pooler.supabase.com",
+  "cause": null,
+  "code": "ENOTFOUND"
+}
+
+2026-10-24T05:24:51.744Z
+{
+  "message": "Failed query: delete from \"products\" where \"products\".\"id\" = $1 returning \"id\", \"tenant_id\", \"name\", \"category\", \"description\", \"low_stock_threshold\", \"weight_kg\", \"length_cm\", \"width_cm\", \"height_cm\", \"is_shippable\", \"status\", \"is_marketplace\", \"created_at\", \"updated_at\"\nparams: 362",
+  "cause": "current transaction is aborted, commands ignored until end of transaction block",
+  "code": "25P02"
+}
+
+2026-10-26T00:16:56.657Z
+{
+  "message": "Failed query: delete from \"vehicles\" where (\"vehicles\".\"id\" = $1 and \"vehicles\".\"tenant_id\" = $2) returning \"id\", \"tenant_id\", \"delivery_partner_id\", \"plate_number\", \"vehicle_type\", \"status\", \"registration_expiry\", \"or_number\", \"cr_number\", \"capacity_kg\", \"cargo_length_cm\", \"cargo_width_cm\", \"cargo_height_cm\", \"created_at\"\nparams: 188,20",
+  "cause": "update or delete on table \"vehicles\" violates foreign key constraint \"delivery_batches_suggested_vehicle_id_fkey\" on table \"delivery_batches\"",
+  "code": "23503"
+}
+

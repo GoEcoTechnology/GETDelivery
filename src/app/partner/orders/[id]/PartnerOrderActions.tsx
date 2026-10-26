@@ -2,13 +2,25 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, AlertTriangle, Truck } from 'lucide-react';
 
 type ApiError = {
   error?: string;
 };
 
-export default function PartnerOrderActions({ orderId, status, availableVehicles = [] }: { orderId: number; status: string; availableVehicles?: any[] }) {
+export default function PartnerOrderActions({
+  orderId,
+  status,
+  availableVehicles = [],
+  orderWeight = 0,
+  assignedVehicleType
+}: {
+  orderId: number;
+  status: string;
+  availableVehicles?: any[];
+  orderWeight?: number;
+  assignedVehicleType?: string;
+}) {
   const router = useRouter();
   // localStatus allows immediate UI update after accept without waiting for router.refresh()
   const [localStatus, setLocalStatus] = useState(status);
@@ -21,7 +33,9 @@ export default function PartnerOrderActions({ orderId, status, availableVehicles
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
-  const [selectedVehicleType, setSelectedVehicleType] = useState(availableVehicles[0]?.vehicleType || '');
+
+  // Use the system-assigned vehicle automatically (no driver selection allowed)
+  const vehicleToUse = assignedVehicleType || availableVehicles.find(v => !orderWeight || !v.capacityKg || v.capacityKg >= orderWeight)?.vehicleType || '10 Wheeler Truck';
   const [declineReason, setDeclineReason] = useState('Too far');
   const [cancelReason, setCancelReason] = useState('Vehicle breakdown');
   const [otherReason, setOtherReason] = useState('');
@@ -32,13 +46,12 @@ export default function PartnerOrderActions({ orderId, status, availableVehicles
   const cancelReasons = ['Vehicle breakdown', 'Personal emergency', 'Package too large', 'Accident', 'Other'];
 
   const handleAccept = async () => {
-    if (!selectedVehicleType) return alert('Please select a vehicle type first');
     setIsAccepting(true);
     try {
       const res = await fetch(`/api/partner/orders/${orderId}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vehicleType: selectedVehicleType })
+        body: JSON.stringify({ vehicleType: vehicleToUse })
       });
       const data = (await res.json()) as ApiError;
       if (!res.ok) throw new Error(data.error || 'Failed to accept');
@@ -173,30 +186,40 @@ export default function PartnerOrderActions({ orderId, status, availableVehicles
 
         {showAcceptModal && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
-            <div style={{ background: '#fff', borderRadius: '20px', width: 'min(400px, 100%)', padding: '24px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '1.25rem', color: '#0f172a' }}>Accept Delivery Assignment</h3>
-              <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '14px' }}>Please select the vehicle you will use for this delivery. The delivery fee will be calculated automatically based on your selection.</p>
+            <div style={{ background: '#fff', borderRadius: '20px', width: 'min(420px, 100%)', padding: '24px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: '1.25rem', color: '#0f172a', fontWeight: 800 }}>Accept Delivery Assignment</h3>
+              <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '14px', lineHeight: 1.5 }}>
+                Please confirm your acceptance of this delivery assignment using the system-assigned vehicle.
+              </p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-                <label style={{ fontSize: '14px', fontWeight: 600, color: '#475569' }}>Select Vehicle</label>
-                <select
-                  value={selectedVehicleType || ''}
-                  onChange={(e) => setSelectedVehicleType(e.target.value)}
-                  style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontSize: '14px', color: '#0f172a', appearance: 'none', cursor: 'pointer' }}
-                >
-                  <option value="" disabled>Select a vehicle...</option>
-                  {availableVehicles?.map(v => (
-                    <option key={v.id} value={v.vehicleType}>
-                      {v.vehicleType} (Base: ₱{v.basePrice} | Per KM: ₱{v.pricePerKm})
-                    </option>
-                  ))}
-                </select>
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                  System Assigned Vehicle
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Truck size={20} color="#16a34a" /> {vehicleToUse}
+                </div>
+                {orderWeight > 0 && (
+                  <div style={{ fontSize: '13px', color: '#64748b', marginTop: '6px' }}>
+                    Total Cargo Weight: <strong style={{ color: '#0f172a' }}>{orderWeight} kg</strong>
+                  </div>
+                )}
+
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => setShowAcceptModal(false)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#f1f5f9', color: '#475569', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-                <button onClick={handleAccept} disabled={isAccepting} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, cursor: isAccepting ? 'not-allowed' : 'pointer', opacity: isAccepting ? 0.7 : 1 }}>
-                  {isAccepting ? 'Accepting...' : 'Confirm Vehicle & Accept'}
+                <button
+                  onClick={() => setShowAcceptModal(false)}
+                  style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAccept}
+                  disabled={isAccepting}
+                  style={{ flex: 1.5, padding: '12px', borderRadius: '12px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, cursor: isAccepting ? 'not-allowed' : 'pointer', opacity: isAccepting ? 0.7 : 1 }}
+                >
+                  {isAccepting ? 'Accepting...' : 'Confirm & Accept'}
                 </button>
               </div>
             </div>
@@ -259,6 +282,12 @@ export default function PartnerOrderActions({ orderId, status, availableVehicles
             style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 800, cursor: isStarting ? 'not-allowed' : 'pointer', opacity: isStarting ? 0.7 : 1 }}
           >
             {isStarting ? 'Starting...' : 'Start Delivery'}
+          </button>
+          <button
+            onClick={() => setShowCompleteModal(true)}
+            style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: 'none', background: '#16a34a', color: 'white', fontWeight: 800, cursor: 'pointer' }}
+          >
+            Complete Delivery
           </button>
           <button
             onClick={() => setShowCancelModal(true)}

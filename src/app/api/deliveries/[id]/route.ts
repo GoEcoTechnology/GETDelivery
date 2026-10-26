@@ -14,15 +14,15 @@ export async function GET(
 
     const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
-      : claims.tenantId) as number;
+      : claims.tenantId) as number | null;
 
     const [order] = await tx
       .select()
       .from(deliveryOrders)
-      .where(and(
+      .where(tenantIdToUse ? and(
         eq(deliveryOrders.id, id),
         eq(deliveryOrders.tenantId, tenantIdToUse)
-      ));
+      ) : eq(deliveryOrders.id, id));
 
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
 
@@ -52,15 +52,15 @@ export async function PUT(
 
     const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
-      : claims.tenantId) as number;
+      : claims.tenantId) as number | null;
 
     const [order] = await tx
       .select()
       .from(deliveryOrders)
-      .where(and(
+      .where(tenantIdToUse ? and(
         eq(deliveryOrders.id, id),
         eq(deliveryOrders.tenantId, tenantIdToUse)
-      ));
+      ) : eq(deliveryOrders.id, id));
 
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     if (order.status !== 'DRAFT') return NextResponse.json({ error: 'Only DRAFT orders can be updated' }, { status: 400 });
@@ -130,7 +130,7 @@ export async function PUT(
         .leftJoin(productVariants, eq(products.id, productVariants.productId))
         .where(and(
           inArray(products.id, productIdsToFetch),
-          eq(products.tenantId, tenantIdToUse)
+          tenantIdToUse ? eq(products.tenantId, tenantIdToUse) : undefined
         ));
 
       fetchedProducts.forEach((p: any) => productsStockMap.set(p.id, { name: p.name, stock: p.stock }));
@@ -209,21 +209,35 @@ export async function DELETE(
     }
 
     const oldAccumulations = await tx.select().from(quotaAccumulations).where(eq(quotaAccumulations.sourceOrderId, order.id));
-    for (const accum of oldAccumulations) {
-      const [quota] = await tx.select().from(productQuotas).where(eq(productQuotas.productId, accum.productId));
-      if (quota) {
-        const newAccumulated = Math.max(0, quota.accumulatedQuantity - accum.quantityAdded);
-        const newStatus = newAccumulated >= quota.targetQuantity ? 'REACHED' : 'IN_PROGRESS';
-        await tx.update(productQuotas).set({ accumulatedQuantity: newAccumulated, status: newStatus }).where(eq(productQuotas.id, quota.id));
+    if (oldAccumulations.length > 0) {
+      const productIds: number[] = Array.from(new Set(oldAccumulations.map((a: any) => a.productId as number)));
+      const quotas = await tx.select().from(productQuotas).where(inArray(productQuotas.productId, productIds));
+      const quotaMap = new Map<number, any>();
+      quotas.forEach((q: any) => quotaMap.set(q.productId, q));
+
+      const quotaUpdates = [];
+      for (const accum of oldAccumulations) {
+        const quota = quotaMap.get(accum.productId);
+        if (quota) {
+          const newAccumulated = Math.max(0, quota.accumulatedQuantity - accum.quantityAdded);
+          const newStatus = newAccumulated >= quota.targetQuantity ? 'REACHED' : 'IN_PROGRESS';
+          quotaUpdates.push(
+            tx.update(productQuotas).set({ accumulatedQuantity: newAccumulated, status: newStatus }).where(eq(productQuotas.id, quota.id))
+          );
+        }
       }
+      if (quotaUpdates.length > 0) await Promise.all(quotaUpdates);
     }
 
-    await tx.delete(quotaAccumulations).where(eq(quotaAccumulations.sourceOrderId, order.id));
-    await tx.delete(deliveryAssignments).where(eq(deliveryAssignments.deliveryOrderId, order.id));
-    await tx.delete(deliveryInvitations).where(eq(deliveryInvitations.deliveryOrderId, order.id));
-    await tx.delete(notifications).where(eq(notifications.deliveryOrderId, order.id));
-    await tx.delete(auditLogs).where(and(eq(auditLogs.entityType, 'DELIVERY_ORDER'), eq(auditLogs.entityId, order.id)));
-    await tx.delete(deliveryItems).where(eq(deliveryItems.deliveryOrderId, order.id));
+    // Parallelize all dependent deletes before deleting the order
+    await Promise.all([
+      tx.delete(quotaAccumulations).where(eq(quotaAccumulations.sourceOrderId, order.id)),
+      tx.delete(deliveryAssignments).where(eq(deliveryAssignments.deliveryOrderId, order.id)),
+      tx.delete(deliveryInvitations).where(eq(deliveryInvitations.deliveryOrderId, order.id)),
+      tx.delete(notifications).where(eq(notifications.deliveryOrderId, order.id)),
+      tx.delete(auditLogs).where(and(eq(auditLogs.entityType, 'DELIVERY_ORDER'), eq(auditLogs.entityId, order.id))),
+      tx.delete(deliveryItems).where(eq(deliveryItems.deliveryOrderId, order.id)),
+    ]);
     await tx.delete(deliveryOrders).where(condition);
 
     return NextResponse.json({ success: true, message: 'Order and related data deleted successfully' });

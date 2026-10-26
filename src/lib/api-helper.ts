@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withRLS, db } from '@/db';
-import type { AppJwtPayload } from '@/lib/auth';
+import { type AppJwtPayload, verifyToken } from '@/lib/auth';
 import { hasPermission, Permission } from '@/lib/permissions';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -14,10 +14,35 @@ export async function withAuth(
   const actualCallback = isOptions ? callback! : (optionsOrCallback as (tx: any, claims: AppJwtPayload) => Promise<NextResponse>);
   const requiredPermissions = isOptions ? (optionsOrCallback as any).requiredPermissions || [] : [];
 
-  const tenantIdStr = request.headers.get('x-tenant-id');
-  const userIdStr = request.headers.get('x-user-id');
-  const role = request.headers.get('x-user-role');
+  let tenantIdStr = request.headers.get('x-tenant-id');
+  let userIdStr = request.headers.get('x-user-id');
+  let role = request.headers.get('x-user-role');
   const accessType = request.headers.get('x-access-type');
+
+  if (!role && !accessType) {
+    const authHeader = request.headers.get('authorization');
+    let token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+    if (!token && 'cookies' in request && typeof (request as any).cookies?.get === 'function') {
+      token = (request as any).cookies.get('token')?.value;
+    }
+    if (!token) {
+      const cookieHeader = request.headers.get('cookie');
+      if (cookieHeader) {
+        const match = cookieHeader.match(/(?:^|;\s*)token=([^;]+)/);
+        if (match) token = decodeURIComponent(match[1]);
+      }
+    }
+    if (token) {
+      const payload = await verifyToken(token);
+      if (payload) {
+        role = (payload as any).role;
+        userIdStr = String((payload as any).userId || '');
+        if ((payload as any).tenantId) {
+          tenantIdStr = String((payload as any).tenantId);
+        }
+      }
+    }
+  }
 
   let claims: any = {};
   if (role) {

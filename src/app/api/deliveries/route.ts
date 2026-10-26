@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { deliveryOrders, deliveryItems, products, productVariants, productQuotas, quotaAccumulations, deliveryPartners, users, deliveryAssignments } from '@/db/schema';
 import { eq, desc, and, inArray, sql as drizzleSql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { purgeExpiredDeliveries } from '@/lib/delivery-purge';
 
 export async function GET(request: Request) {
   return withAuth(request, { requiredPermissions: ['delivery.view'] }, async (tx, claims) => {
@@ -24,109 +25,133 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    let whereClause = and(
-      eq(deliveryOrders.tenantId, tenantIdToUse as number),
-      eq(deliveryOrders.orderSource, 'CREATED')
-    ) as any;
-    if (statusFilter) {
-      whereClause = and(whereClause, eq(deliveryOrders.status, statusFilter)) as any;
+    const tenantParam = searchParams.get('tenantId');
+    const headerTenant = request.headers.get('x-tenant-id');
+    const explicitTenant = tenantParam ? parseInt(tenantParam, 10) : (headerTenant ? parseInt(headerTenant, 10) : null);
+    if (!tenantIdToUse && explicitTenant) {
+      tenantIdToUse = explicitTenant;
     }
 
+    // Automatically purge completed deliveries older than 1 month, and cancelled older than 1 week
+    await purgeExpiredDeliveries(tenantIdToUse).catch(err => {
+      console.warn('Background purge error in deliveries route:', err);
+    });
+
+    const conditions: any[] = [
+      eq(deliveryOrders.orderSource, 'CREATED')
+    ];
+    if (tenantIdToUse) {
+      conditions.push(eq(deliveryOrders.tenantId, tenantIdToUse));
+    }
+    if (statusFilter) {
+      conditions.push(eq(deliveryOrders.status, statusFilter));
+    }
+
+    const whereClause = and(...conditions);
+
     // RLS will enforce tenant isolation automatically
-    const data = await tx
-      .select({
-        id: deliveryOrders.id,
-        tenantId: deliveryOrders.tenantId,
-        offeredAmount: deliveryOrders.offeredAmount,
-        customerName: deliveryOrders.customerName,
-        customerContact: deliveryOrders.customerContact,
-        pickupAddress: deliveryOrders.pickupAddress,
-        dropoffAddress: deliveryOrders.dropoffAddress,
-        preferredVehicle: deliveryOrders.preferredVehicle,
-        requiredVehicleType: deliveryOrders.requiredVehicleType,
-        vehicleBasePrice: deliveryOrders.vehicleBasePrice,
-        pricePerKm: deliveryOrders.pricePerKm,
-        distanceKm: deliveryOrders.distanceKm,
-        finalDeliveryPrice: deliveryOrders.finalDeliveryPrice,
-        status: deliveryOrders.status,
-        batchId: deliveryOrders.batchId,
-        quota: deliveryOrders.quota,
-        temporaryWinnerId: deliveryOrders.temporaryWinnerId,
-        partnerDriverName: deliveryOrders.partnerDriverName,
-        partnerDriverContact: deliveryOrders.partnerDriverContact,
-        deliveryDate: deliveryOrders.deliveryDate,
-        currentOrdersCount: deliveryOrders.currentOrdersCount,
-        createdAt: deliveryOrders.createdAt,
-      })
-      .from(deliveryOrders)
-      .where(whereClause)
-      .limit(limit)
-      .offset(offset)
-      .orderBy(desc(deliveryOrders.createdAt));
+    // 1. Fetch orders and total count in PARALLEL
+    const [data, countRows] = await Promise.all([
+      tx
+        .select({
+          id: deliveryOrders.id,
+          tenantId: deliveryOrders.tenantId,
+          offeredAmount: deliveryOrders.offeredAmount,
+          customerName: deliveryOrders.customerName,
+          customerContact: deliveryOrders.customerContact,
+          pickupAddress: deliveryOrders.pickupAddress,
+          dropoffAddress: deliveryOrders.dropoffAddress,
+          preferredVehicle: deliveryOrders.preferredVehicle,
+          requiredVehicleType: deliveryOrders.requiredVehicleType,
+          vehicleBasePrice: deliveryOrders.vehicleBasePrice,
+          pricePerKm: deliveryOrders.pricePerKm,
+          distanceKm: deliveryOrders.distanceKm,
+          finalDeliveryPrice: deliveryOrders.finalDeliveryPrice,
+          status: deliveryOrders.status,
+          batchId: deliveryOrders.batchId,
+          quota: deliveryOrders.quota,
+          temporaryWinnerId: deliveryOrders.temporaryWinnerId,
+          partnerDriverName: deliveryOrders.partnerDriverName,
+          partnerDriverContact: deliveryOrders.partnerDriverContact,
+          deliveryDate: deliveryOrders.deliveryDate,
+          currentOrdersCount: deliveryOrders.currentOrdersCount,
+          createdAt: deliveryOrders.createdAt,
+        })
+        .from(deliveryOrders)
+        .where(whereClause)
+        .limit(limit)
+        .offset(offset)
+        .orderBy(desc(deliveryOrders.createdAt)),
+      tx
+        .select({ total: drizzleSql<number>`count(*)::int` })
+        .from(deliveryOrders)
+        .where(whereClause)
+    ]);
 
-    // Also get total count for pagination
-    const [{ total }] = await tx
-      .select({ total: drizzleSql<number>`count(*)::int` })
-      .from(deliveryOrders)
-      .where(whereClause);
+    const total = countRows[0]?.total || 0;
 
-    // Fetch products and quotas for these orders
+    // 2. Fetch products, quotas, and assignments in PARALLEL
     const orderIds = data.map((o: any) => o.id);
     if (orderIds.length > 0) {
       const winnerIds = data.map((o: any) => o.temporaryWinnerId).filter(Boolean);
-      const winnerMap = new Map<number, {
-        id: number;
-        companyName: string | null;
-        contactPerson: string | null;
-        mobileNumber: string | null;
-        email: string | null;
-      }>();
 
-      if (winnerIds.length > 0) {
-        const winners = await tx
+      const [winners, items, accumulations, assignments] = await Promise.all([
+        winnerIds.length > 0
+          ? tx
+              .select({
+                id: deliveryPartners.id,
+                companyName: deliveryPartners.companyName,
+                contactPerson: deliveryPartners.contactPerson,
+                mobileNumber: deliveryPartners.mobileNumber,
+                email: deliveryPartners.email,
+              })
+              .from(deliveryPartners)
+              .where(inArray(deliveryPartners.id, winnerIds))
+          : Promise.resolve([]),
+        tx
           .select({
-            id: deliveryPartners.id,
-            companyName: deliveryPartners.companyName,
-            contactPerson: deliveryPartners.contactPerson,
-            mobileNumber: deliveryPartners.mobileNumber,
-            email: deliveryPartners.email,
+            itemId: deliveryItems.id,
+            deliveryOrderId: deliveryItems.deliveryOrderId,
+            productId: products.id,
+            productName: products.name,
+            variantName: productVariants.name,
+            unit: deliveryItems.unit,
+            quantity: deliveryItems.quantity,
+            unitPrice: productVariants.price
           })
-          .from(deliveryPartners)
-          .where(inArray(deliveryPartners.id, winnerIds));
+          .from(deliveryItems)
+          .innerJoin(products, eq(deliveryItems.productId, products.id))
+          .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
+          .where(inArray(deliveryItems.deliveryOrderId, orderIds)),
+        tx
+          .select({
+            deliveryOrderId: quotaAccumulations.sourceOrderId,
+            itemId: quotaAccumulations.sourceItemId,
+            quantityAdded: quotaAccumulations.quantityAdded,
+          })
+          .from(quotaAccumulations)
+          .where(inArray(quotaAccumulations.sourceOrderId, orderIds)),
+        tx
+          .select({
+            deliveryOrderId: deliveryAssignments.deliveryOrderId,
+            driverName: deliveryAssignments.driverName,
+            vehicleDetails: deliveryAssignments.vehicleDetails,
+          })
+          .from(deliveryAssignments)
+          .where(inArray(deliveryAssignments.deliveryOrderId, orderIds))
+      ]);
 
-        winners.forEach((winner: any) => winnerMap.set(winner.id, winner));
-      }
+      const winnerMap = new Map<number, any>();
+      winners.forEach((winner: any) => winnerMap.set(winner.id, winner));
 
-      const items = await tx
-        .select({
-          itemId: deliveryItems.id,
-          deliveryOrderId: deliveryItems.deliveryOrderId,
-          productId: products.id,
-          productName: products.name,
-          variantName: productVariants.name,
-          unit: deliveryItems.unit,
-          quantity: deliveryItems.quantity,
-          unitPrice: productVariants.price
-        })
-        .from(deliveryItems)
-        .innerJoin(products, eq(deliveryItems.productId, products.id))
-        .leftJoin(productVariants, eq(deliveryItems.variantId, productVariants.id))
-        .where(inArray(deliveryItems.deliveryOrderId, orderIds));
-
-      const accumulations = await tx
-        .select({
-          deliveryOrderId: quotaAccumulations.sourceOrderId,
-          itemId: quotaAccumulations.sourceItemId,
-          quantityAdded: quotaAccumulations.quantityAdded,
-        })
-        .from(quotaAccumulations)
-        .where(inArray(quotaAccumulations.sourceOrderId, orderIds));
-      
       const accMap: Record<string, number> = {};
       for (const acc of accumulations) {
         const key = `${acc.deliveryOrderId}-${acc.itemId}`;
         accMap[key] = (accMap[key] || 0) + acc.quantityAdded;
       }
+
+      const assignmentMap = new Map();
+      assignments.forEach((a: any) => assignmentMap.set(a.deliveryOrderId, a));
 
       data.forEach((order: any) => {
         order.products = items
@@ -146,21 +171,7 @@ export async function GET(request: Request) {
         } else {
           order.temporaryWinner = null;
         }
-      });
-      
-      const assignments = await tx
-        .select({
-          deliveryOrderId: deliveryAssignments.deliveryOrderId,
-          driverName: deliveryAssignments.driverName,
-          vehicleDetails: deliveryAssignments.vehicleDetails,
-        })
-        .from(deliveryAssignments)
-        .where(inArray(deliveryAssignments.deliveryOrderId, orderIds));
-        
-      const assignmentMap = new Map();
-      assignments.forEach((a: any) => assignmentMap.set(a.deliveryOrderId, a));
-      
-      data.forEach((order: any) => {
+
         const assignment = assignmentMap.get(order.id);
         if (assignment && !order.temporaryWinnerId) {
           order.internalAssignment = assignment;
@@ -217,17 +228,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    const rawTenantId = claims.role === 'PLATFORM_OWNER' && body.tenantId !== undefined && body.tenantId !== null && body.tenantId !== ''
-      ? parseInt(body.tenantId, 10)
-      : claims.tenantId;
-
-    if (!rawTenantId || Number.isNaN(rawTenantId)) {
-      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
-    }
-
-    const tenantIdToUse = Number(rawTenantId);
-    const totalQuantity = items.reduce((sum: number, item: any) => sum + (parseInt(item.quantity, 10) || 0), 0);
-
     const normalizedItems = items.map((item: any) => {
       const productId = parseInt(item.productId, 10);
       const quantity = parseInt(item.quantity, 10);
@@ -241,6 +241,28 @@ export async function POST(request: Request) {
         variantId: item.variantId ? parseInt(item.variantId, 10) : undefined,
       };
     });
+
+    let rawTenantId = claims.tenantId;
+    if (claims.role === 'PLATFORM_OWNER') {
+      if (body.tenantId !== undefined && body.tenantId !== null && body.tenantId !== '') {
+        rawTenantId = parseInt(body.tenantId, 10);
+      } else if (normalizedItems.length > 0 && normalizedItems[0].productId) {
+        const [prod] = await tx
+          .select({ tenantId: products.tenantId })
+          .from(products)
+          .where(eq(products.id, normalizedItems[0].productId));
+        if (prod?.tenantId) {
+          rawTenantId = prod.tenantId;
+        }
+      }
+    }
+
+    if (!rawTenantId || Number.isNaN(rawTenantId)) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
+
+    const tenantIdToUse = Number(rawTenantId);
+    const totalQuantity = items.reduce((sum: number, item: any) => sum + (parseInt(item.quantity, 10) || 0), 0);
 
     const [order] = await tx.insert(deliveryOrders).values({
       tenantId: tenantIdToUse,

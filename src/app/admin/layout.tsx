@@ -16,10 +16,12 @@ import {
   Lightbulb,
   X,
   AlertTriangle,
-  ShoppingCart
+  ShoppingCart,
+  Archive
 } from 'lucide-react';
 import AdminNotifListener from './AdminNotifListener';
 import NotificationBell from './NotificationBell';
+import PageGuideButton from '@/components/PageGuideModal';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -63,6 +65,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Package className="w-5 h-5" /> GETDelivery
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <PageGuideButton variant="mobile" />
           <button onClick={() => setShowReminderModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Reminder">
             <Lightbulb size={20} color="#f59e0b" />
           </button>
@@ -109,8 +112,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/orders" className={pathname.startsWith('/admin/orders') ? styles.active : ''}>
             <ShoppingCart size={18} /> Orders
           </Link>
-          <Link href="/admin/deliveries" className={pathname.startsWith('/admin/deliveries') ? styles.active : ''}>
+          <Link href="/admin/deliveries" className={pathname.startsWith('/admin/deliveries') && !pathname.startsWith('/admin/deliveries/completed') ? styles.active : ''}>
             <Truck size={18} /> Deliveries
+          </Link>
+          <Link href="/admin/deliveries/completed" className={pathname.startsWith('/admin/deliveries/completed') ? styles.active : ''}>
+            <Archive size={18} /> Completed Deliveries
           </Link>
 
 
@@ -145,7 +151,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
         <div className={styles.userProfile}>
           <p className={styles.userName}>{user.name}</p>
-          <p className={styles.userRole}>{user.role.replace('_', ' ')}</p>
           <button onClick={handleLogout} className={styles.logoutBtn}>
             <LogOut size={16} /> Sign Out
           </button>
@@ -156,8 +161,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Top Navbar */}
         <header className="header-responsive hide-on-mobile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 32px', backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', zIndex: 5 }}>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
               {(() => {
                 const segments = pathname.split('/').filter(Boolean);
                 const nameSegments = segments.filter(s => isNaN(Number(s)) && !s.match(/^[0-9a-fA-F-]{10,}$/));
@@ -168,12 +173,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 return lastSegment.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
               })()}
             </h1>
+            <PageGuideButton variant="title" />
           </div>
 
           <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{user.name}</span>
-              <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'capitalize' }}>{user.role.replace(/_/g, ' ').toLowerCase()}</span>
             </div>
             <button onClick={() => setShowReminderModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', borderRadius: '50%', backgroundColor: '#fef3c7', boxShadow: '0 2px 5px rgba(245,158,11,0.2)', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
               <Lightbulb size={20} color="#d97706" />

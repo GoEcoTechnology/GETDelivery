@@ -16,6 +16,10 @@ export async function GET() {
         vehicleType: vehicleDeliveryRates.vehicleType,
         basePrice: vehicleDeliveryRates.basePrice,
         pricePerKm: vehicleDeliveryRates.pricePerKm,
+        capacityKg: vehicleDeliveryRates.capacityKg,
+        cargoLengthCm: vehicleDeliveryRates.cargoLengthCm,
+        cargoWidthCm: vehicleDeliveryRates.cargoWidthCm,
+        cargoHeightCm: vehicleDeliveryRates.cargoHeightCm,
         isActive: vehicleDeliveryRates.isActive,
       })
       .from(vehicleDeliveryRates)

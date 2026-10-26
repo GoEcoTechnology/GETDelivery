@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { X, Truck, Users } from 'lucide-react';
+import { X, Truck, Users, AlertTriangle } from 'lucide-react';
 import styles from '../admin.module.css';
 
 interface DispatchModalProps {
@@ -14,34 +14,83 @@ interface DispatchModalProps {
 }
 
 export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'delivery', onDispatchComplete }: DispatchModalProps) {
-  const [selectedOption, setSelectedOption] = useState<'internal' | 'partner' | null>(null);
+  const [selectedOption, setSelectedOption] = useState<'internal' | 'partner' | null>('internal');
   const [driverId, setDriverId] = useState<string>('');
   const [vehicleId, setVehicleId] = useState<string>('');
   const [customFee, setCustomFee] = useState<string>('');
 
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedOption('internal');
+      setDriverId('');
+      setVehicleId('');
+    }
+  }, [isOpen]);
+
   const { data: driversData, isLoading: loadingDrivers } = useQuery({
-    queryKey: ['company-drivers', tenantId],
+    queryKey: ['company-drivers', tenantId, deliveryId, type],
     queryFn: async () => {
       const headers: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` };
       if (tenantId) headers['x-tenant-id'] = tenantId.toString();
-      const res = await fetch('/api/company/drivers', { headers });
+      const params = new URLSearchParams();
+      if (tenantId) params.append('tenantId', tenantId.toString());
+      if (deliveryId) {
+        if (type === 'batch') params.append('batchId', deliveryId.toString());
+        else params.append('deliveryId', deliveryId.toString());
+      }
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`/api/company/drivers${qs}`, { headers });
       if (!res.ok) throw new Error('Failed to fetch drivers');
       return res.json();
     },
-    enabled: isOpen && selectedOption === 'internal'
+    enabled: isOpen && !!deliveryId,
+    staleTime: 60 * 1000,
   });
 
   const { data: vehiclesData, isLoading: loadingVehicles } = useQuery({
-    queryKey: ['company-vehicles', tenantId],
+    queryKey: ['company-vehicles', tenantId, deliveryId, type],
     queryFn: async () => {
       const headers: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` };
       if (tenantId) headers['x-tenant-id'] = tenantId.toString();
-      const res = await fetch('/api/company/vehicles', { headers });
+      const params = new URLSearchParams();
+      if (tenantId) params.append('tenantId', tenantId.toString());
+      if (deliveryId) {
+        if (type === 'batch') params.append('batchId', deliveryId.toString());
+        else params.append('deliveryId', deliveryId.toString());
+      }
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`/api/company/vehicles${qs}`, { headers });
       if (!res.ok) throw new Error('Failed to fetch vehicles');
       return res.json();
     },
-    enabled: isOpen && selectedOption === 'internal'
+    enabled: isOpen && !!deliveryId,
+    staleTime: 60 * 1000,
   });
+
+  // Automatically select the vehicle determined by the system based on all batch products (if not busy)
+  useEffect(() => {
+    if (vehiclesData?.data?.length > 0 && !vehicleId) {
+      const sv = vehiclesData.suggestedVehicleId
+        ? vehiclesData.data.find((v: any) => v.id === vehiclesData.suggestedVehicleId)
+        : null;
+      if (sv && !sv.isBusy) {
+        setVehicleId(sv.id.toString());
+      } else {
+        const available = vehiclesData.data.find((v: any) => !v.isBusy);
+        if (available) setVehicleId(available.id.toString());
+      }
+    }
+  }, [vehiclesData?.suggestedVehicleId, vehiclesData?.data, vehicleId]);
+
+  // Pre-select driver if available and not busy
+  useEffect(() => {
+    if (driversData?.data?.length > 0 && !driverId) {
+      const available = driversData.data.find((d: any) => !d.isBusy);
+      if (available) {
+        setDriverId(available.id.toString());
+      }
+    }
+  }, [driversData?.data, driverId]);
 
   const internalDispatchMutation = useMutation({
     mutationFn: async () => {
@@ -107,11 +156,25 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
         alert('Please select both a driver and a vehicle.');
         return;
       }
+      const selDriver = driversData?.data?.find((d: any) => d.id.toString() === driverId);
+      if (selDriver?.isBusy) {
+        alert(`Driver "${selDriver.name}" is currently in use on an active delivery and cannot be assigned.`);
+        return;
+      }
+      const selVehicle = vehiclesData?.data?.find((v: any) => v.id.toString() === vehicleId);
+      if (selVehicle?.isBusy) {
+        alert(`Vehicle "${selVehicle.plateNumber || selVehicle.vehicleType}" is currently in use on an active delivery and cannot be assigned.`);
+        return;
+      }
       internalDispatchMutation.mutate();
     } else if (selectedOption === 'partner') {
       partnerDispatchMutation.mutate();
     }
   };
+
+  const selectedVehicleEval = vehicleId
+    ? vehiclesData?.evaluations?.find((e: any) => e.id.toString() === vehicleId)
+    : null;
 
   const isSubmitting = internalDispatchMutation.isPending || partnerDispatchMutation.isPending;
 
@@ -177,28 +240,142 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>Select Driver</label>
                   <select
                     value={driverId} onChange={(e) => setDriverId(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                    disabled={loadingDrivers}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', backgroundColor: loadingDrivers ? '#f1f5f9' : 'white' }}
                   >
-                    <option value="">-- Choose Driver --</option>
+                    <option value="">{loadingDrivers ? 'Loading drivers...' : '-- Choose Driver --'}</option>
                     {driversData?.data?.map((d: any) => (
-                      <option key={d.id} value={d.id}>{d.name} ({d.mobile})</option>
+                      <option key={d.id} value={d.id} disabled={d.isBusy} style={{ color: d.isBusy ? '#94a3b8' : 'inherit' }}>
+                        {d.name} ({d.mobile}) {d.isBusy ? '— (In Use / Delivering)' : ''}
+                      </option>
                     ))}
                   </select>
-                  {loadingDrivers && <span style={{ fontSize: '12px', color: '#64748b' }}>Loading drivers...</span>}
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>Select Vehicle</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '4px' }}>
+                    <label style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#475569' }}>Select Vehicle</label>
+                    {selectedVehicleEval && selectedVehicleEval.fits === false ? (
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5', padding: '2px 8px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertTriangle size={12} /> Does Not Fit Selected Vehicle
+                      </span>
+                    ) : vehiclesData?.suggestedVehicle ? (
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#16a34a', background: '#dcfce7', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '999px' }}>
+                        System Assigned: {vehiclesData.suggestedVehicle.vehicleType}
+                      </span>
+                    ) : loadingVehicles ? (
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>Calculating suitability...</span>
+                    ) : null}
+                  </div>
                   <select
                     value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                    disabled={loadingVehicles}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: selectedVehicleEval && selectedVehicleEval.fits === false ? '2px solid #ef4444' : '1px solid #cbd5e1',
+                      fontSize: '14px',
+                      outline: 'none',
+                      backgroundColor: selectedVehicleEval && selectedVehicleEval.fits === false ? '#fff5f5' : loadingVehicles ? '#f1f5f9' : 'white'
+                    }}
                   >
-                    <option value="">-- Choose Vehicle --</option>
-                    {vehiclesData?.data?.map((v: any) => (
-                      <option key={v.id} value={v.id}>{v.plateNumber} - {v.vehicleType}</option>
-                    ))}
+                    <option value="">{loadingVehicles ? 'Evaluating suitable vehicles...' : '-- Choose Vehicle --'}</option>
+                    {(() => {
+                      const list: any[] = [...(vehiclesData?.data || [])];
+                      const sv = vehiclesData?.suggestedVehicle;
+                      if (sv && !list.some((x: any) => x.id === sv.id)) list.unshift(sv);
+                      return list;
+                    })().map((v: any) => {
+                      const evaluation = vehiclesData?.evaluations?.find((e: any) => e.id === v.id);
+                      const isSuggested = v.id === vehiclesData.suggestedVehicleId;
+                      const doesNotFit = evaluation && evaluation.fits === false;
+                      const isBusy = v.isBusy;
+                      return (
+                        <option key={v.id} value={v.id} disabled={isBusy} style={{ color: isBusy ? '#94a3b8' : doesNotFit ? '#dc2626' : 'inherit' }}>
+                          {v.plateNumber ? `${v.plateNumber} · ` : ''}{v.vehicleType}
+                          {isBusy ? ' — (In Use / Delivering)' : isSuggested ? ' — System Assigned (Recommended)' : doesNotFit ? ' — ⚠️ Does Not Fit!' : ' — Fits Cargo ✓'}
+                        </option>
+                      );
+                    })}
                   </select>
-                  {loadingVehicles && <span style={{ fontSize: '12px', color: '#64748b' }}>Loading vehicles...</span>}
+
+                  {/* Warning Box when Selected Vehicle Will NOT Fit */}
+                  {selectedVehicleEval && selectedVehicleEval.fits === false ? (
+                    <div style={{
+                      marginTop: '10px',
+                      padding: '12px 16px',
+                      background: '#fef2f2',
+                      border: '1.5px solid #ef4444',
+                      borderRadius: '10px',
+                      color: '#991b1b',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '13px', color: '#b91c1c' }}>
+                        <AlertTriangle size={18} />
+                        <span>Warning: This Shipment Will NOT Fit in {selectedVehicleEval.vehicleType}!</span>
+                      </div>
+                      {vehiclesData?.suggestedVehicle && (
+                        <div style={{
+                          paddingTop: '8px',
+                          borderTop: '1px solid #fecaca',
+                          fontSize: '12px',
+                          color: '#15803d',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: '8px'
+                        }}>
+                          <span>System assigned vehicle: <strong>{vehiclesData.suggestedVehicle.vehicleType}</strong></span>
+                          <button
+                            type="button"
+                            onClick={() => setVehicleId(vehiclesData.suggestedVehicle.id.toString())}
+                            style={{
+                              background: '#16a34a',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '5px 12px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Switch to System Assigned Vehicle
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (selectedVehicleEval || vehiclesData?.suggestedVehicle) ? (
+                    /* Box when Vehicle Fits or Default Assigned */
+                    (() => {
+                      const displayVeh = selectedVehicleEval || vehiclesData?.suggestedVehicle;
+                      const isSuggested = displayVeh.id === vehiclesData?.suggestedVehicleId;
+                      return (
+                        <div style={{
+                          marginTop: '10px',
+                          padding: '12px 14px',
+                          background: '#f0fdf4',
+                          border: '1px solid #bbf7d0',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          color: '#166534',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '6px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '13px' }}>
+                            <span>{isSuggested ? '🚚 System Assigned Vehicle:' : '✓ Selected Vehicle:'}</span>
+                            <span>{displayVeh.vehicleType}</span>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -223,14 +400,31 @@ export function DispatchModal({ isOpen, onClose, deliveryId, tenantId, type = 'd
           </button>
           <button
             onClick={handleDispatch}
-            disabled={!selectedOption || isSubmitting}
+            disabled={!selectedOption || isSubmitting || (selectedOption === 'internal' && (!driverId || !vehicleId))}
             style={{
-              padding: '10px 24px', backgroundColor: '#3b82f6', border: 'none', borderRadius: '8px',
-              cursor: (!selectedOption || isSubmitting) ? 'not-allowed' : 'pointer',
-              fontWeight: 600, color: 'white', opacity: (!selectedOption || isSubmitting) ? 0.7 : 1
+              padding: '10px 24px',
+              backgroundColor: (selectedOption === 'internal' && selectedVehicleEval?.fits === false) ? '#d97706' : '#3b82f6',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: (!selectedOption || isSubmitting || (selectedOption === 'internal' && (!driverId || !vehicleId))) ? 'not-allowed' : 'pointer',
+              fontWeight: 600,
+              color: 'white',
+              opacity: (!selectedOption || isSubmitting || (selectedOption === 'internal' && (!driverId || !vehicleId))) ? 0.6 : 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px'
             }}
           >
-            {isSubmitting ? 'Dispatching...' : 'Confirm Dispatch'}
+            {isSubmitting ? (
+              'Dispatching...'
+            ) : (selectedOption === 'internal' && selectedVehicleEval?.fits === false) ? (
+              <>
+                <AlertTriangle size={16} />
+                <span>Confirm Dispatch (Proceed with Warning)</span>
+              </>
+            ) : (
+              'Confirm Dispatch'
+            )}
           </button>
         </div>
       </div>

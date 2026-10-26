@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { X, User, MapPin, Package, CheckCircle2 } from 'lucide-react';
+import { patchLeaflet } from '@/lib/leaflet-fix';
 
 // Inject Leaflet CSS once
 if (typeof window !== 'undefined' && !document.getElementById('leaflet-css')) {
@@ -90,20 +91,18 @@ export function AddCustomerModal({ isOpen, onClose, context, onSuccess }: AddCus
 
     const timeout = setTimeout(() => {
       import('leaflet').then((L) => {
+        patchLeaflet(L);
         if (!mapRef.current || leafletMapRef.current) return;
-        delete (L.Icon.Default.prototype as any)._getIconUrl;
-        L.Icon.Default.mergeOptions({
-          iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-          iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-          shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        });
+        if ((mapRef.current as any)._leaflet_id) {
+          (mapRef.current as any)._leaflet_id = null;
+        }
 
         const map = L.map(mapRef.current!).setView([14.5995, 120.9842], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        map.on('click', (e: any) => {
+        map.on('click', async (e: any) => {
           const { lat, lng } = e.latlng;
           setCoords({ lat, lng });
           setErrors(prev => ({ ...prev, coords: '' }));
@@ -112,6 +111,22 @@ export function AddCustomerModal({ isOpen, onClose, context, onSuccess }: AddCus
           } else {
             markerRef.current = L.marker([lat, lng]).addTo(map);
           }
+
+          try {
+            const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+              headers: {
+                'Accept-Language': 'en',
+                'User-Agent': 'GETDelivery/1.0 (getdelivery@gmail.com)'
+              }
+            });
+            if (r.ok) {
+              const data = await r.json();
+              if (data.display_name) {
+                setForm(p => ({ ...p, address: data.display_name }));
+                setSearchQuery(data.display_name);
+              }
+            }
+          } catch {}
         });
 
         leafletMapRef.current = map;
@@ -124,7 +139,10 @@ export function AddCustomerModal({ isOpen, onClose, context, onSuccess }: AddCus
   useEffect(() => {
     if (!isOpen) {
       if (leafletMapRef.current) {
-        leafletMapRef.current.remove();
+        try {
+          leafletMapRef.current.off();
+          leafletMapRef.current.remove();
+        } catch {}
         leafletMapRef.current = null;
         markerRef.current = null;
       }
@@ -184,13 +202,16 @@ export function AddCustomerModal({ isOpen, onClose, context, onSuccess }: AddCus
     setErrors(prev => ({ ...prev, coords: '' }));
 
     import('leaflet').then((L) => {
+      patchLeaflet(L);
       if (!leafletMapRef.current) return;
-      leafletMapRef.current.setView([lat, lng], 16);
-      if (markerRef.current) {
-        markerRef.current.setLatLng([lat, lng]);
-      } else {
-        markerRef.current = L.marker([lat, lng]).addTo(leafletMapRef.current);
-      }
+      try {
+        leafletMapRef.current.setView([lat, lng], 16, { animate: false });
+        if (markerRef.current) {
+          markerRef.current.setLatLng([lat, lng]);
+        } else {
+          markerRef.current = L.marker([lat, lng]).addTo(leafletMapRef.current);
+        }
+      } catch {}
     });
   };
 
@@ -199,9 +220,8 @@ export function AddCustomerModal({ isOpen, onClose, context, onSuccess }: AddCus
     if (!form.customerName.trim()) errs.customerName = 'Customer name is required';
     if (!form.contactNumber.trim()) errs.contactNumber = 'Contact number is required';
     else if (!/^[0-9+\-\s()]{7,20}$/.test(form.contactNumber.trim())) errs.contactNumber = 'Enter a valid contact number';
-    if (!form.address.trim()) errs.address = 'Address is required';
-    if (!form.landmark.trim()) errs.landmark = 'Landmark is required';
     if (!coords) errs.coords = 'Please pin the customer location on the map';
+    if (!form.landmark.trim()) errs.landmark = 'Landmark is required';
     const qty = parseInt(form.quantity, 10);
     if (!form.quantity || isNaN(qty) || qty <= 0) errs.quantity = 'Quantity must be greater than 0';
     else {
@@ -220,15 +240,19 @@ export function AddCustomerModal({ isOpen, onClose, context, onSuccess }: AddCus
       const qty = parseInt(form.quantity, 10);
       const su = context?.sellingUnits.find((s: SellingUnit) => s.id.toString() === form.sellingUnitId);
       const unit = su?.unitName || context?.unit || 'pcs';
+      const resolvedAddress = form.address.trim() || searchQuery.trim() || form.landmark.trim() || (coords ? `Pinned Location (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)})` : 'Warehouse Delivery');
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch(`/api/deliveries/${context!.deliveryId}/add-orders`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers,
         body: JSON.stringify({
           itemId: context!.itemId,
           customerName: form.customerName.trim(),
           contactNumber: form.contactNumber.trim(),
-          address: form.address.trim(),
+          address: resolvedAddress,
           landmark: form.landmark.trim(),
           lat: coords!.lat,
           lng: coords!.lng,
@@ -308,11 +332,6 @@ export function AddCustomerModal({ isOpen, onClose, context, onSuccess }: AddCus
                   <label style={labelStyle}>Contact Number <span style={{ color: '#ef4444' }}>*</span></label>
                   <input type="tel" style={{ ...inputStyle, borderColor: errors.contactNumber ? '#ef4444' : '#e2e8f0' }} placeholder="09123456789" value={form.contactNumber} onChange={e => { setForm(p => ({ ...p, contactNumber: e.target.value })); setErrors(p => ({ ...p, contactNumber: '' })); }} />
                   {errors.contactNumber && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '3px' }}>{errors.contactNumber}</div>}
-                </div>
-                <div>
-                  <label style={labelStyle}>Complete Delivery Address <span style={{ color: '#ef4444' }}>*</span></label>
-                  <textarea style={{ ...inputStyle, minHeight: '68px', resize: 'vertical' as const, borderColor: errors.address ? '#ef4444' : '#e2e8f0' }} placeholder="House No., Street, Barangay, City..." value={form.address} onChange={e => { setForm(p => ({ ...p, address: e.target.value })); setErrors(p => ({ ...p, address: '' })); }} />
-                  {errors.address && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '3px' }}>{errors.address}</div>}
                 </div>
                 <div>
                   <label style={labelStyle}>Landmark <span style={{ color: '#ef4444' }}>*</span></label>
@@ -419,6 +438,11 @@ export function AddCustomerModal({ isOpen, onClose, context, onSuccess }: AddCus
               {coords && (
                 <div style={{ marginTop: '6px', fontSize: '12px', color: '#16a34a', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
                   <CheckCircle2 size={13} /> Location pinned
+                  {(form.address || searchQuery) && (
+                    <span style={{ color: '#475569', fontWeight: 500, fontSize: '11px', marginLeft: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '350px' }}>
+                      ({form.address || searchQuery})
+                    </span>
+                  )}
                 </div>
               )}
             </div>

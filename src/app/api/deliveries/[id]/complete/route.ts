@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { deliveryOrders, deliveryAssignments, drivers, vehicles } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { clearVehicleDeliveryCache } from '@/lib/deliveryCalculation';
 
 export async function POST(
   request: Request,
@@ -17,32 +18,34 @@ export async function POST(
 
     const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
       ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
-      : claims.tenantId) as number;
-
-    if (isNaN(tenantIdToUse)) {
-      return NextResponse.json({ error: 'Tenant context is missing or invalid' }, { status: 400 });
-    }
+      : claims.tenantId) as number | null;
 
     const [order] = await tx
       .select()
       .from(deliveryOrders)
-      .where(and(
+      .where(tenantIdToUse ? and(
         eq(deliveryOrders.id, orderId),
         eq(deliveryOrders.tenantId, tenantIdToUse)
-      ));
+      ) : eq(deliveryOrders.id, orderId));
 
     if (!order) {
       return NextResponse.json({ error: 'Delivery order not found' }, { status: 404 });
     }
 
     if (!['DISPATCHED', 'IN_TRANSIT'].includes(order.status)) {
-      return NextResponse.json({ error: `Only DISPATCHED or IN_TRANSIT orders can be completed. Current status: ${order.status}` }, { status: 400 });
+      return NextResponse.json({ error: `Only active own-fleet orders (DISPATCHED or IN_TRANSIT) can be completed. Current status: ${order.status}` }, { status: 400 });
+    }
+
+    if (order.temporaryWinnerId || order.partnerDriverName || order.status === 'ACCEPTED' || order.status === 'WAITING_FOR_PARTNER') {
+      return NextResponse.json({
+        error: 'This delivery was broadcasted or assigned to a delivery partner. It must be completed by the delivery partner upon drop-off.'
+      }, { status: 400 });
     }
 
     // 1. Update order status to DELIVERED
     await tx
       .update(deliveryOrders)
-      .set({ status: 'DELIVERED' })
+      .set({ status: 'DELIVERED', completedAt: new Date() })
       .where(eq(deliveryOrders.id, order.id));
 
     // 2. Update assignment status if exists
@@ -60,12 +63,14 @@ export async function POST(
 
       await tx.update(drivers)
         .set({ status: 'ACTIVE' })
-        .where(and(eq(drivers.tenantId, tenantIdToUse), eq(drivers.name, driverName)));
+        .where(and(eq(drivers.tenantId, order.tenantId), eq(drivers.name, driverName)));
         
       await tx.update(vehicles)
         .set({ status: 'ACTIVE' })
-        .where(and(eq(vehicles.tenantId, tenantIdToUse), eq(vehicles.plateNumber, plateNumber)));
+        .where(and(eq(vehicles.tenantId, order.tenantId), eq(vehicles.plateNumber, plateNumber)));
     }
+
+    clearVehicleDeliveryCache();
 
     return NextResponse.json({ success: true, message: 'Delivery completed successfully' });
   });

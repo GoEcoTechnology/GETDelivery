@@ -28,6 +28,18 @@ interface CustomerOrder {
   deliveryDate?: string | Date | null;
   products: OrderProduct[];
   instructions?: string | null;
+  totalWeight?: string | number | null;
+  quota?: number | null;
+  suggestedVehicleId?: number | null;
+  vehicleCapacityKg?: number | null;
+  requiredVehicleType?: string | null;
+  preferredVehicle?: string | null;
+  vehicleBasePrice?: string | number | null;
+  pricePerKm?: string | number | null;
+  distanceKm?: string | number | null;
+  finalDeliveryPrice?: string | number | null;
+  basisProductId?: number | null;
+  basisVariantId?: number | null;
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -202,7 +214,21 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching, 
 
           {/* Right Column (Summary) */}
           <div style={{ flex: 1, background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '20px' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', marginTop: 0 }}>Order Summary</h3>
+            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', marginTop: 0 }}>Delivery & Payment</h3>
+
+            {order.preferredVehicle && (
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '12px', marginBottom: '16px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase' }}>Recommended Vehicle</div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+                  {order.preferredVehicle}
+                </div>
+                <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px', lineHeight: 1.4 }}>
+                  {order.totalWeight ? `Cargo: ${order.totalWeight} kg` : ''}
+                  {order.vehicleCapacityKg ? ` · Capacity: ${order.vehicleCapacityKg} kg` : ''}
+                  {order.distanceKm ? ` · Distance: ${Number(order.distanceKm).toFixed(2)} km` : ''}
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#475569' }}>
               <span>Subtotal</span>
@@ -212,7 +238,7 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching, 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#475569' }}>
               <span>Delivery Fee</span>
               <span style={{ fontWeight: 600 }}>
-                {(order.orderSource === 'MARKETPLACE' && !order.batchId) ? 'TBD' : (order.normalDeliveryFee ? formatCurrency(order.normalDeliveryFee) : 'TBD')}
+                {formatCurrency(Number(order.finalDeliveryPrice || order.normalDeliveryFee || 0))}
               </span>
             </div>
 
@@ -226,9 +252,7 @@ function OrderDetailsModal({ isOpen, onClose, order, onDispatch, isDispatching, 
             <div style={{ borderTop: '2px dashed #cbd5e1', margin: '16px 0', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '16px' }}>Total Amount</span>
               <span style={{ fontWeight: 800, color: '#4f46e5', fontSize: '20px' }}>
-                {(order.orderSource === 'MARKETPLACE' && !order.batchId) 
-                  ? `${formatCurrency(subtotal + (isUrgent ? Number(order.urgentAdditionalFee || 0) : 0))} + TBD` 
-                  : (order.normalDeliveryFee ? formatCurrency(total) : `${formatCurrency(subtotal + (isUrgent ? Number(order.urgentAdditionalFee || 0) : 0))} + TBD`)}
+                {formatCurrency(subtotal + Number(order.finalDeliveryPrice || order.normalDeliveryFee || 0) + (isUrgent ? Number(order.urgentAdditionalFee || 0) : 0))}
               </span>
             </div>
           </div>
@@ -250,6 +274,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [viewingOrder, setViewingOrder] = useState<CustomerOrder | null>(null);
   const [dispatchModalBatchId, setDispatchModalBatchId] = useState<number | null>(null);
+  const [dispatchModalTenantId, setDispatchModalTenantId] = useState<number | null>(null);
   const [selectedOrders, setSelectedOrders] = useState<Record<number, boolean>>({});
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [groupNameOverrides, setGroupNameOverrides] = useState<Record<string, string>>({});
@@ -333,6 +358,9 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
 
       if (data.batchIds && data.batchIds.length > 0) {
         setDispatchModalBatchId(data.batchIds[0]);
+        if (data.tenantId) {
+          setDispatchModalTenantId(data.tenantId);
+        }
       }
     },
     onError: (err: any) => showToast(err.message || 'Failed to dispatch order', 'error'),
@@ -370,6 +398,9 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
       
       if (data.batchIds && data.batchIds.length > 0) {
         setDispatchModalBatchId(data.batchIds[0]);
+        if (data.tenantId) {
+          setDispatchModalTenantId(data.tenantId);
+        }
       }
     },
     onError: (err: any) => showToast(err.message || 'Failed to dispatch orders', 'error'),
@@ -519,62 +550,86 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
   const marketplaceFiltered = filtered.filter(o => o.orderSource === 'MARKETPLACE' && !o.batchId);
 
   // Group marketplace orders by product
+  interface GroupOrderItem {
+    order: CustomerOrder;
+    quotaQuantity: number;
+    orderAmount: number;
+  }
+
   interface ProductGroup {
     productName: string;
+    variantId?: number;
     totalCustomers: number;
     totalQuantity: number;
     totalValue: number;
     urgentCount: number;
     quota: number;
-    orders: CustomerOrder[];
+    orders: GroupOrderItem[];
   }
 
   const marketplaceGroups: Record<string, ProductGroup> = {};
+
   for (const o of marketplaceFiltered) {
     if (!o.products || o.products.length === 0) continue;
 
-    // Use the primary product (first one) as the group to avoid splitting a single order
-    const p = o.products[0];
-    const unitSuffix = p.unit && !['piece', 'pcs', 'piece (s)', 'pieces'].includes(p.unit.toLowerCase()) ? ` - ${p.unit}` : '';
-    const key = p.productName + unitSuffix;
+    // Pick the basis product for the batch quota (do not separate the order into multiple cards)
+    const basisProd = (o.basisVariantId && o.products.find(p => p.variantId === o.basisVariantId)) || o.products[0];
+    const unitSuffix = basisProd.unit && !['piece', 'pcs', 'piece (s)', 'pieces'].includes(basisProd.unit.toLowerCase()) ? ` - ${basisProd.unit}` : '';
+    const key = basisProd.productName + unitSuffix;
 
     if (!marketplaceGroups[key]) {
       marketplaceGroups[key] = {
         productName: key,
+        variantId: basisProd.variantId,
         totalCustomers: 0,
         totalQuantity: 0,
         totalValue: 0,
         urgentCount: 0,
-        quota: p.quota || 50,
+        quota: basisProd.quota || 50,
         orders: []
       };
     }
 
-    marketplaceGroups[key].orders.push(o);
+    // Only count the product in this order that matches this batch quota product
+    const quotaProducts = o.products.filter(prod => {
+      if (basisProd.variantId && prod.variantId) {
+        return prod.variantId === basisProd.variantId;
+      }
+      const prodUnitSuffix = prod.unit && !['piece', 'pcs', 'piece (s)', 'pieces'].includes(prod.unit.toLowerCase()) ? ` - ${prod.unit}` : '';
+      const prodKey = prod.productName + prodUnitSuffix;
+      return prodKey === key;
+    });
+
+    const quotaQuantity = quotaProducts.reduce(
+      (sum, p) => sum + (p.quantity * (p.equivalentQty ? Number(p.equivalentQty) : 1)),
+      0
+    );
+
+    const orderAmount = o.products.reduce(
+      (sum, p) => sum + (Number(p.unitPrice || 0) * p.quantity),
+      0
+    );
+
+    marketplaceGroups[key].orders.push({
+      order: o,
+      quotaQuantity,
+      orderAmount
+    });
+
     marketplaceGroups[key].totalCustomers++;
     if (o.deliveryPriority === 'URGENT') {
       marketplaceGroups[key].urgentCount++;
     }
-
-    // Sum up the quantities and values of all products in this single order
-    let orderQty = 0;
-    let orderValue = 0;
-    for (const prod of o.products) {
-      const eqQty = prod.equivalentQty ? Number(prod.equivalentQty) : 1;
-      orderQty += prod.quantity * eqQty;
-      orderValue += (Number(prod.unitPrice || 0) * prod.quantity);
-    }
-
-    marketplaceGroups[key].totalQuantity += orderQty;
-    marketplaceGroups[key].totalValue += orderValue;
+    marketplaceGroups[key].totalQuantity += quotaQuantity;
+    marketplaceGroups[key].totalValue += orderAmount;
   }
 
   // Sort orders within each group so URGENT is at the top
   const sortedMarketplaceGroups = Object.values(marketplaceGroups).map(g => {
     g.orders.sort((a, b) => {
-      if (a.deliveryPriority === 'URGENT' && b.deliveryPriority !== 'URGENT') return -1;
-      if (b.deliveryPriority === 'URGENT' && a.deliveryPriority !== 'URGENT') return 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (a.order.deliveryPriority === 'URGENT' && b.order.deliveryPriority !== 'URGENT') return -1;
+      if (b.order.deliveryPriority === 'URGENT' && a.order.deliveryPriority !== 'URGENT') return 1;
+      return new Date(b.order.createdAt).getTime() - new Date(a.order.createdAt).getTime();
     });
     return g;
   });
@@ -605,8 +660,12 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
 
       <DispatchModal
         isOpen={dispatchModalBatchId !== null}
-        onClose={() => setDispatchModalBatchId(null)}
+        onClose={() => {
+          setDispatchModalBatchId(null);
+          setDispatchModalTenantId(null);
+        }}
         deliveryId={dispatchModalBatchId}
+        tenantId={dispatchModalTenantId}
         type="batch"
         onDispatchComplete={() => {
           showToast('Batch broadcasted successfully!', 'success');
@@ -674,14 +733,14 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                       }
 
                       if (draggedOrderIds.length > 0) {
-                        const existingGroupOrderIds = group.orders.map(o => o.id);
+                        const existingGroupOrderIds = group.orders.map(o => o.order.id);
                         const combinedOrderIds = Array.from(new Set([...draggedOrderIds, ...existingGroupOrderIds]));
 
                         // Automatically create batch without popup as requested by the user for non-"Create New Batch" areas
                         batchDispatchMutation.mutate({
                           orderIds: combinedOrderIds,
                           batchName: groupNameOverrides[group.productName] || group.productName,
-                          basisVariantId: undefined
+                          basisVariantId: group.variantId || group.orders[0]?.order.products?.[0]?.variantId
                         });
                       }
                     }}
@@ -785,8 +844,9 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                             </tr>
                           </thead>
                           <tbody>
-                            {group.orders.map(order => {
-                              const p = order.products.find(prod => prod.productName === group.productName) || order.products[0];
+                            {group.orders.map(item => {
+                              const order = item.order;
+                              const p = (order.basisVariantId && order.products?.find(prod => prod.variantId === order.basisVariantId)) || order.products?.find(prod => prod.productName === group.productName) || order.products?.[0];
                               const isOrderUrgent = order.deliveryPriority === 'URGENT';
                               const rowActing = actingId?.id === order.id;
                               const isDeleting = actingId?.id === order.id && actingId?.action === 'delete';
@@ -848,7 +908,7 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                                         else acc[key].quantity += prod.quantity;
                                         return acc;
                                       }, {})).map((prod: any) => (
-                                        <div key={prod.itemId} style={{ fontSize: '12px', color: '#475569', marginBottom: '2px' }}>
+                                        <div key={prod.itemId || prod.productName} style={{ fontSize: '12px', color: '#475569', marginBottom: '2px' }}>
                                           {prod.productName}{prod.variantStr} {prod.unitSuffix}x{prod.quantity}
                                         </div>
                                       ))}
@@ -856,12 +916,12 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                                   </td>
                                   <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
                                     <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>
-                                      {order.products.reduce((acc, prod) => acc + (prod.quantity * (prod.equivalentQty ? Number(prod.equivalentQty) : 1)), 0)}
+                                      {item.quotaQuantity}
                                     </div>
                                   </td>
                                   <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
                                     <div style={{ fontWeight: 600, color: '#475569', fontSize: '14px' }}>
-                                      {formatCurrency(order.products.reduce((acc, prod) => acc + (Number(prod.unitPrice || 0) * prod.quantity), 0))}
+                                      {formatCurrency(item.orderAmount)}
                                     </div>
                                   </td>
                                   <td style={{ padding: '16px', textAlign: 'center', verticalAlign: 'middle', cursor: 'pointer' }} onClick={() => setViewingOrder(order)}>
@@ -906,9 +966,13 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                           <button
                             disabled={isBatchDispatching}
                             onClick={() => {
-                              const orderIds = group.orders.map((o: any) => o.id);
+                              const orderIds = group.orders.map(item => item.order.id);
                               if (orderIds.length > 0) {
-                                batchDispatchMutation.mutate({ orderIds, batchName: groupNameOverrides[group.productName] || group.productName, basisVariantId: group.orders[0]?.products?.[0]?.variantId });
+                                batchDispatchMutation.mutate({
+                                  orderIds,
+                                  batchName: groupNameOverrides[group.productName] || group.productName,
+                                  basisVariantId: group.variantId || group.orders[0]?.order.products?.[0]?.variantId
+                                });
                               }
                             }}
                             style={{
@@ -1036,12 +1100,26 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                           <span>{totalCustomers} Customers</span>
                           <span style={{ color: '#cbd5e1' }}>•</span>
                           <span>{batch.totalQuantity} Ordered</span>
                           <span style={{ color: '#cbd5e1' }}>•</span>
                           <span>Quota: {batch.quotaQuantity}</span>
+                          {batch.totalWeight && Number(batch.totalWeight) > 0 && (
+                            <>
+                              <span style={{ color: '#cbd5e1' }}>•</span>
+                              <span>Cargo: {Number(batch.totalWeight).toFixed(1)} kg</span>
+                            </>
+                          )}
+                          {batch.suggestedVehicleType && (
+                            <>
+                              <span style={{ color: '#cbd5e1' }}>•</span>
+                              <span style={{ color: '#2563eb', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <Truck size={14} /> {batch.suggestedVehicleType}
+                              </span>
+                            </>
+                          )}
                           <span style={{ color: '#cbd5e1' }}>•</span>
                           <span style={{ fontWeight: 600, color: '#16a34a' }}>
                             {formatCurrency(batch.items?.reduce((sum: number, it: any) => sum + (Number(it.offeredAmount || 0) + Number(it.finalDeliveryPrice || 0)), 0) || 0)}
@@ -1239,10 +1317,20 @@ export default function OrdersClient({ initialOrders }: { initialOrders: Custome
                           </tbody>
                         </table>
                         {/* Footer Action Buttons */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#334155' }}>
+                            {batch.suggestedVehicleType && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', fontWeight: 600, color: '#1d4ed8' }}>
+                                <Truck size={14} /> System Assigned Vehicle: {batch.suggestedVehicleType}
+                              </span>
+                            )}
+                          </div>
                           <div style={{ display: 'flex', gap: '12px' }}>
                             <button
-                              onClick={() => setDispatchModalBatchId(batch.id)}
+                              onClick={() => {
+                                setDispatchModalBatchId(batch.id);
+                                setDispatchModalTenantId(batch.tenantId || null);
+                              }}
                               style={{
                                 padding: '8px 16px',
                                 borderRadius: '8px',

@@ -33,6 +33,7 @@ interface OrderItem {
 }
 
 function formatPHP(amount: number): string {
+  if (isNaN(amount) || amount === null || amount === undefined) return '₱0.00';
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
 }
 
@@ -54,6 +55,7 @@ interface Props {
 
 export default function CreateDeliveryModal({ isOpen, onClose, onCreated }: Props) {
   const [loading, setLoading] = useState(false);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [vehicleRates, setVehicleRates] = useState<any[]>([]);
@@ -68,15 +70,18 @@ export default function CreateDeliveryModal({ isOpen, onClose, onCreated }: Prop
   useEffect(() => {
     if (!isOpen) return;
     const token = localStorage.getItem('token') || '';
-    const headers = { Authorization: `Bearer ${token}` };
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    setProductsLoading(true);
     // Fetch products with variants
     fetch('/api/products/with-variants', { headers })
       .then(r => r.json())
       .then(json => {
         setProducts(json.data || []);
       })
-      .catch(() => setProducts([]));
+      .catch(() => setProducts([]))
+      .finally(() => setProductsLoading(false));
 
     // Fetch customers
     fetch('/api/customers?limit=500', { headers })
@@ -113,25 +118,30 @@ export default function CreateDeliveryModal({ isOpen, onClose, onCreated }: Prop
     setLoading(true);
     try {
       const token = localStorage.getItem('token') || '';
-      const payload = {
+      const selectedProduct = products.find(p => p.id === parseInt(productId, 10));
+      const payload: any = {
         customerName: finalBatchName, // Storing batch name in customerName for now
         pickupAddress: 'Warehouse',
         dropoffAddress: 'Marketplace Batch',
         deliveryDate,
         quota: Number(quota),
         orderSource: 'CREATED',
+        tenantId: (selectedProduct as any)?.tenantId,
         items: [
           {
-            productId: parseInt(productId),
-            variantId: parseInt(variantId),
+            productId: parseInt(productId, 10),
+            variantId: parseInt(variantId, 10),
             quantity: 0, // Initial quantity is 0, wait for customers
           }
         ],
       };
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch('/api/deliveries', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers,
         body: JSON.stringify(payload),
       });
       const data = await res.json();
@@ -190,10 +200,12 @@ export default function CreateDeliveryModal({ isOpen, onClose, onCreated }: Prop
                   setVariantId(vId);
                 }}
               >
-                <option value="" disabled>Select product & variant</option>
+                <option value="" disabled>
+                  {productsLoading ? 'Loading products & variants...' : (products.length === 0 ? 'No products available' : 'Select product & variant')}
+                </option>
                 {products.map(p => (
                   <optgroup key={p.id} label={p.name}>
-                    {p.variants.map(v => (
+                    {(p.variants || []).map(v => (
                       <option key={`${p.id}-${v.id}`} value={`${p.id}-${v.id}`}>
                         {v.name} — Stock: {v.stock}{v.price ? ` · ${formatPHP(Number(v.price))}` : ''}
                       </option>

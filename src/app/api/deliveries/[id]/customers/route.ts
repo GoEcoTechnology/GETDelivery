@@ -11,7 +11,9 @@ export async function GET(
     const id = parseInt((await params).id, 10);
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 
-    const tenantIdToUse = claims.tenantId as number;
+    const tenantIdToUse = (claims.role === 'PLATFORM_OWNER' && request.headers.get('x-tenant-id')
+      ? parseInt(request.headers.get('x-tenant-id') || '0', 10)
+      : claims.tenantId) as number | null;
 
     const subOrders = await tx
       .select({
@@ -23,10 +25,10 @@ export async function GET(
         createdAt: deliveryOrders.createdAt,
       })
       .from(deliveryOrders)
-      .where(and(
+      .where(tenantIdToUse ? and(
         eq(deliveryOrders.tenantId, tenantIdToUse),
         eq(deliveryOrders.parentOrderId, id)
-      ));
+      ) : eq(deliveryOrders.parentOrderId, id));
 
     const subOrderIds = subOrders.map((o: any) => o.id);
     const data = subOrders.map((o: any) => ({ ...o, items: [] as any[] }));
