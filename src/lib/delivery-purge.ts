@@ -12,18 +12,20 @@ import {
 import { and, eq, inArray, lte, or, sql } from 'drizzle-orm';
 
 /**
- * Automatically purges records older than 1 month (30 days):
+ * Automatically purges old records:
  * 1. Cancelled orders older than 1 month (30 days).
  * 2. Completed deliveries (orders and batches) for both delivery partners and business owners older than 1 month (30 days).
  * 3. Audit logs older than 1 month (30 days).
  * 4. Expired or declined delivery invitations older than 1 month (30 days).
- * 5. Read notifications older than 1 month (30 days).
+ * 5. Read notifications older than 2 weeks (14 days).
  * 6. Inventory transactions & stock history older than 1 month (30 days).
  */
 export async function purgeExpiredDeliveries(tenantId?: number | null) {
   try {
     const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
     const cutoffDate = new Date(Date.now() - ONE_MONTH_MS);
+    const notificationsCutoff = new Date(Date.now() - TWO_WEEKS_MS);
 
     let purgedCancelledCount = 0;
     let purgedCompletedOrdersCount = 0;
@@ -138,14 +140,14 @@ export async function purgeExpiredDeliveries(tenantId?: number | null) {
       purgedInvitationsCount = expiredInvitationIds.length;
     }
 
-    // 6. Purge read notifications older than 1 month (30 days)
+    // 6. Purge read notifications older than 2 weeks (14 days)
     const expiredNotifs = await db
       .select({ id: notifications.id })
       .from(notifications)
       .where(
         and(
           eq(notifications.status, 'READ'),
-          lte(notifications.createdAt, cutoffDate),
+          lte(notifications.createdAt, notificationsCutoff),
           tenantId ? eq(notifications.tenantId, tenantId) : undefined
         )
       );

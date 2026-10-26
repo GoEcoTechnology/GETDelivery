@@ -2,10 +2,14 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { sql } from 'drizzle-orm';
 import { withAuth } from '@/lib/api-helper';
+import { purgeExpiredDeliveries } from '@/lib/delivery-purge';
 
 export async function GET(request: Request) {
   return withAuth(request, { requiredPermissions: [] }, async (tx, claims) => {
     try {
+      // Auto-purge expired notifications and deliveries
+      await purgeExpiredDeliveries(claims.tenantId as number | null | undefined).catch(() => {});
+
       const url = new URL(request.url);
       const limit = parseInt(url.searchParams.get('limit') || '20', 10);
       const offset = parseInt(url.searchParams.get('offset') || '0', 10);

@@ -153,7 +153,7 @@ export default function InventoryHistoryPage() {
                       <div style={{ fontWeight: 700, marginBottom: '2px', color: '#fde047', display: 'flex', alignItems: 'center', gap: '5px' }}>
                         <Info size={13} /> Data Retention Policy
                       </div>
-                      Records here and in the database are <strong>automatically removed after 1 month (30 days)</strong> to optimize system performance. Please export your history beforehand.
+                      Records here are <strong>automatically removed after 1 month (30 days)</strong> to optimize system performance. Please export your history beforehand.
                     </div>
                   )}
                 </div>
