@@ -81,12 +81,12 @@ export default function DeliveriesClient({ initialData, defaultTab }: { initialD
   const { data: completedCreatedDeliveries = [] } = useQuery({
     queryKey: ['admin-completed-created-deliveries'],
     queryFn: async () => {
-      const res = await fetch('/api/deliveries?page=1&limit=500', {
+      const res = await fetch('/api/deliveries?page=1&limit=500&status=DELIVERED,COMPLETED', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
       });
       if (!res.ok) return [];
       const json = await res.json();
-      return (json.data || []).filter((d: any) => d.status === 'DELIVERED' || d.status === 'COMPLETED');
+      return json.data || [];
     },
     enabled: activeTab === 'COMPLETED',
     staleTime: 30 * 1000,

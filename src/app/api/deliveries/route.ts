@@ -44,7 +44,12 @@ export async function GET(request: Request) {
       conditions.push(eq(deliveryOrders.tenantId, tenantIdToUse));
     }
     if (statusFilter) {
-      conditions.push(eq(deliveryOrders.status, statusFilter));
+      if (statusFilter.includes(',')) {
+        const statuses = statusFilter.split(',').map(s => s.trim()).filter(Boolean);
+        conditions.push(inArray(deliveryOrders.status, statuses));
+      } else {
+        conditions.push(eq(deliveryOrders.status, statusFilter));
+      }
     }
 
     const whereClause = and(...conditions);

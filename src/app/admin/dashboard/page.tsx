@@ -5,7 +5,7 @@ import DashboardClient from './DashboardClient';
 import styles from '../admin.module.css';
 import { db } from '@/db';
 import { deliveryOrders, tenants, customers } from '@/db/schema';
-import { eq, inArray, and } from 'drizzle-orm';
+import { eq, inArray, and, desc } from 'drizzle-orm';
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
   const cookieStore = await cookies();
@@ -55,7 +55,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     })
     .from(deliveryOrders)
     .leftJoin(customers, eq(deliveryOrders.customerId, customers.id))
-    .where(finalWhere);
+    .where(finalWhere)
+    .orderBy(desc(deliveryOrders.createdAt))
+    .limit(200);
 
   const calendarDeliveries = rawDeliveries.map((d: any) => ({
     id: d.id,

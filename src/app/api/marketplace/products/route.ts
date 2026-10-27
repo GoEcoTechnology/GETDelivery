@@ -9,6 +9,32 @@ export async function GET(request: Request) {
     const tenantIdParam = searchParams.get('tenantId');
     const search = searchParams.get('search');
 
+    const conditions: any[] = [
+      eq(products.status, 'ACTIVE'),
+      eq(tenants.status, 'ACTIVE'),
+      eq(products.isMarketplace, true),
+    ];
+
+    if (tenantIdParam) {
+      conditions.push(eq(products.tenantId, parseInt(tenantIdParam, 10)));
+    }
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      const { or, ilike } = await import('drizzle-orm');
+      conditions.push(
+        or(
+          ilike(products.name, searchPattern),
+          ilike(tenants.name, searchPattern)
+        )
+      );
+    }
+
+    const categoryParam = searchParams.get('category');
+    if (categoryParam && categoryParam !== 'All') {
+      conditions.push(eq(products.category, categoryParam));
+    }
+
     let query = db
       .select({
         id: products.id,
@@ -24,26 +50,9 @@ export async function GET(request: Request) {
       })
       .from(products)
       .leftJoin(tenants, eq(products.tenantId, tenants.id))
-      .where(
-        and(
-          eq(products.status, 'ACTIVE'),
-          eq(tenants.status, 'ACTIVE')
-        )
-      )
-      .$dynamic();
+      .where(and(...conditions));
 
-    const results = await query;
-    
-    let filteredResults = results;
-    
-    if (tenantIdParam) {
-      filteredResults = filteredResults.filter(p => p.tenantId === parseInt(tenantIdParam));
-    }
-    
-    if (search) {
-      const s = search.toLowerCase();
-      filteredResults = filteredResults.filter(p => p.name.toLowerCase().includes(s) || (p.tenantName && p.tenantName.toLowerCase().includes(s)));
-    }
+    let filteredResults = await query;
 
     if (filteredResults.length > 0) {
       const productIds = filteredResults.map(p => p.id);

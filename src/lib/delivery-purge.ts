@@ -20,12 +20,26 @@ import { and, eq, inArray, lte, or, sql } from 'drizzle-orm';
  * 5. Read notifications older than 2 weeks (14 days).
  * 6. Inventory transactions & stock history older than 1 month (30 days).
  */
+// In-memory throttle to prevent executing heavy purge queries on every single GET request.
+// Purges will run at most once every 10 minutes per tenant (or platform-wide).
+const lastPurgeTimestamps = new Map<string, number>();
+const PURGE_THROTTLE_MS = 10 * 60 * 1000; // 10 minutes
+
 export async function purgeExpiredDeliveries(tenantId?: number | null) {
+  const cacheKey = tenantId ? String(tenantId) : 'global';
+  const now = Date.now();
+  const lastRun = lastPurgeTimestamps.get(cacheKey) || 0;
+
+  if (now - lastRun < PURGE_THROTTLE_MS) {
+    return { success: true, throttled: true };
+  }
+  lastPurgeTimestamps.set(cacheKey, now);
+
   try {
     const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
     const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
-    const cutoffDate = new Date(Date.now() - ONE_MONTH_MS);
-    const notificationsCutoff = new Date(Date.now() - TWO_WEEKS_MS);
+    const cutoffDate = new Date(now - ONE_MONTH_MS);
+    const notificationsCutoff = new Date(now - TWO_WEEKS_MS);
 
     let purgedCancelledCount = 0;
     let purgedCompletedOrdersCount = 0;

@@ -21,13 +21,13 @@ export default function PlatformDashboard() {
       .then(data => { if (data?.platform) setPlatform(data.platform); })
       .catch(console.error);
 
-    // Fetch pending lists for quick-action
+    // Fetch pending lists for quick-action (server-side filtered for performance)
     Promise.all([
-      fetch('/api/tenants', { headers }).then(r => r.ok ? r.json() : { data: [] }),
-      fetch('/api/partners', { headers }).then(r => r.ok ? r.json() : { data: [] })
+      fetch('/api/tenants?status=PENDING&limit=5', { headers }).then(r => r.ok ? r.json() : { data: [] }),
+      fetch('/api/partners?status=PENDING&limit=5', { headers }).then(r => r.ok ? r.json() : { data: [] })
     ]).then(([tRes, pRes]) => {
-      setPendingTenants((tRes.data || []).filter((t: any) => t.status === 'PENDING').slice(0, 5));
-      setPendingPartners((pRes.data || []).filter((p: any) => p.status === 'PENDING').slice(0, 5));
+      setPendingTenants(tRes.data || []);
+      setPendingPartners(pRes.data || []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);

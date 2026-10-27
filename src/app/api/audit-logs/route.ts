@@ -14,6 +14,10 @@ export async function GET(request: Request) {
       console.error('Error during auto-purge in audit-logs route:', err);
     });
     
+    const { searchParams } = new URL(request.url);
+    const limitParam = parseInt(searchParams.get('limit') || '200', 10);
+    const limit = Math.min(Math.max(1, limitParam), 2000);
+
     let baseQuery = tx.select({
       id: auditLogs.id,
       action: auditLogs.action,
@@ -28,7 +32,7 @@ export async function GET(request: Request) {
     .from(auditLogs)
     .leftJoin(users, eq(auditLogs.actorId, users.id))
     .orderBy(desc(auditLogs.createdAt))
-    .limit(500);
+    .limit(limit);
 
     if (tenantIdToUse) {
       baseQuery = baseQuery.where(eq(auditLogs.tenantId, tenantIdToUse as number));

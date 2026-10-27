@@ -23,15 +23,11 @@ export default async function AdminOrdersPage() {
   const isPlatformOwner = claims.role === 'PLATFORM_OWNER';
   if (!tenantId && !isPlatformOwner) redirect('/login');
 
-  // Fetch orders for this tenant (or all marketplace orders if platform owner)
-  const queryCondition = tenantId
-    ? and(eq(deliveryOrders.tenantId, tenantId), eq(deliveryOrders.orderSource, 'MARKETPLACE'))
-    : eq(deliveryOrders.orderSource, 'MARKETPLACE');
-
+  // Fetch orders for this tenant (or all orders if platform owner)
   const data = await db
     .select()
     .from(deliveryOrders)
-    .where(queryCondition)
+    .where(tenantId ? eq(deliveryOrders.tenantId, tenantId) : undefined)
     .orderBy(desc(deliveryOrders.createdAt));
 
   const orderIds = data.map(o => o.id);

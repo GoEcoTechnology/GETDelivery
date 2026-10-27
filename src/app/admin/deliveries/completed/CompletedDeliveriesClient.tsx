@@ -133,12 +133,12 @@ export default function CompletedDeliveriesClient() {
   const { data: createdDeliveries = [], isLoading: loadingCreated, refetch: refetchCreated } = useQuery({
     queryKey: ['completed-created-deliveries'],
     queryFn: async () => {
-      const res = await fetch('/api/deliveries?page=1&limit=500', {
+      const res = await fetch('/api/deliveries?page=1&limit=500&status=DELIVERED,COMPLETED', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
       });
       if (!res.ok) return [];
       const json = await res.json();
-      return (json.data || []).filter((d: any) => d.status === 'DELIVERED' || d.status === 'COMPLETED');
+      return json.data || [];
     },
     refetchInterval: 30_000,
   });
