@@ -54,11 +54,20 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Invalid price per kilometer' }, { status: 400 });
     }
 
+    const volumetricDivisor = Math.max(1, parseInt(String(body.volumetricDivisor || 5000), 10) || 5000);
+    const baseWeightKg = Math.max(0, Number(body.baseWeightKg ?? 1.0)).toFixed(2);
+    const baseWeightPrice = Math.max(0, Number(body.baseWeightPrice ?? 0.0)).toFixed(2);
+    const incrementalWeightRate = Math.max(0, Number(body.incrementalWeightRate ?? 10.0)).toFixed(2);
+
     const [savedSettings] = await tx
       .insert(platformDeliverySettings)
       .values({
         pricePerKm: pricePerKm.toString(),
         urgentDeliveryFee: Number(body.urgentDeliveryFee || 0).toString(),
+        volumetricDivisor,
+        baseWeightKg,
+        baseWeightPrice,
+        incrementalWeightRate,
         currencyCode: body.currencyCode || 'PHP',
         updatedBy: claims.userId as number,
       })

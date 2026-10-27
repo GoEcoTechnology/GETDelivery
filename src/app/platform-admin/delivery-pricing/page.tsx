@@ -44,6 +44,10 @@ export default function DeliveryPricingPage() {
   const [currencyCode, setCurrencyCode] = useState('PHP');
   const [pricePerKm, setPricePerKm] = useState('20');
   const [urgentDeliveryFee, setUrgentDeliveryFee] = useState('50');
+  const [volumetricDivisor, setVolumetricDivisor] = useState('5000');
+  const [baseWeightKg, setBaseWeightKg] = useState('1.00');
+  const [baseWeightPrice, setBaseWeightPrice] = useState('0.00');
+  const [incrementalWeightRate, setIncrementalWeightRate] = useState('10.00');
   const [rates, setRates] = useState<RateRow[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<string[]>([]);
   const [newVehicle, setNewVehicle] = useState('');
@@ -85,6 +89,10 @@ export default function DeliveryPricingPage() {
           setCurrencyCode(json.data?.settings?.currencyCode || 'PHP');
           setPricePerKm(String(json.data?.settings?.pricePerKm || '20'));
           setUrgentDeliveryFee(String(json.data?.settings?.urgentDeliveryFee || '50'));
+          setVolumetricDivisor(String(json.data?.settings?.volumetricDivisor || '5000'));
+          setBaseWeightKg(String(json.data?.settings?.baseWeightKg ?? '1.00'));
+          setBaseWeightPrice(String(json.data?.settings?.baseWeightPrice ?? '0.00'));
+          setIncrementalWeightRate(String(json.data?.settings?.incrementalWeightRate ?? '10.00'));
           setRates(json.data?.rates || []);
           setVehicleTypes((json.data?.vehicleTypes || []).map((v: { vehicleType: string }) => v.vehicleType));
         }
@@ -244,6 +252,10 @@ export default function DeliveryPricingPage() {
             currencyCode,
             pricePerKm: Number(pricePerKm),
             urgentDeliveryFee: Number(urgentDeliveryFee),
+            volumetricDivisor: Number(volumetricDivisor) || 5000,
+            baseWeightKg: Number(baseWeightKg) || 1.0,
+            baseWeightPrice: Number(baseWeightPrice) || 0.0,
+            incrementalWeightRate: Number(incrementalWeightRate) || 10.0,
             rates: mergedRates.map(r => ({ 
               vehicleType: r.vehicleType, 
               basePrice: 0, 
@@ -311,38 +323,118 @@ export default function DeliveryPricingPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginBottom: '32px' }}>
         {/* Global Settings */}
         <div style={{ background: '#fff', borderRadius: '20px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 40px -10px rgba(15,23,42,0.05)' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ background: '#eff6ff', padding: '8px', borderRadius: '10px', color: '#3b82f6' }}><Settings size={18} /></div>
-            Global Settings
+            Weight & Rush Settings
           </h2>
+          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '24px', lineHeight: 1.5 }}>
+            Customers pay by distance plus extra weight/bulkiness. The system automatically converts bulky box sizes into kilograms so large items pay fairly.
+          </p>
           
-          <div style={{ display: 'grid', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+            {/* Free Weight Allowance */}
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Urgent Delivery Fee</label>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
+                Free Included Weight (kg)
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type="number" min="0" step="0.1" 
+                  value={baseWeightKg} 
+                  onChange={e => setBaseWeightKg(e.target.value)} 
+                  placeholder="1.0"
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '15px', fontWeight: 600, color: '#0f172a', transition: 'all 0.2s', outline: 'none', background: '#f8fafc' }}
+                  onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={e => e.target.style.borderColor = '#cbd5e1'}
+                />
+              </div>
+              <span style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                Packages up to this weight have no added weight fee.
+              </span>
+            </div>
+
+            {/* Extra Weight Fee */}
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
+                Extra Fee per kg
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 600 }}>{currencyCode === 'PHP' ? '₱' : currencyCode}</span>
+                <input 
+                  type="number" min="0" step="0.01" 
+                  value={incrementalWeightRate} 
+                  onChange={e => setIncrementalWeightRate(e.target.value)} 
+                  placeholder="10.00"
+                  style={{ width: '100%', padding: '12px 16px 12px 36px', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '15px', fontWeight: 600, color: '#0f172a', transition: 'all 0.2s', outline: 'none', background: '#f8fafc' }}
+                  onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={e => e.target.style.borderColor = '#cbd5e1'}
+                />
+              </div>
+              <span style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                Charged for each additional kg over the free allowance.
+              </span>
+            </div>
+
+            {/* Urgent Fee */}
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
+                Rush Delivery Fee
+              </label>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 600 }}>{currencyCode === 'PHP' ? '₱' : currencyCode}</span>
                 <input 
                   type="number" min="0" step="0.01" 
                   value={urgentDeliveryFee} 
                   onChange={e => setUrgentDeliveryFee(e.target.value)} 
-                  style={{ width: '100%', padding: '14px 16px 14px 36px', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '15px', fontWeight: 600, color: '#0f172a', transition: 'all 0.2s', outline: 'none', background: '#f8fafc' }}
+                  style={{ width: '100%', padding: '12px 16px 12px 36px', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '15px', fontWeight: 600, color: '#0f172a', transition: 'all 0.2s', outline: 'none', background: '#f8fafc' }}
                   onFocus={e => e.target.style.borderColor = '#3b82f6'}
                   onBlur={e => e.target.style.borderColor = '#cbd5e1'}
                 />
               </div>
+              <span style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                Added only when customer requests priority delivery.
+              </span>
+            </div>
+
+            {/* Bulky Package Divisor */}
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
+                Box Size Divisor
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type="number" min="1" step="1" 
+                  value={volumetricDivisor} 
+                  onChange={e => setVolumetricDivisor(e.target.value)} 
+                  placeholder="5000"
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '15px', fontWeight: 600, color: '#0f172a', transition: 'all 0.2s', outline: 'none', background: '#f8fafc' }}
+                  onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={e => e.target.style.borderColor = '#cbd5e1'}
+                />
+              </div>
+              <span style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                Converts box size (L×W×H cm) into kg. Industry standard is 5000.
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Info Card */}
-        <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '20px', padding: '32px', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', boxShadow: '0 20px 40px -15px rgba(15,23,42,0.4)' }}>
-          <div style={{ position: 'absolute', right: '-20px', top: '-20px', opacity: 0.1, transform: 'rotate(15deg)' }}>
+        {/* Info Card with Live Explanation */}
+        <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '20px', padding: '28px', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', boxShadow: '0 20px 40px -15px rgba(15,23,42,0.4)' }}>
+          <div style={{ position: 'absolute', right: '-20px', top: '-20px', opacity: 0.08, transform: 'rotate(15deg)' }}>
             <Zap size={140} />
           </div>
-          <h3 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px', position: 'relative', zIndex: 1 }}><DollarSign size={24} color="#38bdf8" /> Fleet Pricing Structure</h3>
-          <p style={{ color: '#94a3b8', lineHeight: 1.6, margin: 0, fontSize: '15px', position: 'relative', zIndex: 1 }}>
-            Delivery fee is calculated strictly from delivery distance and weight/size pricing. No vehicle base fees are charged to customers. Vehicles are selected based on weight capacity (kg) and 3D cargo space (L × W × H cm).
-          </p>
+          <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px', position: 'relative', zIndex: 1 }}>
+            <DollarSign size={20} color="#38bdf8" /> Simple Example
+          </h3>
+          <div style={{ background: 'rgba(255, 255, 255, 0.06)', borderRadius: '12px', padding: '14px', fontSize: '13px', lineHeight: 1.6, color: '#cbd5e1', position: 'relative', zIndex: 1 }}>
+            <div>• If a customer ships a <strong>3 kg parcel</strong>:</div>
+            <div>• First <strong>{baseWeightKg || '1'} kg</strong> is free.</div>
+            <div>• The remaining <strong>{Math.max(0, 3 - Number(baseWeightKg || 1))} kg</strong> costs <strong>+₱{((Math.max(0, 3 - Number(baseWeightKg || 1))) * Number(incrementalWeightRate || 10)).toFixed(2)}</strong>.</div>
+            <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', color: '#38bdf8', fontWeight: 600 }}>
+              Total = Distance Fee + Weight Fee
+            </div>
+          </div>
         </div>
       </div>
 

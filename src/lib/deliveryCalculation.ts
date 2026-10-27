@@ -89,6 +89,12 @@ export interface DeliveryCalculationResult {
     basePrice: number; // strictly 0 (base fee removed)
     pricePerKm: number;
     distanceFee: number;
+    actualWeightKg?: number;
+    volumetricWeightKg?: number;
+    chargeableWeightKg?: number;
+    baseWeightKg?: number;
+    baseWeightFee?: number;
+    weightFee?: number;
     normalDeliveryFee: number;
     urgentFee: number;
     totalShippingFee: number;
@@ -981,7 +987,7 @@ export async function calculateDeliveryQuote(
   // Select smallest available vehicle that fits both weight and dimensions
   const selectedVehicle = eligibleVehicles[0];
 
-  // 6. Pricing Rules Calculation (Strictly using Super Admin Delivery Pricing with ZERO Base Fee)
+  // 6. Pricing Rules Calculation (Distance + Chargeable Weight/Size Pricing with ZERO Vehicle Base Fee)
   const [platformSettings] = await db
     .select()
     .from(platformDeliverySettings)
@@ -992,9 +998,33 @@ export async function calculateDeliveryQuote(
     ? selectedVehicle.pricePerKm
     : Number(platformSettings?.pricePerKm || 20);
 
-  // Distance fee is the distance multiplied by per-km rate (strictly NO base fee!)
+  // Distance fee is the distance multiplied by per-km rate (strictly NO vehicle base fee!)
   const distanceFee = Math.round(distanceKm * pricePerKm * 100) / 100;
-  const normalDeliveryFee = distanceFee; // Strictly NO basePrice
+
+  // Weight & Size (Shopee / TikTok style volumetric calculation)
+  // 1. Actual weight is total cargo weight in kg
+  const actualWeightKg = Math.max(0.01, Math.round(totalWeightKg * 100) / 100);
+
+  // 2. Volumetric weight = (Length * Width * Height in cm) / Volumetric Divisor (default: 5000)
+  const divisor = Math.max(1, Number(platformSettings?.volumetricDivisor || 5000));
+  const rawVolumetric = (packedDimensions.lengthCm * packedDimensions.widthCm * packedDimensions.heightCm) / divisor;
+  const volumetricWeightKg = Math.round(rawVolumetric * 100) / 100;
+
+  // 3. Chargeable weight is the greater of actual weight and volumetric weight
+  const chargeableWeightKg = Math.round(Math.max(actualWeightKg, volumetricWeightKg) * 100) / 100;
+
+  // 4. Weight Pricing Rules
+  const baseWeightKg = Math.max(0, Number(platformSettings?.baseWeightKg ?? 1.0));
+  const baseWeightPrice = Math.max(0, Number(platformSettings?.baseWeightPrice ?? 0.0));
+  const incrementalRate = Math.max(0, Number(platformSettings?.incrementalWeightRate ?? 10.0));
+
+  // Additional weight beyond base weight
+  const excessWeightKg = Math.max(0, chargeableWeightKg - baseWeightKg);
+  const incrementalWeightFee = Math.round(excessWeightKg * incrementalRate * 100) / 100;
+  const totalWeightFee = Math.round((baseWeightPrice + incrementalWeightFee) * 100) / 100;
+
+  // Normal Delivery Fee combines distance fee + weight/size fee (strictly NO vehicle base fee)
+  const normalDeliveryFee = Math.round((distanceFee + totalWeightFee) * 100) / 100;
   const urgentFee = priority === 'URGENT' ? Number(platformSettings?.urgentDeliveryFee || 0) : 0;
   const totalShippingFee = Math.round((normalDeliveryFee + urgentFee) * 100) / 100;
   const grandTotal = Math.round((itemsSubtotal + totalShippingFee) * 100) / 100;
@@ -1023,6 +1053,12 @@ export async function calculateDeliveryQuote(
       basePrice: 0, // strictly 0
       pricePerKm,
       distanceFee,
+      actualWeightKg,
+      volumetricWeightKg,
+      chargeableWeightKg,
+      baseWeightKg,
+      baseWeightFee: baseWeightPrice,
+      weightFee: totalWeightFee,
       normalDeliveryFee,
       urgentFee,
       totalShippingFee,
@@ -1044,6 +1080,14 @@ export async function calculateDeliveryQuote(
       distanceKm,
       pricePerKm,
       distanceFee,
+      actualWeightKg,
+      volumetricWeightKg,
+      chargeableWeightKg,
+      volumetricDivisor: divisor,
+      baseWeightKg,
+      baseWeightPrice,
+      incrementalWeightRate: incrementalRate,
+      weightFee: totalWeightFee,
       urgentFee,
       totalShippingFee,
       packageCategory: packageCategory.code,
