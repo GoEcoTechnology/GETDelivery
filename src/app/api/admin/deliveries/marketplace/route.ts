@@ -35,6 +35,27 @@ export async function GET(request: Request) {
       console.warn('Background purge error in marketplace route:', err);
     });
 
+    const statusParam = searchParams.get('status');
+    const limitParam = parseInt(searchParams.get('limit') || '200', 10);
+    const limit = Math.min(Math.max(1, limitParam), 1000);
+
+    const conditions: any[] = [
+      tenantIdToUse ? eq(deliveryBatches.tenantId, tenantIdToUse) : undefined,
+    ];
+
+    if (statusParam) {
+      if (statusParam.includes(',')) {
+        const statuses = statusParam.split(',').map(s => s.trim()).filter(Boolean);
+        conditions.push(inArray(deliveryBatches.status, statuses));
+      } else {
+        conditions.push(eq(deliveryBatches.status, statusParam));
+      }
+    } else {
+      conditions.push(ne(deliveryBatches.status, 'DRAFT'));
+    }
+
+    const whereClause = and(...conditions.filter(Boolean));
+
     // Fetch Completed Batches (Marketplace Deliveries)
     const batchesData = await db
       .select({
@@ -59,10 +80,8 @@ export async function GET(request: Request) {
       .leftJoin(productVariants, eq(deliveryBatches.variantId, productVariants.id))
       .leftJoin(products, eq(productVariants.productId, products.id))
       .leftJoin(vehicles, eq(deliveryBatches.suggestedVehicleId, vehicles.id))
-      .where(and(
-        tenantIdToUse ? eq(deliveryBatches.tenantId, tenantIdToUse) : undefined,
-        ne(deliveryBatches.status, 'DRAFT')
-      ))
+      .where(whereClause)
+      .limit(limit)
       .orderBy(desc(deliveryBatches.createdAt));
       
     const batchIds = batchesData.map(b => b.id);

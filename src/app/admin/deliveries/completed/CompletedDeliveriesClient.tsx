@@ -120,12 +120,11 @@ export default function CompletedDeliveriesClient() {
   const { data: marketplaceBatches = [], isLoading: loadingBatches, refetch: refetchBatches } = useQuery({
     queryKey: ['completed-marketplace-batches'],
     queryFn: async () => {
-      const res = await fetch('/api/admin/deliveries/marketplace', {
+      const res = await fetch('/api/admin/deliveries/marketplace?status=DELIVERED,COMPLETED&limit=300', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
       });
       if (!res.ok) throw new Error('Failed to fetch marketplace batches');
-      const all = await res.json();
-      return (all || []).filter((b: any) => b.status === 'DELIVERED' || b.status === 'COMPLETED');
+      return res.json();
     },
     refetchInterval: 30_000,
   });

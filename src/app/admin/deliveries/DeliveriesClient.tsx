@@ -162,14 +162,12 @@ export default function DeliveriesClient({ initialData, defaultTab }: { initialD
   const exportCompletedDeliveries = async () => {
     try {
       setExporting(true);
-      const res = await fetch(`/api/deliveries?page=1&limit=100000`, {
+      const res = await fetch(`/api/deliveries?page=1&limit=5000&status=DELIVERED,COMPLETED`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
       });
       if (!res.ok) throw new Error('Failed to fetch deliveries for export');
       const json = await res.json();
-      const allData = json.data || [];
-      
-      const completedData = allData.filter((d: any) => d.status === 'COMPLETED' || d.status === 'DELIVERED');
+      const completedData = json.data || [];
       
       if (completedData.length === 0 && completedBatches.length === 0) {
         showToast('No completed deliveries found to export.', 'error');
